@@ -12,7 +12,7 @@ ROOT = Path(__file__).resolve().parent.parent
 
 @lru_cache
 def settings() -> dict:
-    with open(ROOT / "config.yaml") as f:
+    with open(ROOT / "config.yaml", encoding="utf-8") as f:
         return yaml.safe_load(f)
 
 
@@ -22,7 +22,7 @@ def path(key: str) -> Path:
 
 @lru_cache
 def hubs() -> list[dict]:
-    with open(path("hubs_file")) as f:
+    with open(path("hubs_file"), encoding="utf-8") as f:
         return json.load(f)
 
 

@@ -69,7 +69,7 @@ def fetch_national_frequencies() -> list[dict]:
 def refresh() -> None:
     cache = path("cache_dir")
     cache.mkdir(parents=True, exist_ok=True)
-    (cache / "nri_hubs.json").write_text(json.dumps(fetch_hub_counties(), indent=1))
+    (cache / "nri_hubs.json").write_text(json.dumps(fetch_hub_counties(), indent=1), encoding="utf-8")
     national = fetch_national_frequencies()
-    (cache / "nri_national.json").write_text(json.dumps(national))
+    (cache / "nri_national.json").write_text(json.dumps(national), encoding="utf-8")
     print(f"NRI: cached {len(hubs())} hub counties and {len(national)} national rows")

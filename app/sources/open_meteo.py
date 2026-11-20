@@ -60,7 +60,7 @@ def refresh(force: bool = False) -> None:
             print(f"Open-Meteo: {h['id']} already cached")
             continue
         body = fetch_hub(h)
-        f.write_text(json.dumps(body))
+        f.write_text(json.dumps(body), encoding="utf-8")
         print(f"Open-Meteo: cached {h['id']} ({len(body['daily']['time'])} days, "
               f"grid {body['latitude']:.3f},{body['longitude']:.3f})")
         time.sleep(1)  # be polite to a free API

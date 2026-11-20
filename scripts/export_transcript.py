@@ -58,7 +58,7 @@ def convert(path: str) -> str:
            "", "Exported from the Claude Code session log. System reminders are removed, email "
            "addresses redacted, and long tool outputs truncated. The assistant's internal "
            "reasoning is not included (it is not stored in readable form).", ""]
-    for line in open(path):
+    for line in open(path, encoding="utf-8"):
         d = json.loads(line)
         if d.get("isSidechain") or d.get("type") not in ("user", "assistant"):
             continue
@@ -101,9 +101,9 @@ def main() -> None:
     args = ap.parse_args()
     md = convert(args.path or default_transcript())
     if args.plan and Path(args.plan).exists():
-        md += "\n\n---\n\n# Appendix: approved plan\n\n" + clean(Path(args.plan).read_text())
+        md += "\n\n---\n\n# Appendix: approved plan\n\n" + clean(Path(args.plan).read_text(encoding="utf-8"))
     dest = ROOT / "docs" / "session-transcript.md"
-    dest.write_text(md)
+    dest.write_text(md, encoding="utf-8")
     print(f"wrote {dest} ({len(md):,} chars)")
 
 

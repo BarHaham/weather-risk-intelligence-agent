@@ -59,7 +59,7 @@ def build_from_cache() -> dict:
             f = cache / f"open_meteo_{h['id']}.json"
             if not f.exists():
                 continue
-            body = json.loads(f.read_text())
+            body = json.loads(f.read_text(encoding="utf-8"))
             d = body["daily"]
             rows = list(zip([h["id"]] * len(d["time"]), d["time"], d["snowfall_sum"],
                             d["precipitation_sum"], d["temperature_2m_max"],
@@ -71,9 +71,9 @@ def build_from_cache() -> dict:
             loaded["weather_hubs"].append(h["id"])
         hub_file, nat_file = cache / "nri_hubs.json", cache / "nri_national.json"
         if hub_file.exists() and nat_file.exists():
-            for fips, rec in json.loads(hub_file.read_text()).items():
+            for fips, rec in json.loads(hub_file.read_text(encoding="utf-8")).items():
                 db.execute("INSERT OR REPLACE INTO nri_county VALUES (?,?)", (fips, json.dumps(rec)))
-            national = json.loads(nat_file.read_text())
+            national = json.loads(nat_file.read_text(encoding="utf-8"))
             p = settings()["normalisation"]["nri_cap_percentile"]
             for hz in HAZARDS:
                 # A null frequency means FEMA does not consider the hazard applicable -> 0.

@@ -93,7 +93,7 @@ def main() -> None:
     ap.add_argument("--dry-run", action="store_true")
     args = ap.parse_args()
     store.build_from_cache()
-    cases = yaml.safe_load((HERE / "cases.yaml").read_text())
+    cases = yaml.safe_load((HERE / "cases.yaml").read_text(encoding="utf-8"))
     if args.case:
         cases = [c for c in cases if c["id"] == args.case]
 
@@ -121,7 +121,7 @@ def main() -> None:
     print(f"\n{n}/{len(results)} cases passed; total tokens {tokens:,}")
     out = HERE / "results"
     out.mkdir(exist_ok=True)
-    (out / "latest.json").write_text(json.dumps(results, indent=1, default=str))
+    (out / "latest.json").write_text(json.dumps(results, indent=1, default=str), encoding="utf-8")
 
 
 if __name__ == "__main__":
