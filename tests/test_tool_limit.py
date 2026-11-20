@@ -347,3 +347,82 @@ def test_eval_line_is_unchanged_for_a_normal_answer(monkeypatch, tmp_path):
     line = eval_run.format_case_line(r)
     assert "status=" not in line and "repeated" not in line
 
+
+
+# ---------- review follow-ups ----------
+
+def test_invalid_answer_twice_before_the_limit_is_not_out_of_scope():
+    bad = msg([text('{"answer": "partial"}')], "end_turn")
+    fake = FakeClient([bad, bad])
+    out = agent.chat("q", sid(), client=fake)
+    assert out["status"] == agent.INVALID_ANSWER
+    assert out["answer"]["in_scope"] is None
+    assert all(r["tool_choice"] is None for r in fake.requests)
+
+
+def test_repeat_of_a_failed_call_keeps_the_error_flag(monkeypatch):
+    calls = counting_execute(monkeypatch)
+    bad = {"hub_id": "denver", "metric": "snowfall", "year": 2025, "threshold": -1}
+    fake = FakeClient([msg([tool_use("weather_stat", bad, "e1")], "tool_use"),
+                       msg([tool_use("weather_stat", bad, "e2")], "tool_use"), final()])
+    out = agent.chat("q", sid(), client=fake)
+    assert len(calls) == 1
+    assert [t["is_error"] for t in out["tool_calls"]] == [True, True]
+    assert fake.requests[2]["messages"][-1]["content"][0]["is_error"] is True
+
+
+def test_cut_off_after_the_limit_names_the_limit_and_counts_as_reaching_it(monkeypatch, tmp_path):
+    script = [breakdown_round(i) for i in range(MAX)] + [msg([text('{"in_')], "max_tokens")]
+    out = agent.chat("q", sid(), client=FakeClient(script))
+    assert out["status"] == "cut_off"
+    assert out["answer"]["answer"].startswith(f"Reached the {MAX}-round tool limit")
+    r = run_eval_case(monkeypatch, tmp_path, script, DALLAS)
+    assert "status=cut_off" in eval_run.format_case_line(r)
+    assert "reached the tool-round limit: dallas_why" in eval_run.summary_line([r])
+
+
+def test_cut_off_before_the_limit_is_not_reported_as_the_limit(monkeypatch, tmp_path):
+    r = run_eval_case(monkeypatch, tmp_path, [msg([text('{"in_')], "max_tokens")], DALLAS)
+    assert "status=cut_off (0 of 8 tool rounds)" in eval_run.format_case_line(r)
+    assert "tool-round limit" not in eval_run.summary_line([r])
+
+
+TWO_TURNS = {"id": "follow_up_detroit", "turns": ["Midwest winter?", "What drives Dallas?"],
+             "tools": ["get_score_breakdown"], "in_scope": True, "hubs_mentioned": ["dallas"]}
+HUB = [{"hub_id": "dallas", "hazard": "overall", "score": 34.9}]
+
+
+def test_multi_turn_eval_line_shows_each_turn_and_keeps_every_turns_calls(monkeypatch, tmp_path):
+    fake = FakeClient([breakdown_round(i) for i in range(MAX)] + [final(hubs=HUB)]
+                      + [msg([tool_use("get_score_breakdown", BREAKDOWN, "a"),
+                              tool_use("get_score_breakdown", BREAKDOWN, "b")], "tool_use"),
+                         final(hubs=HUB)])
+    monkeypatch.setattr(agent, "_client", lambda: fake)  # one script across both turns
+    monkeypatch.setattr(eval_run, "HERE", tmp_path)
+    r = eval_run.run_case(TWO_TURNS)
+    assert r["passed"], r["checks"]
+    assert [t["status"] for t in r["turns"]] == ["answered_at_tool_limit", "answered"]
+    assert [len(t["tool_calls"]) for t in r["turns"]] == [MAX, 2]  # turn 1's calls are kept
+    line = eval_run.format_case_line(r)
+    assert f"[turn 1: status=answered_at_tool_limit ({MAX} of {MAX} tool rounds, {MAX - 1} repeated calls)]" in line
+    assert "[turn 2: 1 repeated call]" in line  # an answered turn with a repeat
+    assert "reached the tool-round limit: follow_up_detroit" in eval_run.summary_line([r])
+    json.dumps(r, default=str)  # latest.json stays serialisable
+
+
+def test_failed_later_turn_keeps_the_status_of_the_turns_that_completed(monkeypatch, tmp_path):
+    fake = FakeClient([breakdown_round(i) for i in range(MAX)] + [final(hubs=HUB)]
+                      + [overloaded(), overloaded()])  # turn 2: Sonnet and Haiku both down
+    monkeypatch.setattr(agent, "_client", lambda: fake)
+    monkeypatch.setattr(eval_run, "HERE", tmp_path)
+    try:
+        eval_run.run_case(TWO_TURNS)
+        raise AssertionError("turn 2 should have failed")
+    except agent.FallbackFailedError as e:
+        r = eval_run.failed_case(TWO_TURNS, e.describe(), e.turn_models, e.turn_infos)
+    assert r["status"] == "answered_at_tool_limit" and r["tool_rounds"] == MAX
+    assert len(r["turns"]) == 1 and len(r["models"]) == 1
+    assert "reached the tool-round limit: follow_up_detroit" in eval_run.summary_line([r])
+    assert "[turn 1: status=answered_at_tool_limit" in eval_run.format_case_line(r)
+    plain = eval_run.failed_case(TWO_TURNS, "boom")
+    assert plain["status"] is None and plain["turns"] == [] and "status=" not in eval_run.format_case_line(plain)

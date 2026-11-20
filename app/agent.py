@@ -75,7 +75,8 @@ answer text; they belong in figures as "detail" and would otherwise appear twice
 answer text states; role "detail" for breakdown rows (e.g. one per month).
 - reasoning_steps: short steps you took, e.g. which tools and why.
 - data_sources, assumptions (thresholds, weights, data caveats), confidence. Take the \
-assumptions from the conditions, thresholds and caveats in the tool results you already have.
+assumptions from the tool results in this turn (conditions, thresholds, caveats); call \
+get_methodology for them only when those results don't state what you need.
 - follow_up_suggestions: up to 3 useful next questions."""
 
 
@@ -329,7 +330,7 @@ def chat(message: str, session_id: str | None = None, client=None) -> dict:
     limit_text = (f"Stopped after {max_rounds} tool rounds without a final answer. Try asking "
                   "again, or narrow the question.")
     rounds = 0           # tool rounds run this turn (pause_turn counts too, to stay bounded)
-    seen: dict[str, int] = {}  # call key -> 1-based number of its first call in this turn
+    seen: dict[str, tuple[int, bool]] = {}  # call key -> (1-based call number, is_error)
     repaired = notice_sent = False
 
     while True:
@@ -348,8 +349,10 @@ def chat(message: str, session_id: str | None = None, client=None) -> dict:
             answer, status = _out_of_band_answer("I can't help with that request."), REFUSED
             break
         if resp.stop_reason == "max_tokens":
-            answer = _out_of_band_answer("The answer was cut off (max_tokens). Please narrow "
-                                         "the question.")
+            answer = _out_of_band_answer(
+                (f"Reached the {max_rounds}-round tool limit, and the final answer was then "
+                 "cut off (max_tokens). Please narrow the question.") if final else
+                "The answer was cut off (max_tokens). Please narrow the question.")
             status = CUT_OFF
             break
         if final and resp.stop_reason in ("tool_use", "pause_turn"):
@@ -367,14 +370,15 @@ def chat(message: str, session_id: str | None = None, client=None) -> dict:
                     continue
                 args = block.input if isinstance(block.input, dict) else json.loads(block.input)
                 key = _call_key(block.name, args)
-                if key in seen:
-                    output, is_error = _repeat_result(seen[key]), False
-                    trace.append({"tool": block.name, "input": args, "is_error": False,
-                                  "repeated": True, "same_as_call": seen[key]})
+                if key in seen:  # same result as before (an error stays an error)
+                    first, is_error = seen[key]
+                    output = _repeat_result(first)
+                    trace.append({"tool": block.name, "input": args, "is_error": is_error,
+                                  "repeated": True, "same_as_call": first})
                 else:
                     output, is_error = tools.execute(block.name, args)
                     trace.append({"tool": block.name, "input": args, "is_error": is_error})
-                    seen[key] = len(trace)
+                    seen[key] = (len(trace), is_error)
                 results.append({"type": "tool_result", "tool_use_id": block.id,
                                 "content": output, "is_error": is_error})
             new.append({"role": "user", "content": results})  # all results in one message

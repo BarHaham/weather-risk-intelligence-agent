@@ -118,7 +118,7 @@
   .err { color:var(--High-text); }
   .status-note { margin:8px 0 4px; padding:6px 10px; border-left:3px solid var(--accent); background:var(--hl);
                  border-radius:4px; font-size:14px; }
-  .status-note p { margin:2px 0; }
+  .bot .status-note p { margin:2px 0; }
   /* ---------- atlas ---------- */
   .atlas-panel { padding:16px 18px 14px; }
   @media (min-width: 900px) {  /* same height as the chat; the atlas scrolls inside itself if needed */
@@ -307,7 +307,7 @@ function renderAnswer(r) {
       <b>Reasoning steps</b>${list(a.reasoning_steps)}
       <b>Data sources</b>${list(a.data_sources)}
       <b>Assumptions</b>${list(a.assumptions)}
-      <b>Tool calls</b><ul>${tools || "<li class='meta'>none</li>"}</ul>
+      <b>Tool calls</b>${tools ? `<ol>${tools}</ol>` : "<p class='meta'>none</p>"}
     </details>
     <div class="follow">${follow}</div>`, "bot");
   el.querySelectorAll(".follow button").forEach(b => { b.onclick = () => ask(b.textContent); b.disabled = busy; });

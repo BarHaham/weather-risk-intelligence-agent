@@ -189,7 +189,14 @@ def turn_info(result: dict) -> dict:
     return {"status": result.get("status", agent.ANSWERED),
             "tool_rounds": result.get("tool_rounds", 0),
             "max_tool_rounds": result.get("max_tool_rounds"),
-            "repeated_calls": sum(1 for t in result.get("tool_calls", []) if t.get("repeated"))}
+            "repeated_calls": sum(1 for t in result.get("tool_calls", []) if t.get("repeated")),
+            "tool_calls": result.get("tool_calls", [])}
+
+
+def reached_limit(t: dict) -> bool:
+    """The turn used every allowed tool round (so the tools-off final reply was sent),
+    whatever happened next (answered, cut off, refused, no valid answer)."""
+    return bool(t.get("max_tool_rounds")) and t.get("tool_rounds", 0) >= t["max_tool_rounds"]
 
 
 def run_case(case: dict) -> dict:
@@ -201,7 +208,8 @@ def run_case(case: dict) -> dict:
         try:
             result = agent.chat(turn, sid)
         except Exception as e:
-            e.turn_models = turn_models  # models of the turns that did complete
+            e.turn_models = turn_models  # models and status of the turns that did complete
+            e.turn_infos = turns
             raise
         turn_models.append(result["models"])
         turns.append(turn_info(result))
@@ -211,15 +219,19 @@ def run_case(case: dict) -> dict:
             "skipped": len(decided) < len(checks), "seconds": round(time.time() - t0, 1),
             "checks": checks, "answered_by": result["models"]["answered_by"],
             "models": turn_models, "status": turns[-1]["status"],
-            "tool_rounds": turns[-1]["tool_rounds"], "turns": turns, "answer": result["answer"],
+            "tool_rounds": turns[-1]["tool_rounds"], "turns": turns, "case_turns": len(case["turns"]),
+            "answer": result["answer"],
             "tool_calls": result["tool_calls"], "usage": result["usage"]}
 
 
-def failed_case(case: dict, reason: str, models: list | None = None) -> dict:
+def failed_case(case: dict, reason: str, models: list | None = None,
+                turns: list | None = None) -> dict:
+    turns = turns or []  # turns that completed before the API error
     return {"id": case["id"], "passed": False, "skipped": False, "seconds": 0,
             "checks": [("api call", False, reason)], "answered_by": None,
-            "models": models or [], "status": None, "tool_rounds": 0, "turns": [],
-            "answer": None, "tool_calls": [],
+            "models": models or [], "status": turns[-1]["status"] if turns else None,
+            "tool_rounds": turns[-1]["tool_rounds"] if turns else 0, "turns": turns,
+            "case_turns": len(case.get("turns", [])), "answer": None, "tool_calls": [],
             "usage": {"input_tokens": 0, "output_tokens": 0}}
 
 
@@ -238,8 +250,9 @@ def format_case_line(r: dict) -> str:
             where = f" (turn {i})" if len(turns) > 1 else ""
             line += f" [fallback from {fb['from']}{where}: {fb['reason']}]"
     infos = r.get("turns") or []
+    multi = r.get("case_turns", len(infos)) > 1
     for i, t in enumerate(infos, 1):
-        where = f"turn {i}: " if len(infos) > 1 else ""
+        where = f"turn {i}: " if multi else ""
         repeats = (f", {t['repeated_calls']} repeated call{'s' if t['repeated_calls'] != 1 else ''}"
                    if t.get("repeated_calls") else "")
         if t["status"] != agent.ANSWERED:  # e.g. answered only after the tool-round limit
@@ -267,8 +280,7 @@ def summary_line(results: list[dict]) -> str:
     fallback_ids = [r["id"] for r in results if any(m.get("fallback") for m in r.get("models") or [])]
     if fallback_ids:
         text += f" (fallback: {', '.join(fallback_ids)})"
-    limit_ids = [r["id"] for r in results if any(
-        t["status"] in (agent.ANSWERED_AT_TOOL_LIMIT, agent.TOOL_LIMIT) for t in r.get("turns") or [])]
+    limit_ids = [r["id"] for r in results if any(reached_limit(t) for t in r.get("turns") or [])]
     if limit_ids:
         text += f"; reached the tool-round limit: {', '.join(limit_ids)}"
     return _ascii(text)
@@ -325,9 +337,11 @@ def main() -> None:
                                                "calls": [], "fallback": {
                                                    "from": e.primary_model, "to": e.fallback_model,
                                                    "reason": agent.describe_error(e.primary_error),
-                                                   "fallback_error": agent.describe_error(e.fallback_error)}}])
+                                                   "fallback_error": agent.describe_error(e.fallback_error)}}],
+                            getattr(e, "turn_infos", []))
         except anthropic.APIError as e:  # keep going; record the case as failed
-            r = failed_case(c, agent.describe_error(e), getattr(e, "turn_models", []))
+            r = failed_case(c, agent.describe_error(e), getattr(e, "turn_models", []),
+                            getattr(e, "turn_infos", []))
         results.append(r)
         print(format_case_line(r))
         for line in format_check_lines(r):

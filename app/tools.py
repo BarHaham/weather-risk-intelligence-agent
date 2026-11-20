@@ -84,10 +84,12 @@ TOOL_DEFS: list[dict] = [
         "name": "get_methodology",
         "description": "The scoring method: data sources, hazard components, weights, "
                        "normalisation caps, thresholds, tiers and what the score leaves out. "
-                       "Use for questions about how the score is calculated, its weights, "
-                       "caps, thresholds or tiers, or what it does not cover. Other answers "
-                       "don't need it: the other tools' results already include their own "
-                       "conditions, sources and caveats.",
+                       "Use for questions about how the score is calculated or what it does "
+                       "not cover, and when an answer needs weights, thresholds or sources "
+                       "that the other results in this turn don't state (rank_hubs results "
+                       "don't; weather_stat and get_score_breakdown results include their own "
+                       "conditions, sources and caveats). Its result never changes, so one "
+                       "call per turn is enough.",
         "input_schema": _obj({}),
     },
 ]

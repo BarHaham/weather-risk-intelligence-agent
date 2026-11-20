@@ -98,12 +98,16 @@ explains the results. It never produces scores itself.
   - **Prompt:** tool results are deterministic and complete, so a call isn't repeated.
     Assumptions come from the conditions and caveats already returned. For "why is X high", call
     `get_score_breakdown` once per hub, and if the premise doesn't match the model, say so and
-    give the actual score and tier. `get_methodology` is for questions about the method itself.
+    give the actual score and tier. `get_methodology` is for questions about the method, and for
+    weights, thresholds or sources that the turn's other results don't state (`rank_hubs`
+    doesn't; `weather_stat` and `get_score_breakdown` include their own). Its description says
+    one call per turn is enough.
     Nothing tells the model to use fewer tools: Sonnet 5.5 follows such wording literally and
     may then skip a needed call.
   - **Repeated identical calls:** within one turn, a call with the same tool and the same input
     as an earlier call isn't run again. Its result says it repeats call *n* and that the earlier
-    result is unchanged. The trace marks it `repeated` (and `same_as_call`).
+    result is unchanged; a repeat of a failed call keeps `is_error`. The trace marks it
+    `repeated` (and `same_as_call`), and the UI numbers the tool calls so *n* can be found.
   - **Finishing at the limit:** after 8 tool rounds, one more request is sent with
     `tool_choice: {"type": "none"}` and a mid-conversation system message saying the limit was
     reached and to answer from the results above. `system` and `tools` stay the same, so replayed
@@ -117,12 +121,15 @@ explains the results. It never produces scores itself.
     - `answered_at_tool_limit`: answered by the tools-off final reply. The UI shows "Reached the
       8-round tool limit …" under the answer.
     - `tool_limit`: no valid answer even then.
-    - `cut_off`, `refused` and `invalid_answer`: the other early stops.
+    - `cut_off`, `refused` and `invalid_answer`: the other early stops. A cut-off after the
+      limit says so in its message.
 
     The early stops carry a short message with `in_scope: null` (not judged), so the UI and the
     evals no longer report them as out-of-scope questions. Eval lines show any status other than
-    `answered` and the number of repeated calls, and the summary lists the cases that reached
-    the limit. The eval checks themselves are unchanged.
+    `answered` and the number of repeated calls, and the summary lists every case whose turn
+    used all 8 rounds, whatever happened next. `latest.json` keeps each turn's status, rounds and
+    tool calls (`turns`), also for a case whose later turn failed. The eval checks themselves are
+    unchanged.
 
 ### Models and availability fallback
 - **Primary:** `claude-sonnet-5-5` at effort `medium`, Sonnet 5.5's recommended start for multistep
