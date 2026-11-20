@@ -17970,6 +17970,677 @@ GitHub parsed the workflow: both pushes to this branch show as "Score changes" r
 }
 ```
 
+<details><summary>Tool result</summary>
+
+```
+wrote /home/user/weather-risk-intelligence-agent/docs/session-transcript.md (1,241,177 chars)
+emails: 0 keys: 0
+```
+</details>
+
+**Tool call:** `Bash`
+
+```json
+{
+ "command": "git add docs/session-transcript.md && git commit -q -m \"Update session transcript (score-change workflow)\n\nCo-Authored-By: Claude Opus 5.5 <[email redacted]>\nClaude-Session: https://claude.ai/code/session_01QeytEnYwkmv4kKHhrzkAmw\" && for i in 1 2 3 4; do git push -u origin claude/lucid-thompson-42z611 2>&1 | tail -1 && break; sleep $((2**i)); done; git status --short | wc -l",
+ "description": "Commit and push the transcript"
+}
+```
+
+<details><summary>Tool result</summary>
+
+```
+branch 'claude/lucid-thompson-42z611' set up to track 'origin/claude/lucid-thompson-42z611'.
+0
+```
+</details>
+
+**Tool call:** `mcp__github__pull_request_read`
+
+```json
+{
+ "method": "get",
+ "owner": "BarHaham",
+ "repo": "weather-risk-intelligence-agent",
+ "pullNumber": 1
+}
+```
+
+<details><summary>Tool result</summary>
+
+```
+{"number":1,"title":"Weather Risk Intelligence Agent: deterministic hub scoring, Claude tool-use chat, evals","body":"## Summary\nAn AI agent that helps analysts decide which of 7 US distribution hubs are most exposed to weather disruption.\n- A **deterministic Python risk model** scores each hub from public data: Open-Meteo daily gridded estimates (default Best Match model selection) and FEMA National Risk Index frequencies.\n- **Claude Sonnet 5.5** answers chat questions by calling that model through 6 strict tools, and returns a **JSON-schema-enforced** answer (`AgentAnswer`) that the UI renders.\n- If Sonnet is temporarily unavailable, the request is tried **once on Claude Haiku 5.5**, and every answer reports which model actually answered.\n- The **browser UI is a weather atlas**: a clickable US hub map and the chat share the screen; light/dark mode is switchable from the header.\n- **For a public deploy**, `/chat` needs a **reviewer access code**, which the server checks before any request reaches Claude. On Render, chat stays off until the code is set.\n- Design, architecture, storage choice and assumptions: `docs/DESIGN.md`. Run instructions (including Windows/PowerShell and Render): `README.md`. AI session transcript: `docs/session-transcript.md`.\n\n## What's included\n- `app/sources/`: Open-Meteo and FEMA NRI clients. Raw responses are cached in `data/cache/` (committed), and SQLite is rebuilt from them at startup, so the demo runs offline.\n- `app/scoring.py`: the
+… [truncated, 13821 more chars]
+```
+</details>
+
+**Tool call:** `Bash`
+
+```json
+{
+ "command": "grep -n -i \"alert\" docs/DESIGN.md README.md | head",
+ "description": "Find mentions of deferred score-change alerts"
+}
+```
+
+<details><summary>Tool result</summary>
+
+```
+docs/DESIGN.md:13:- **Out of scope:** wildfire, earthquake, drought, hail, live forecasts and alerts, other cities.
+docs/DESIGN.md:14:- **Deferred:** voice input, and alerts when a score changes (see §9).
+docs/DESIGN.md:294:  else's score, and would make any future "score changed" alerts meaningless.
+docs/DESIGN.md:401:  - Alerts: a daily job recomputes the scores, diffs them against the last snapshot in SQLite,
+docs/DESIGN.md:403:  - Live NWS alerts as a separate overlay.
+```
+</details>
+
+**Tool call:** `Bash`
+
+```json
+{
+ "command": "sed -n '396,406p' docs/DESIGN.md",
+ "description": "Read the deferred alerts note in DESIGN"
+}
+```
+
+<details><summary>Tool result</summary>
+
+```
+- FEMA data describes the whole county.
+  - Six years of observed weather is a short climate sample.
+  - Exposure is not the same as vulnerability: building condition, backup power and the
+    hub's own network role are not modelled.
+- **Next steps:**
+  - Alerts: a daily job recomputes the scores, diffs them against the last snapshot in SQLite,
+    and posts to a webhook when a tier changes. Fixed caps make the diffs meaningful.
+  - Live NWS alerts as a separate overlay.
+  - Station data (NOAA GHCN-Daily), to measure where the gridded estimates can differ from
+    station records.
+  - Voice through the browser Web Speech API.
+```
+</details>
+
+### 🤖 Claude
+
+The design doc still lists score-change alerts as deferred. I'm updating it to match what now exists:
+
+**Tool call:** `Bash`
+
+```json
+{
+ "command": "python3 - <<'EOF'\nimport pathlib\np = pathlib.Path(\"docs/DESIGN.md\"); s = p.read_text(encoding=\"utf-8\")\nfor old, new in [\n (\"- **Deferred:** voice input, and alerts when a score changes (see \u00a79).\",\n  \"- **Deferred:** voice input. Score changes on `main` open a GitHub issue (see \\\"Score-change\\n  monitoring\\\"); alerts beyond that are a next step (\u00a79).\"),\n (\"\"\"  - Alerts: a daily job recomputes the scores, diffs them against the last snapshot in SQLite,\n    and posts to a webhook when a tier changes. Fixed caps make the diffs meaningful.\"\"\",\n  \"\"\"  - Alerts: score changes on `main` already open a GitHub issue (the \"Score changes\"\n    workflow). Next: notify a webhook or chat channel on a tier change, and a scheduled job that\n    re-fetches the upstream data (Open-Meteo revisions, new FEMA NRI releases) and reports\n    changes before anyone commits them. Fixed caps make the diffs meaningful.\"\"\"),\n]:\n    assert s.count(old) == 1, old[:60]; s = s.replace(old, new)\np.write_text(s, encoding=\"utf-8\")\nEOF\ngit add docs/DESIGN.md && git commit -q -m \"DESIGN: score-change issues are no longer deferred\n\nCo-Authored-By: Clau
+… [truncated, 309 more chars]
+```
+
+<details><summary>Tool result</summary>
+
+```
+branch 'claude/lucid-thompson-42z611' set up to track 'origin/claude/lucid-thompson-42z611'.
+a2b3b4b DESIGN: score-change issues are no longer deferred
+```
+</details>
+
+**Tool call:** `mcp__github__update_pull_request`
+
+```json
+{
+ "owner": "BarHaham",
+ "repo": "weather-risk-intelligence-agent",
+ "pullNumber": 1,
+ "body": "## Summary\nAn AI agent that helps analysts decide which of 7 US distribution hubs are most exposed to weather disruption.\n- A **deterministic Python risk model** scores each hub from public data: Open-Meteo daily gridded estimates (default Best Match model selection) and FEMA National Risk Index frequencies.\n- **Claude Sonnet 5.5** answers chat questions by calling that model through 6 strict tools, and returns a **JSON-schema-enforced** answer (`AgentAnswer`) that the UI renders.\n- If Sonnet is temporarily unavailable, the request is tried **once on Claude Haiku 5.5**, and every answer reports which model actually answered.\n- The **browser UI is a weather atlas**: a clickable US hub map and the chat share the screen; light/dark mode is switchable from the header.\n- **For a public deploy**, `/chat` needs a **reviewer access code**, which the server checks before any request reaches Claude. On Render, chat stays off until the code is set.\n- **Score changes on `main` open a GitHub issue**, with old and new scores and tier changes highlighted.\n- Design, architecture, storage choice 
+… [truncated, 10648 more chars]
+```
+
+**Tool call:** `TaskUpdate`
+
+```json
+{
+ "taskId": "29",
+ "status": "completed"
+}
+```
+
+<details><summary>Tool result</summary>
+
+```
+{"id":"5411194102","url":"https://github.com/BarHaham/weather-risk-intelligence-agent/pull/1"}
+```
+</details>
+
+<details><summary>Tool result</summary>
+
+```
+Updated task #29 status
+```
+</details>
+
+### 🤖 Claude
+
+The score-change workflow is built and pushed. It hasn't opened a real issue yet: it only acts on pushes to `main`, and the first one won't have earlier scores to compare.
+
+**What it does:** on every push to `main`, it recalculates every hub's scores for the commit before the push and for the pushed commit. Each version uses its own data, config and scoring code, so no API key or network is needed. If any hub's overall score changed, it opens one issue showing:
+- old and new score, the change, tier and rank
+- how far each hub now is from the nearest tier cutoff (e.g. "0.1 below Moderate (35)")
+- the hazard sub-scores that moved
+
+A tier change, like Dallas going from 34.9 Low to 35.0 Moderate, is highlighted at the top of the issue and labelled `tier-change`.
+
+**Your two requirements:**
+- **No duplicates:** each issue carries a hidden marker for its pair of commits. Before opening one, the workflow checks all existing issues, open or closed, so re-running the same push opens nothing new. Removing the label from an issue doesn't break this.
+- **Skip vs. fail:**
+  - **Skipped, with a note:** the first merge into today's empty `main`. I ran that exact case against the real `main`, and it skips as intended.
+  - **Failed (a red run with the error):** an earlier version exists but its scores can't be calculated, or the earlier commit can't be found. After a force push, the old commit is fetched first.
+
+**Example on real data:** comparing the first commit with the app against today produces an issue flagging Houston High → Moderate (56.7 → 47.4). Houston was High then because its full weather history hadn't been downloaded yet.
+
+**Checks:**
+- All 271 tests pass. The 30 new ones use a temporary git history (empty, working and broken versions) and a fake GitHub CLI for the duplicate cases, and they catch the bugs they target.
+- GitHub accepted and parsed the workflow; pushes to this branch show as skipped runs.
+- An independent review found five issues, all now fixed. The main one: the duplicate check relied on GitHub search, which can lag, so a re-run could have opened a second issue.
+
+**After you merge:**
+- To try it without opening an issue: Actions → Score changes → Run workflow, set `before` to an older commit and leave `dry_run` on. The button appears only once the workflow is on `main`.
+- If opening an issue fails with a 403, allow write access under Settings → Actions → General → Workflow permissions.
+- To watch a branch other than `main`, set the repository variable `DEPLOY_BRANCH`.
+
+Everything is pushed to `claude/lucid-thompson-42z611`, and [PR #1](https://github.com/BarHaham/weather-risk-intelligence-agent/pull/1), the README and `docs/DESIGN.md` are updated.
+
+---
+
+## 🧑 User
+
+Let’s add voice input to the chat. I’d like to click a mic, ask a question in English, and edit the text before I hit Ask. Can we use the browser’s built-in speech recognition and make it work for follow-up questions too?
+
+### 🤖 Claude
+
+I'll add a mic button to every question box: the opening box, the follow-up bar and the hub card. It will use the browser's built-in speech recognition in English, fill in the text live, and never send anything on its own, so you can edit before pressing Ask. First, a look at the current markup:
+
+**Tool call:** `Bash`
+
+```json
+{
+ "command": "sed -n '188,206p' app/static/index.html; grep -n 'id=\"hubask\"' -B2 -A3 app/static/index.html; grep -n '\\$(\"f0\")\\|\\$(\"f\")\\|hubask\\|onsubmit\\|addEventListener(\"submit\"' app/static/index.html | head -20; grep -n \"^  \\.askbox\\|^  \\.askbar\\|^  \\.send\\|\\.sr-only\\|visually-hidden\" app/static/index.html",
+ "description": "Read the ask forms and their handlers"
+}
+```
+
+<details><summary>Tool result</summary>
+
+```
+<main class="atlas">
+  <section class="panel chat empty" id="chat" aria-label="Chat">
+    <div class="chat-head"><h2>Ask about your hubs</h2><button type="button" class="linklike" id="newchat">New conversation</button></div>
+    <div class="welcome" id="welcome">
+      <h2 id="welcome-title">What would you like to know about your hubs?</h2>
+      <form class="askbox" id="f0">
+        <input id="q0" type="text" autocomplete="off" maxlength="2000" aria-labelledby="welcome-title"
+               placeholder="Ask about any hub">
+        <button class="send">Ask</button>
+      </form>
+      <div class="examples" id="examples" role="group" aria-label="Example questions"></div>
+      <p class="meta hint">Or pick a hub on the map to ask about it.</p>
+    </div>
+    <div id="log" aria-live="polite" tabindex="-1"></div>
+    <form class="askbar" id="f">
+      <input id="q" type="text" autocomplete="off" maxlength="2000" aria-label="Your question" placeholder="Ask a follow-up">
+      <button class="send" id="send">Ask</button>
+    </form>
+  </section>
+417-      <span class="meta">· #${esc(h.rank)} of ${HUBS.length}</span></div>
+418-    <div class="suggest"><button type="button">${esc(question)}</button></div>
+419:    <form class="askbox" id="hubask"><input type="text" autocomplete="off" maxlength="2000"
+420-      aria-label="${esc(`Ask about ${fullName(h)}`)}" placeholder="Ask about this hub…"><button class="send">Ask</button></form>`;
+421-  const suggestion = card.querySelector(".suggest
+… [truncated, 698 more chars]
+```
+</details>
+
+**Tool call:** `Bash`
+
+```json
+{
+ "command": "sed -n '410,432p;544,560p' app/static/index.html; grep -n \"Pick a hub\\|function showCard\\|hubcard\" app/static/index.html | head -5; grep -n \"\\-\\-muted\\|\\-\\-line:\" app/static/index.html | head -4",
+ "description": "Read the hub card and form submit handlers"
+}
+```
+
+<details><summary>Tool result</summary>
+
+```
+const question = `What drives ${h.city}'s ${h.tier.toLowerCase()} risk score?`;
+  const card = $("hubcard");
+  card.innerHTML = `
+    <h3 id="hub-name">${esc(fullName(h))}</h3>
+    <div class="meta">${esc(h.county)} County · ${esc(h.region)} region</div>
+    <div class="stats">Overall risk <b>${score(h.overall_score)}</b>
+      <span class="tier" style="color:var(--${esc(h.tier)}-text)">${esc(h.tier)}</span>
+      <span class="meta">· #${esc(h.rank)} of ${HUBS.length}</span></div>
+    <div class="suggest"><button type="button">${esc(question)}</button></div>
+    <form class="askbox" id="hubask"><input type="text" autocomplete="off" maxlength="2000"
+      aria-label="${esc(`Ask about ${fullName(h)}`)}" placeholder="Ask about this hub…"><button class="send">Ask</button></form>`;
+  const suggestion = card.querySelector(".suggest button");
+  suggestion.onclick = () => askAbout(h, question);
+  card.querySelector("#hubask").onsubmit = e => {
+    e.preventDefault(); const inp = e.target.querySelector("input");
+    if (askAbout(h, inp.value, true)) inp.value = ""; };     // keep the text if a request is running
+  if (busy) card.querySelectorAll("button").forEach(b => b.disabled = true);
+  if (stacked()) card.scrollIntoView({ behavior: "smooth", block: "nearest" });
+  if (opts.keyboard) suggestion.focus({ preventScroll: true });  // keyboard users land on the question
+}
+
+// Keep city labels readable: try right, left, right-below, below and above each marker, and take
+// the first spot
+… [truncated, 1437 more chars]
+```
+</details>
+
+### 🤖 Claude
+
+Now the voice-input code in `index.html`:
+
+**Tool call:** `Bash`
+
+```json
+{
+ "command": "python3 - <<'EOF'\nimport pathlib\np = pathlib.Path(\"app/static/index.html\"); s = p.read_text(encoding=\"utf-8\")\ndef rep(old, new):\n    global s\n    assert s.count(old) == 1, old[:80]; s = s.replace(old, new)\n\n# CSS\nrep('''  .send { padding:11px 18px; border-radius:10px; border:0; background:var(--ink); color:var(--panel); font-weight:600; cursor:pointer; }''',\n'''  .send { padding:11px 18px; border-radius:10px; border:0; background:var(--ink); color:var(--panel); font-weight:600; cursor:pointer; }\n  /* voice input: shown only where the browser has speech recognition */\n  .mic { flex:none; width:44px; padding:0; border-radius:10px; border:1px solid var(--muted); background:var(--bg); color:var(--ink);\n         cursor:pointer; display:grid; place-items:center; }\n  .mic svg { width:20px; height:20px; }\n  .mic:hover { border-color:var(--accent); color:var(--accent); }\n  .mic[aria-pressed=\"true\"] { background:var(--accent); border-color:var(--accent); color:var(--panel); animation:micpulse 1.4s ease-in-out infinite; }\n  @keyframes micpulse { 50% { box-shadow:0 0 0 5px var(--hl); } }\n  @media (prefers-reduced-motion: reduce) { .mic[aria-pressed=\"true\
+… [truncated, 7265 more chars]
+```
+
+<details><summary>Tool result</summary>
+
+```
+438:  attachMic(card.querySelector("#hubask"), card.querySelector("#hubask input"));
+582:function attachMic(form, input) {
+645:  attachMic($(formId), $(inputId));
+271 passed, 2 warnings in 12.61s
+```
+</details>
+
+### 🤖 Claude
+
+Every question box now gets a mic, and all 271 tests still pass. Now a browser check, using a scripted stand-in for the speech engine, since headless Chromium has no microphone:
+
+**Tool call:** `Bash`
+
+```json
+{
+ "command": "S=/tmp/claude-0/-home-user-weather-risk-intelligence-agent/054feb9f-992e-53ec-86ec-b86ccf98458a/scratchpad/voice && mkdir -p $S && cp /tmp/claude-0/-home-user-weather-risk-intelligence-agent/054feb9f-992e-53ec-86ec-b86ccf98458a/scratchpad/ui2/canned.js $S/ && cat > $S/voice.js <<'EOF'\n// Browser check for voice input, with a scripted SpeechRecognition (headless has no microphone).\nconst { chromium, devices } = require('playwright');\nconst BASE = 'http://127.0.0.1:8822';\nconst CANNED = require('./canned.js');\nconst results = []; const ok = (n, c, i = '') => results.push(`${c ? 'PASS' : 'FAIL'}  ${n}${i ? '  ' + i : ''}`);\nconst FAKE = () => {\n  class FakeRec {\n    constructor() { (window.__recs = window.__recs || []).push(this); }\n    start() { if (window.__failStart) throw new Error('busy'); this.started = true; window.__active = this; }\n    stop() { this.stopped = true; setTimeout(() => this.onend && this.onend(), 5); }\n    abort() { this.aborted = true; setTimeout(() => { this.onerror && this.onerror({ error: 'aborted' }); this.onend && this.onend(); }, 5); }\n  }\n  window.SpeechRecognition = undefined; window.webkitSpeechRecognition = FakeRec;\n  windo
+… [truncated, 10676 more chars]
+```
+
+<details><summary>Tool result</summary>
+
+```
+PASS  unsupported browser: no mic buttons
+PASS  light: mic in the opening box
+PASS  light: mic sits before Ask
+PASS  light: idle label  {"pressed":"false","label":"Speak your question (English)","disabled":false}
+PASS  light: listening state
+PASS  light: English, live words, one utterance  {"lang":"en-US","interim":true,"cont":false}
+PASS  light: words appear while speaking
+PASS  light: final text in the box
+PASS  light: box focused, cursor at the end  {"focus":"q0","at":56,"len":56}
+PASS  light: nothing sent automatically
+PASS  light: the edited text is what is sent  What percentage of days in Denver last year had snowfall?
+PASS  light: mic in the follow-up bar
+PASS  light: mic stays usable while a question runs
+PASS  light: dictation adds to typed text  And for Chicago
+PASS  light: mic button stops and keeps the text
+FAIL  light: typing stops dictation, text kept  !And for Chicago in 2024
+FAIL  light: late words after stopping are ignored
+PASS  light: sending stops dictation, box stays empty
+PASS  light: blocked microphone is explained
+PASS  light: hint clears on the next try
+PASS  light: one mic at a time
+PASS  light: hub card box gets the words
+PASS  light: selecting another hub stops dictation
+PASS  light: new conversation stops dictation
+PASS  light: Tab reaches the mic
+PASS  light: Space starts it
+PASS  light: Space stops it
+PASS  light: a start failure is explained
+PASS  dark: mic in the opening box
+PASS  dark: mic sits before Ask
+PASS  dark: idle label  {"pressed":"f
+… [truncated, 1500 more chars]
+```
+</details>
+
+**Tool call:** `Bash`
+
+```json
+{
+ "command": "python3 - <<'EOF'\nimport pathlib\np = pathlib.Path(\"app/static/index.html\"); s = p.read_text(encoding=\"utf-8\")\nold = '''    input.value = [v.base, spoken].filter(Boolean).join(\" \").slice(0, max);  // added to what was typed\n  };'''\nnew = '''    input.value = [v.base, spoken].filter(Boolean).join(\" \").slice(0, max);  // added to what was typed\n    const n = input.value.length; try { input.setSelectionRange(n, n); } catch (e) {}  // keep typing at the end\n  };'''\nassert s.count(old) == 1; s = s.replace(old, new); p.write_text(s, encoding=\"utf-8\")\nEOF\nS=/tmp/claude-0/-home-user-weather-risk-intelligence-agent/054feb9f-992e-53ec-86ec-b86ccf98458a/scratchpad/voice && (python -m uvicorn app.main:app --port 8822 > $S/server.log 2>&1 & echo $! > $S/pid) && for i in $(seq 1 40); do curl -s -o /dev/null http://127.0.0.1:8822/health && break; sleep 0.25; done; cd $S && node voice.js | grep -E \"FAIL|typing|late\" ; node voice.js | grep -c PASS; kill $(cat $S/pid)",
+ "description": "Keep the caret at the end during dictation and rerun",
+ "timeout": 300000
+}
+```
+
+<details><summary>Tool result</summary>
+
+```
+FAIL  light: typing stops dictation, text kept  !And for Chicago in 2024
+FAIL  light: late words after stopping are ignored
+FAIL  dark: typing stops dictation, text kept  !And for Chicago in 2024
+FAIL  dark: late words after stopping are ignored
+54
+Shell cwd was reset to /home/user/weather-risk-intelligence-agent
+```
+</details>
+
+**Tool call:** `Bash`
+
+```json
+{
+ "command": "S=/tmp/claude-0/-home-user-weather-risk-intelligence-agent/054feb9f-992e-53ec-86ec-b86ccf98458a/scratchpad/voice && cat > $S/dbg.js <<'EOF'\nconst { chromium } = require('playwright');\n(async () => {\n  const b = await chromium.launch(); const p = await b.newPage();\n  await p.setContent('<input id=q><button id=b>m</button>');\n  await p.click('#b');\n  const r = await p.evaluate(() => { const q = document.getElementById('q'); q.value = 'And for Chicago'; q.setSelectionRange(15, 15);\n    const before = q.selectionStart; q.focus(); return { before, afterFocus: q.selectionStart }; });\n  await p.click('#b');\n  await p.type('#q', '!');\n  console.log(JSON.stringify(r), await p.inputValue('#q'));\n  await p.click('#b'); await p.evaluate(() => { const q = document.getElementById('q'); q.value = 'abc'; q.setSelectionRange(3,3); });\n  await p.locator('#q').pressSequentially('!'); console.log('pressSequentially:', await p.inputValue('#q'));\n  await p.click('#b'); await p.evaluate(() => { const q = document.getElementById('q'); q.value = 'abc'; q.setSelectionRange(3,3); });\n  await p.focus('#q'); await p.keyboard.type('!'); console.log('focus+keyboard:', await p.inputVa
+… [truncated, 143 more chars]
+```
+
+<details><summary>Tool result</summary>
+
+```
+{"before":15,"afterFocus":15} !And for Chicago
+pressSequentially: !abc
+focus+keyboard: abc!
+Shell cwd was reset to /home/user/weather-risk-intelligence-agent
+```
+</details>
+
+**Tool call:** `Bash`
+
+```json
+{
+ "command": "S=/tmp/claude-0/-home-user-weather-risk-intelligence-agent/054feb9f-992e-53ec-86ec-b86ccf98458a/scratchpad/voice && sed -i \"s/    await p.type('#q', '!');/    await p.focus('#q'); await p.keyboard.type('!');/\" $S/voice.js && cd /home/user/weather-risk-intelligence-agent && (python -m uvicorn app.main:app --port 8822 > $S/server.log 2>&1 & echo $! > $S/pid) && for i in $(seq 1 40); do curl -s -o /dev/null http://127.0.0.1:8822/health && break; sleep 0.25; done; cd $S && node voice.js > $S/out.txt; echo \"exit $?\"; grep -c PASS $S/out.txt; grep FAIL $S/out.txt; kill $(cat $S/pid)",
+ "description": "Use a real focus plus typing in the test; rerun",
+ "timeout": 300000
+}
+```
+
+<details><summary>Tool result</summary>
+
+```
+exit 0
+58
+Shell cwd was reset to /home/user/weather-risk-intelligence-agent
+```
+</details>
+
+### 🤖 Claude
+
+All 58 browser checks pass. A look at the screenshots:
+
+**Tool call:** `Read`
+
+```json
+{
+ "file_path": "/tmp/claude-0/-home-user-weather-risk-intelligence-agent/054feb9f-992e-53ec-86ec-b86ccf98458a/scratchpad/voice/voice-listening-light.png"
+}
+```
+
+<details><summary>Tool result</summary>
+
+```
+[image]
+```
+</details>
+
+---
+
+## 🧑 User
+
+[Image: original 2880x1800, displayed at 2000x1250. Multiply coordinates by 1.44 to map to original image.]
+
+**Tool call:** `Read`
+
+```json
+{
+ "file_path": "/tmp/claude-0/-home-user-weather-risk-intelligence-agent/054feb9f-992e-53ec-86ec-b86ccf98458a/scratchpad/voice/voice-error-dark.png"
+}
+```
+
+<details><summary>Tool result</summary>
+
+```
+[image]
+```
+</details>
+
+---
+
+## 🧑 User
+
+[Image: original 2880x1800, displayed at 2000x1250. Multiply coordinates by 1.44 to map to original image.]
+
+### 🤖 Claude
+
+The mic looks right in both themes, and the blocked-microphone message sits under the follow-up bar. Now the docs:
+
+**Tool call:** `Bash`
+
+```json
+{
+ "command": "grep -n \"Voice\\|voice\" README.md docs/DESIGN.md | head; grep -n \"^- \\*\\*Ranking and map:\\*\\*\" README.md",
+ "description": "Find voice mentions in the docs"
+}
+```
+
+<details><summary>Tool result</summary>
+
+```
+docs/DESIGN.md:14:- **Deferred:** voice input. Score changes on `main` open a GitHub issue (see "Score-change
+docs/DESIGN.md:409:  - Voice through the browser Web Speech API.
+18:- **Ranking and map:** hovering a city in the ranking highlights it on the map. Selecting it
+```
+</details>
+
+**Tool call:** `Bash`
+
+```json
+{
+ "command": "sed -n '18,21p' README.md && python3 - <<'EOF'\nimport pathlib\ndef edit(path, pairs):\n    p = pathlib.Path(path); s = p.read_text(encoding=\"utf-8\")\n    for old, new in pairs:\n        assert s.count(old) == 1, (path, old[:80], s.count(old)); s = s.replace(old, new)\n    p.write_text(s, encoding=\"utf-8\")\nedit(\"README.md\", [('''- **Ranking and map:** hovering a city in the ranking highlights it on the map. Selecting it''',\n'''- **Voice input:** click the mic next to any question box (opening screen, follow-ups, hub card)\n  and ask in English.\n  - The words appear in the box as you speak. Nothing is sent until you press **Ask**, so you can\n    edit the text first.\n  - Click the mic again, or start typing, to stop.\n  - It uses the browser's built-in speech recognition, in Chrome, Edge and Safari. Where the\n    browser has none (e.g. Firefox), there is no mic and typing works as before.\n  - The browser handles the audio (Chrome sends it to Google's speech service). This app's\n    server only receives the text you send.\n  - It needs HTTPS or `localhost`: Render and `http://127.0.0.1:8000` both work. If microphone\n    access is blocked, a short note exp
+… [truncated, 826 more chars]
+```
+
+<details><summary>Tool result</summary>
+
+```
+- **Ranking and map:** hovering a city in the ranking highlights it on the map. Selecting it
+  shows the full name ("Houston, Texas"), its score and tier, and a question you can ask
+  about that hub.
+
+184:### Chat UI and hub map
+185-- **Main result first.** Each answer shows its text first. Every number then sits in one
+186-  collapsed **Breakdown** section: headline figures first, then the detail rows.
+187-  - The answer schema makes the model mark each figure `headline` (a number the answer text
+```
+</details>
+
+**Tool call:** `Bash`
+
+```json
+{
+ "command": "python3 - <<'EOF'\nimport pathlib\np = pathlib.Path(\"docs/DESIGN.md\"); s = p.read_text(encoding=\"utf-8\")\nold = '''### Chat UI and hub map\n'''\nnew = '''### Chat UI and hub map\n- **Voice input** (`index.html`, no server change).\n  - **How it works:** each question box (opening screen, follow-up bar, hub card) gets a mic\n    button when the browser has `SpeechRecognition` / `webkitSpeechRecognition`. That covers\n    Chrome, Edge and Safari; elsewhere there is no button.\n  - **Recognition:** `lang = \"en-US\"`, interim results on, one utterance per click.\n  - **The text:** words go into the box as they are recognised, added after any typed text,\n    within the box's 2000-character limit. Nothing is submitted, so the analyst edits and presses\n    Ask.\n  - **Stopping:** the mic button stops and keeps what was heard. Typing, sending, a new\n    conversation, picking another hub or starting another mic abort at once, and late results\n    are ignored. Only one mic runs at a time.\n  - **While a question is running,** the mic stays usable: only the Ask buttons are disabled.\n  - **Errors** (microphone blocked, no microphone, no speech, network, start failure) 
+… [truncated, 1696 more chars]
+```
+
+<details><summary>Tool result</summary>
+
+```
+271 passed, 2 warnings in 11.23s
+branch 'claude/lucid-thompson-42z611' set up to track 'origin/claude/lucid-thompson-42z611'.
+2c9d25f Voice input: speak a question, edit it, then press Ask
+```
+</details>
+
+### 🤖 Claude
+
+Pushed. Now an independent adversarial review of the voice feature:
+
+**Tool call:** `Workflow`
+
+```json
+{
+ "script": "export const meta = {\n  name: 'review-voice-input',\n  description: 'Adversarial review of browser voice input in the chat UI',\n  phases: [{ title: 'Review' }, { title: 'Verify' }],\n}\nconst REPO = '/home/user/weather-risk-intelligence-agent'\nconst SCR = '/tmp/claude-0/-home-user-weather-risk-intelligence-agent/054feb9f-992e-53ec-86ec-b86ccf98458a/scratchpad'\nconst CTX = `Repository ${REPO}. Commit HEAD 2c9d25f (\\`git -C ${REPO} show HEAD\\`) adds voice input to the single-page UI app/static/index.html (search for \"voice input\", attachMic, startVoice, stopVoice, MIC_SVG, .mic CSS) plus README/DESIGN notes.\nUser request: \"add voice input to the chat. Click a mic, ask a question in English, and edit the text before I hit Ask. Use the browser's built-in speech recognition and make it work for follow-up questions too.\"\nREAD-ONLY: don't modify repo files or commit. You may start the app (\\`python -m uvicorn app.main:app --port 88xx\\` in the background from ${REPO}; stop it afterwards) and drive it with node Playwright (require('playwright'); chromium.launch() needs no options), mocking POST /chat with page.route and replacing window.SpeechRecognition/webkitSp
+… [truncated, 3781 more chars]
+```
+
+<details><summary>Tool result</summary>
+
+```
+Workflow launched in background. Task ID: wjw44nn4m
+Summary: Adversarial review of browser voice input in the chat UI
+Transcript dir: /root/.claude/projects/-home-user-weather-risk-intelligence-agent/054feb9f-992e-53ec-86ec-b86ccf98458a/subagents/workflows/wf_c4fe2b00-5f2
+Script file: /root/.claude/projects/-home-user-weather-risk-intelligence-agent/054feb9f-992e-53ec-86ec-b86ccf98458a/workflows/scripts/review-voice-input-wf_c4fe2b00-5f2.js
+(Edit this file with Write/Edit and re-invoke Workflow with {scriptPath: "/root/.claude/projects/-home-user-weather-risk-intelligence-agent/054feb9f-992e-53ec-86ec-b86ccf98458a/workflows/scripts/review-voice-input-wf_c4fe2b00-5f2.js"} to iterate without resending the script.)
+Run ID: wf_c4fe2b00-5f2
+To resume after editing the script, with the same args if this run had any: Workflow({scriptPath: "/root/.claude/projects/-home-user-weather-risk-intelligence-agent/054feb9f-992e-53ec-86ec-b86ccf98458a/workflows/scripts/review-voice-input-wf_c4fe2b00-5f2.js", resumeFromRunId: "wf_c4fe2b00-5f2"}) — agent() calls return cached results up to the first one that failed, no longer matches (edited, added, removed, or in a different call order) or never started. Cached results may themselves be empty: inspect journal.jsonl before assuming there is something to recover.
+
+You will be notified when it completes. Use /workflows to watch live progress.
+```
+</details>
+
+### 🤖 Claude
+
+I've pushed voice input as `2c9d25f`, but it hasn't been tried with a real microphone yet. The browser checks use a scripted stand-in for speech recognition, since the test browser here has no mic. All 58 of those checks pass, and all 271 tests pass.
+
+An independent review is still running. It's checking how real Chrome and Safari deliver speech results, race conditions between the mic and sending, accessibility and phone layout. I'll fix whatever it confirms, then update the PR description and the transcript.
+
+---
+
+## 🧑 User
+
+<task-notification>
+<task-id>wjw44nn4m</task-id>
+<tool-use-id>toolu_013UzEjrRXgoWfz82QgD14KU</tool-use-id>
+<output-file>/tmp/claude-0/-home-user-weather-risk-intelligence-agent/054feb9f-992e-53ec-86ec-b86ccf98458a/tasks/wjw44nn4m.output</output-file>
+<status>completed</status>
+<summary>Dynamic workflow "Adversarial review of browser voice input in the chat UI" completed</summary>
+<result>[{"key":"behaviour","findings":[{"title":"When dictation ends, it takes focus back from whatever box the user moved to, so their keystrokes land in the wrong box (including the access code)","file":"app/static/index.html","line":625,"severity":"important","scenario":"Case 1: the user clicks the mic on the opening box, doesn't speak, clicks into the hub-card box and starts typing. A few seconds later Chrome's no-speech timeout fires and onend runs `input.focus(...)` on the opening box. Focus jumps out of the hub box mid-word and the rest of the typing goes into the opening box. Case 2: while a question is running, the user dictates the next one into the follow-up bar (the mic stays usable while busy). The server answers 401 access_code_required and accessNotice focuses the password field. The user starts typing the code, the recognizer ends, and focus jumps to the follow-up box, so the rest of the code is typed there in plain text. In both cases dictation also keeps writing into the box the user has left, because only that box's own `input` event stops it (line 593).","evidence":"Scripted recognizer at /tmp/claude-0/-home-user-weather-risk-intelligence-agent/054feb9f-992e-53ec-86ec-b86ccf98458a/scratchpad/review-voice/r2.js and r1.js against the app on :8847. B2: `active= q0 | hub box= \"how often does it \" | opening box= \"snow\" | hint: Didn't catch that.` C (access prompt): `C prompt shown: active= INPUT[password] mic pressed= true` then after onend `active= q[text] code field= s3cr | question box= what about Denveret-42`. B: `hub box= how many snow | follow-up box= and for Chicago days`. Code: onend calls `input.focus({ preventScroll: true }); // ready to edit before pressing Ask` with no check that focus is still on the mic or the box (document.activeElement).","verdict":{"title":"When dictation ends, it takes focus back from whatever box the user moved to, so their keystrokes land in the wrong box (including the access code)","real":true,"reason":"Reproduced with my own scripted recognizer on :8869 (scratchpad review-voice/verify/v.js, page.click/focus plus keyboard.type). Case 1: I clicked the mic on #f0 and did not speak. I clicked into the hub box and typed 'how often does it '. Firing Chrome's no-speech error and end then moved focus to #q0, and the rest of the typing landed there: hub=\"how often does it \", q0=\"snow\". Access-code case: the first question returns 401 access_code_required after 800 ms. The #f mic stays enabled while busy. accessNotice focused the password field, the user typed 's3cr', then onend moved focus to #q: code=\"s3cr\", #q=\"and what about Denveret-42\". The rest of the code appeared in plain text in the question box. Control: when focus stays on the mic, focusing the box at the end works as intended. The cause is that rec.onend calls input.focus() unconditionally (line 625). In real Chrome, onend fires on its own after a no-speech timeout or end of speech, so this does not need a contrived setup.","fix":"In rec.onend, only take focus back when the user hasn't moved on: `const a = document.activeElement; if (!a || a === document.body || a === btn || a === input) { input.focus({ preventScroll: true }); const n = input.value.length; try { input.setSelectionRange(n, n); } catch (e) {} }`. document.body covers Safari, where a clicked button does not take focus. Optionally, also abort dictation when the user focuses a different text box, so the words stop going into the box they left."}},{"title":"Re-sent final result is appended a second time, doubling the question with the words run together","file":"app/static/index.html","line":610,"severity":"nit","scenario":"onresult appends final text into v.final (`if (r.isFinal) v.final += r[0].transcript`) instead of rebuilding the transcript from ev.results each time. So if the same final result arrives in a second result event (resultIndex 0), the box shows the question twice with no space between the copies. The spec forbids this, but Chrome on Android is known to repeat final results: react-speech-recognition's RecognitionManager.updateTranscript ignores Android finals with confidence 0 and debounces final updates on Android by 250 ms for this reason. I did not reproduce it on a real device.","evidence":"r1.js case A: interim 'compare Miami and Houston', then the same final twice at resultIndex 0 gives `A re-delivered final at idx 0 -&gt; compare Miami and Houstoncompare Miami and Houston`. Code at line 610: `for (let i = ev.resultIndex; ...) { ... if (r.isFinal) v.final += r[0].transcript; ...}`.","verdict":{"title":"Re-sent final result is appended a second time, doubling the question with the words run together","real":false,"reason":"Real browsers cannot produce this scenario. Chromium's Blink SpeechRecognition::ResultRetrieved (third_party/blink/renderer/modules/speech/speech_recognition.cc) keeps final_results_ and sends earlier finals + new finals + new provisionals. It sets resultIndex = aggregated_results.size() - results.size(), which is the number of finals already delivered. So a final at index 0 is never inside [resultIndex, length) of a later event, and the code's `v.final +=` loop never sees it twice. WebKit uses the same accumulate-finals design. If an engine such as Android's did send a duplicate final, Blink would store it as a new final at index 1 with resultIndex 1. My Blink-faithful fake shows that both the current code and the proposed rebuild-from-ev.results fix then give the same doubled text. The reported resultIndex-0 re-delivery only happens with a fake that breaks the spec, and the suggested fix would not change the Android case.","fix":"None needed for the reported mechanism."}},{"title":"Voice error notes are never cleared; the follow-up bar's note stays visible on the opening screen after New conversation","file":"app/static/index.html","line":84,"severity":"nit","scenario":"A hint is hidden again only when that same mic is started (line 604). The empty-state CSS hides #f but not the hint inserted after it (`form.after(hint)`). So after 'Microphone access is blocked…' shows under the follow-up bar and the user clicks New conversation, the note sits alone at the bottom of the opening screen, far from any box. Likewise 'Didn't catch that' under the opening box survives a whole typed conversation and shows again on the next opening screen.","evidence":"r1.js D: `{\"emptyState\":true,\"hidden\":false,\"display\":\"block\",\"text\":\"Microphone access is blocked. ...\",\"hintTop\":853,\"fFormDisplay\":\"none\",\"q0Bottom\":416}`. Screenshot: /tmp/claude-0/-home-user-weather-risk-intelligence-agent/054feb9f-992e-53ec-86ec-b86ccf98458a/scratchpad/review-voice/D-newchat-hint.png. r1.js E: `#f0 hint hidden= false text= Didn't catch that. Click the mic and try again.` after a typed question, answer and New conversation. CSS line 84: `.chat.empty #log, .chat.empty #f, .chat.empty .chat-head { display:none; }` (no rule for `#f + .voice-hint`).","verdict":{"title":"Voice error notes are never cleared; the follow-up bar's note stays visible on the opening screen after New conversation","real":true,"reason":"Reproduced. After not-allowed on the #f mic and then New conversation, the chat is in the empty state with #f hidden. The '#f + .voice-hint' note is still displayed at y=853, at the bottom of the opening panel and far below #q0 (bottom 416). It reads 'Microphone access is blocked...'. Screenshot: /tmp/claude-0/-home-user-weather-risk-intelligence-agent/054feb9f-992e-53ec-86ec-b86ccf98458a/scratchpad/review-voice/verify/3a-newchat.png. In a second run, 'Didn't catch that. Click the mic and try again.' under #f0 lasted through a typed question and answer, and showed again on the next opening screen. Line 84's empty-state rule hides #f but not the hint inserted after it, and hints are hidden only in startVoice. This is minor and cosmetic (nit), but users do see the stale note.","fix":"Clear the notes when the context changes. In resetConversation() and
+... (truncated 20209 chars, full result in /tmp/claude-0/-home-user-weather-risk-intelligence-agent/054feb9f-992e-53ec-86ec-b86ccf98458a/tasks/wjw44nn4m.output)</result>
+<diagnostics>Per-agent results: /root/.claude/projects/-home-user-weather-risk-intelligence-agent/054feb9f-992e-53ec-86ec-b86ccf98458a/subagents/workflows/wf_c4fe2b00-5f2/journal.jsonl — one {"type":"result",...} line per completed agent with its full return value.
+If the result above is empty or unexpected, Read this file BEFORE diagnosing — do not assume agents returned non-empty results.
+To re-run with edited post-processing: Workflow({scriptPath: '/root/.claude/projects/-home-user-weather-risk-intelligence-agent/054feb9f-992e-53ec-86ec-b86ccf98458a/workflows/scripts/review-voice-input-wf_c4fe2b00-5f2.js', resumeFromRunId: 'wf_c4fe2b00-5f2'}) — agent() calls replay from cache up to the first one that failed or no longer matches (edited, added, removed, or in a different call order); that call and every later one run again. A call a usage limit refused usually runs again without ending reuse: finished calls after it still come from cache.</diagnostics>
+<usage><agent_count>4</agent_count><agents_done>4</agents_done><agents_error>0</agents_error><agents_skipped>0</agents_skipped><agents_empty_result>0</agents_empty_result><subagent_tokens>571785</subagent_tokens><tool_uses>105</tool_uses><duration_ms>887223</duration_ms></usage>
+</task-notification>
+
+**Tool call:** `Bash`
+
+```json
+{
+ "command": "python3 - <<'EOF'\nimport json\nd = json.load(open('/tmp/claude-0/-home-user-weather-risk-intelligence-agent/054feb9f-992e-53ec-86ec-b86ccf98458a/tasks/wjw44nn4m.output'))[\"result\"]\nfor dim in d:\n    for f in dim[\"findings\"]:\n        v = f.get(\"verdict\") or {}\n        print(f\"== [{dim['key']}] {f['severity']} real={v.get('real')} {f['file']}:{f['line']} {f['title']}\")\n        if v.get(\"real\"):\n            print(\"   FIX:\", v.get(\"fix\",\"\")[:700])\nEOF",
+ "description": "Summarize the voice review verdicts and fixes"
+}
+```
+
+<details><summary>Tool result</summary>
+
+```
+== [behaviour] important real=True app/static/index.html:625 When dictation ends, it takes focus back from whatever box the user moved to, so their keystrokes land in the wrong box (including the access code)
+   FIX: In rec.onend, only take focus back when the user hasn't moved on: `const a = document.activeElement; if (!a || a === document.body || a === btn || a === input) { input.focus({ preventScroll: true }); const n = input.value.length; try { input.setSelectionRange(n, n); } catch (e) {} }`. document.body covers Safari, where a clicked button does not take focus. Optionally, also abort dictation when the user focuses a different text box, so the words stop going into the box they left.
+== [behaviour] nit real=False app/static/index.html:610 Re-sent final result is appended a second time, doubling the question with the words run together
+== [behaviour] nit real=True app/static/index.html:84 Voice error notes are never cleared; the follow-up bar's note stays visible on the opening screen after New conversation
+   FIX: Clear the notes when the context changes. In resetConversation() and at the start of ask() (next to the existing stopVoice(true) calls), add `document.querySelectorAll('.voice-hint').forEach(h => { h.hidden = true; });`. Alternatively, add CSS `.chat.empty #f + .voice-hint { display:none; }` and clear the notes in ask().
+== [behaviour] nit real=True app/static/index.html:577 Mic toggle changes its accessible name together with aria-pressed
+   FIX: Set aria-l
+… [truncated, 3404 more chars]
+```
+</details>
+
+**Tool call:** `Bash`
+
+```json
+{
+ "command": "python3 - <<'EOF'\nimport pathlib\np = pathlib.Path(\"app/static/index.html\"); s = p.read_text(encoding=\"utf-8\")\ndef rep(old, new):\n    global s\n    assert s.count(old) == 1, old[:80]; s = s.replace(old, new)\n\nrep('''  @media (prefers-reduced-motion: reduce) { .mic[aria-pressed=\"true\"] { animation:none; } }''',\n'''  @media (prefers-reduced-motion: reduce) { .mic[aria-pressed=\"true\"] { animation:none; } }\n  @media (forced-colors: active) { .mic[aria-pressed=\"true\"] { forced-color-adjust:none; background:Highlight; color:HighlightText; border-color:Highlight; } }\n  .chat.empty #f + .voice-hint { display:none; }''')\n\nrep('''const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;''',\n'''// Only offered in a secure context (HTTPS or localhost): elsewhere the browser refuses the mic.\nconst SpeechRec = window.isSecureContext ? (window.SpeechRecognition || window.webkitSpeechRecognition) : null;''')\n\nrep('''function setMicState(btn, on) {\n  const label = on ? \"Stop listening\" : \"Speak your question (English)\";\n  btn.setAttribute(\"aria-pressed\", on ? \"true\" : \"false\");\n  btn.setAttribute(\"aria-label\", label); btn.tit
+… [truncated, 4778 more chars]
+```
+
+<details><summary>Tool result</summary>
+
+```
+done
+```
+</details>
+
+### 🤖 Claude
+
+Now the browser check, updated for the fixed name and extended with the review's scenarios:
+
+**Tool call:** `Bash`
+
+```json
+{
+ "command": "S=/tmp/claude-0/-home-user-weather-risk-intelligence-agent/054feb9f-992e-53ec-86ec-b86ccf98458a/scratchpad/voice && python3 - <<'EOF'\nimport pathlib\np = pathlib.Path(\"/tmp/claude-0/-home-user-weather-risk-intelligence-agent/054feb9f-992e-53ec-86ec-b86ccf98458a/scratchpad/voice/voice.js\"); s = p.read_text()\ndef rep(old, new):\n    global s\n    assert s.count(old) == 1, old[:70]; s = s.replace(old, new)\nrep('''const st = (p, sel) => p.evaluate(s => { const b = document.querySelector(s); return b && { pressed: b.getAttribute('aria-pressed'), label: b.getAttribute('aria-label'), disabled: b.disabled }; }, sel);''',\n    '''const st = (p, sel) => p.evaluate(s => { const b = document.querySelector(s); return b && { pressed: b.getAttribute('aria-pressed'), label: b.getAttribute('aria-label'), title: b.title, disabled: b.disabled }; }, sel);''')\nrep('''    ok(`${scheme}: idle label`, s.pressed === 'false' && s.label === 'Speak your question (English)', JSON.stringify(s));''',\n    '''    ok(`${scheme}: idle: fixed name, not pressed`, s.pressed === 'false' && s.label === 'Speak your question (English)' && s.title === 'Speak your question (English)', JSON.stringify(s))
+… [truncated, 5018 more chars]
+```
+
+<details><summary>Tool result</summary>
+
+```
+exit 0
+66
+PASS  light: hint clears on the next try
+PASS  dark: hint clears on the next try
+PASS  focus moved to another box: dictation ends, typing stays there  how often does it snow | how many
+PASS  hint shown after no-speech
+PASS  hint cleared when a question is sent
+PASS  hint cleared on New conversation
+PASS  access-code field keeps the code; dictation ended  s3cret-42 | and for
+PASS  plain-HTTP (insecure) page: no mic
+PASS  forced colors: listening mic is highlighted  ["rgba(5, 0, 73, 0.8)","rgb(255, 255, 255)"]
+Shell cwd was reset to /home/user/weather-risk-intelligence-agent
+```
+</details>
+
+### 🤖 Claude
+
+All 66 browser checks pass. A quick mutation check on the two focus fixes, using a copy of the app served on another port:
+
+**Tool call:** `Bash`
+
+```json
+{
+ "command": "S=/tmp/claude-0/-home-user-weather-risk-intelligence-agent/054feb9f-992e-53ec-86ec-b86ccf98458a/scratchpad && M=$S/mut6 && rm -rf $M && mkdir -p $M && cd /home/user/weather-risk-intelligence-agent && git ls-files -co --exclude-standard | tar -cf - -T - | tar -xf - -C $M && sed \"s#http://127.0.0.1:8822#http://127.0.0.1:8823#\" $S/voice/voice.js > $S/voice/voice_m.js && python3 - <<'EOF'\nimport json, pathlib\np = pathlib.Path(\"/tmp/claude-0/-home-user-weather-risk-intelligence-agent/054feb9f-992e-53ec-86ec-b86ccf98458a/scratchpad/mut6/app/static/index.html\"); s = p.read_text()\nmuts = {\n \"focus always taken back\": s.replace(\"    if (!a || a === document.body || a === btn || a === input) {\", \"    if (true) {\"),\n \"no focusin stop\": s.replace('  if (voice && e.target !== voice.input && e.target.matches && e.target.matches(\"input, textarea\")) stopVoice(true);', '  void 0;'),\n}\nfor k, v in muts.items(): assert v != s, k\njson.dump({\"orig\": s, **muts}, open(\"/tmp/muts6.json\", \"w\"))\nEOF\ncd $M && for m in \"focus always taken back\" \"no focusin stop\"; do python3 -c \"\nimport json,pathlib,sys; pathlib.Path('app/static/index.html').write_text(json.lo
+… [truncated, 465 more chars]
+```
+
+<details><summary>Tool result</summary>
+
+```
+focus always taken back: 1 failing checks
+no focusin stop: 0 failing checks
+Shell cwd was reset to /home/user/weather-risk-intelligence-agent
+```
+</details>
+
+**Tool call:** `Bash`
+
+```json
+{
+ "command": "S=/tmp/claude-0/-home-user-weather-risk-intelligence-agent/054feb9f-992e-53ec-86ec-b86ccf98458a/scratchpad && python3 - <<'EOF'\nimport pathlib\np = pathlib.Path(\"/tmp/claude-0/-home-user-weather-risk-intelligence-agent/054feb9f-992e-53ec-86ec-b86ccf98458a/scratchpad/voice/voice.js\"); s = p.read_text()\nold = '''  await p.click('#markers .hub[data-id=\"denver\"]'); await p.waitForSelector('#hubask input');\n  await p.click('#f0 .mic');\n  await p.focus('#hubask input'); await p.keyboard.type('how often');'''\nnew = '''  await p.click('#markers .hub[data-id=\"denver\"]'); await p.waitForSelector('#hubask input');\n  ok('picking a hub (not a text box) keeps dictation running', (await st(p, '#f0 .mic')).pressed === 'true');\n  await p.focus('#hubask input'); await p.keyboard.type('how often');'''\nassert s.count(old) == 1; s = s.replace(old, new); p.write_text(s)\nEOF\nsed \"s#http://127.0.0.1:8822#http://127.0.0.1:8823#\" $S/voice/voice.js > $S/voice/voice_m.js\nM=$S/mut6; cd $M && python3 - <<'EOF'\nimport pathlib\np = pathlib.Path(\"app/static/index.html\"); s = pathlib.Path(\"/home/user/weather-risk-intelligence-agent/app/static/index.html\").read_text()\nm = s.re
+… [truncated, 989 more chars]
+```
+
+<details><summary>Tool result</summary>
+
+```
+mutant no focusin stop: 1 failing checks
+real app: exit 0 / 67 passed / 0 failed
+Shell cwd was reset to /home/user/weather-risk-intelligence-agent
+```
+</details>
+
+### 🤖 Claude
+
+Both focus fixes are now covered: each mutant fails a check, and the real app passes all 67. Committing and pushing:
+
+**Tool call:** `Bash`
+
+```json
+{
+ "command": "python -m pytest -q 2>&1 | tail -1 && git add -A && git commit -q -F - <<'EOF'\nVoice input: review fixes (focus, hints, accessible name, secure context)\n\n- When the recognizer ends on its own (after a pause or no speech), focus\n  goes back to the box only if the user hasn't moved on; moving to another\n  text field (another question box, the access-code field) ends dictation,\n  so typing never lands in the wrong box and words never keep arriving in a\n  box the user left.\n- Voice notes clear when a question is sent or a new conversation starts;\n  the follow-up bar's note is hidden on the opening screen.\n- The mic is a toggle with one fixed accessible name; aria-pressed carries\n  the state (the tooltip says \"Stop listening\"). Forced-colors style for\n  the listening state.\n- The mic is offered only in a secure context (HTTPS or localhost).\n- README: dictation stops by itself at a pause.\nBrowser check: 67 checks; the focus fixes are mutation-checked.\n\nCo-Authored-By: Claude Opus 5.5 <[email redacted]>\nClaude-Session: https://claude.ai/code/session_01QeytEnYwkmv4kKHhrzkAmw\nEOF\nfor i in 1 2 3 4; do git push -u origin claude/lucid-thompson-42z611 2>&1 |
+… [truncated, 836 more chars]
+```
+
 
 ---
 
