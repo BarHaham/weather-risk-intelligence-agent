@@ -3,7 +3,7 @@
   python -m scripts.export_transcript [path/to/session.jsonl] [--plan plan.md]
 
 Writes docs/session-transcript.md. System reminders are dropped and email addresses are
-redacted. Long tool outputs are truncated; the user's own messages are kept in full.
+redacted, as are Anthropic API keys. Long tool outputs are truncated; the user's own messages are kept in full.
 """
 from __future__ import annotations
 
@@ -16,6 +16,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 EMAIL = re.compile(r"[\w.+-]+@[\w-]+\.[\w.-]+")
+API_KEY = re.compile(r"sk-ant-[A-Za-z0-9_-]{20,}")
 REMINDER = re.compile(r"<system-reminder>.*?</system-reminder>", re.S)
 MAX_TOOL_OUT = 1500
 MAX_TOOL_IN = 1200
@@ -23,6 +24,7 @@ MAX_TOOL_IN = 1200
 
 def clean(text: str) -> str:
     text = REMINDER.sub("", text)
+    text = API_KEY.sub("[api key redacted]", text)
     return EMAIL.sub("[email redacted]", text).strip()
 
 

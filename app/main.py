@@ -1,7 +1,6 @@
 """FastAPI app: the chat endpoint the UI uses, plus read-only data endpoints."""
 from __future__ import annotations
 
-import os
 from pathlib import Path
 
 import anthropic
@@ -10,7 +9,7 @@ from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel, Field
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
-from app import agent, metrics, scoring, store
+from app import agent, config, metrics, scoring, store
 from app.config import hub as get_hub
 from app.config import hubs, settings
 from app.tools import get_methodology
@@ -31,11 +30,16 @@ async def _http_error(request, exc: StarletteHTTPException):
     # Error responses bypass default_response_class; give them the same charset.
     return UTF8JSONResponse({"detail": exc.detail}, status_code=exc.status_code,
                             headers=getattr(exc, "headers", None))
+
+
 STATIC = Path(__file__).parent / "static"
 
 
 @app.on_event("startup")
 def _startup() -> None:
+    # Load ANTHROPIC_API_KEY (etc.) from the repo's .env at startup rather than at import, so
+    # tests that import this module never pick up a developer's real .env.
+    config.load_env_file()
     store.build_from_cache()
 
 
@@ -54,26 +58,34 @@ def health():
     return {"status": "ok",
             "observed_weather_hubs": [h["id"] for h in hubs() if store.has_weather(h["id"])],
             "nri_loaded": bool(store.nri_caps()),
-            "llm_model": settings()["llm"]["model"],
-            "anthropic_api_key_env_set": bool(os.environ.get("ANTHROPIC_API_KEY"))}
+            "llm": {"model": settings()["llm"]["model"],
+                    "fallback_model": settings()["llm"].get("fallback_model"),
+                    "simulated_outage": sorted(agent.simulated_outage_models())},
+            "api_key_source": config.api_key_source}
 
 
 @app.post("/chat")
 def chat(req: ChatRequest):
     try:
         return agent.chat(req.message, req.session_id)
+    except agent.FallbackFailedError as e:
+        # Both errors are named; the status follows the fallback's real error, so an outage
+        # (503) can be told apart from a permissions/config problem on the fallback (502).
+        raise HTTPException(503 if e.fallback_unavailable else 502, e.describe())
     except TypeError as e:  # SDK raises this when no credentials can be resolved at all
         if "authentication" not in str(e).lower():
             raise
-        raise HTTPException(503, "No Anthropic credentials found: set ANTHROPIC_API_KEY.")
-    except anthropic.AuthenticationError:
-        raise HTTPException(503, "Anthropic credentials missing or invalid: set ANTHROPIC_API_KEY.")
-    except anthropic.RateLimitError:
-        raise HTTPException(429, "Anthropic rate limit hit; retry shortly.")
+        raise HTTPException(503, "No Anthropic credentials found: set ANTHROPIC_API_KEY "
+                                 "(in .env or the environment).")
+    except anthropic.AuthenticationError as e:
+        raise HTTPException(503, "Anthropic credentials missing or invalid: check "
+                                 f"ANTHROPIC_API_KEY ({agent.describe_error(e)}).")
+    except anthropic.RateLimitError as e:  # only reached when no fallback model is configured
+        raise HTTPException(429, f"Anthropic rate limit hit; retry shortly ({agent.describe_error(e)}).")
     except anthropic.APIStatusError as e:
-        raise HTTPException(502, f"Anthropic API error {e.status_code}: {e.message}")
-    except anthropic.APIConnectionError:
-        raise HTTPException(502, "Could not reach the Anthropic API.")
+        raise HTTPException(502, f"Anthropic API error: {agent.describe_error(e)}")
+    except anthropic.APIConnectionError as e:
+        raise HTTPException(502, f"Could not reach the Anthropic API ({agent.describe_error(e)}).")
 
 
 @app.get("/hubs")

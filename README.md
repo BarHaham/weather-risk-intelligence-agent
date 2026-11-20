@@ -5,6 +5,10 @@ weather disruption. A **deterministic risk model** (Python) scores 7 hubs from p
 **Claude** answers questions by calling that model through tools, and returns a
 **JSON-schema-validated** answer that the chat UI renders.
 
+The agent runs on **Claude Sonnet 5.5**. If Sonnet is temporarily unavailable, the same request is
+tried once on **Claude Haiku 5.5**, and every answer (UI, `/chat`, eval results) says which model
+actually answered.
+
 - Design and architecture: [`docs/DESIGN.md`](docs/DESIGN.md)
 - AI session transcript (plan and full conversation): [`docs/session-transcript.md`](docs/session-transcript.md)
 
@@ -14,9 +18,14 @@ weather disruption. A **deterministic risk model** (Python) scores 7 hubs from p
 python -m pip install -r requirements.txt
 ```
 
+Put your key in a `.env` file in the repo root (git-ignored; see `.env.example`). It is needed
+only for `/chat` and the evals:
+
 ```bash
-export ANTHROPIC_API_KEY=...        # needed for /chat and the evals only
+cp .env.example .env    # then edit: ANTHROPIC_API_KEY=sk-ant-...
 ```
+
+A variable already set in the environment takes precedence over `.env`.
 
 ```bash
 python -m uvicorn app.main:app --port 8000
@@ -51,14 +60,22 @@ py -3 -m venv .venv
 
 If `py` isn't found, use `python -m venv .venv` instead. The `pytest` step needs no API key.
 
-Set the key with a prompt, so it isn't saved in PowerShell's history file. It lasts only for this window:
+Put the key in `.env` in the repo root. Both the app and the evals read it, so every window works
+without setting the key again. Create it with `notepad .env` (Notepad offers to create the file)
+and add one line: `ANTHROPIC_API_KEY=sk-ant-...`. Any encoding works, including the UTF-16 that
+PowerShell 5.1's `>` writes. If the file ends up named `.env.txt`, the app warns you to rename it.
+
+Alternative: set the key for one window only with a prompt, so it isn't saved in PowerShell's
+history file. It then takes precedence over `.env`:
+`$env:ANTHROPIC_API_KEY = [Net.NetworkCredential]::new('', (Read-Host 'Anthropic API key' -AsSecureString)).Password`
 
 ```powershell
-$env:ANTHROPIC_API_KEY = [Net.NetworkCredential]::new('', (Read-Host 'Anthropic API key' -AsSecureString)).Password
 .\.venv\Scripts\python.exe -m uvicorn app.main:app --port 8000
 ```
 
-Open http://127.0.0.1:8000. Evals call Claude directly, not through the server. To run them, press Ctrl+C in the server window, which already has the key and the repo folder. In any other window, first `cd` into the clone and run the key line above.
+Open http://127.0.0.1:8000. `http://127.0.0.1:8000/health` shows `"api_key_source": ".env"` once the
+key has been read. Evals call Claude directly, not through the server, from any window `cd`'d into
+the clone:
 
 ```powershell
 .\.venv\Scripts\python.exe -m evals.run --dry-run
@@ -66,10 +83,49 @@ Open http://127.0.0.1:8000. Evals call Claude directly, not through the server. 
 .\.venv\Scripts\python.exe -m evals.run
 ```
 
+Each eval line shows `answered_by=<model>`. When the fallback was used, it adds
+`[fallback from claude-sonnet-5-5: <reason>]`. The summary counts answers per model.
+
+### Try the fallback with a simulated Sonnet outage
+
+`WRIA_SIMULATE_OUTAGE` makes the listed models fail with a synthetic 529 "overloaded" error before
+any request is sent. Haiku is then called for real, so this costs Haiku tokens only:
+
+```powershell
+$env:WRIA_SIMULATE_OUTAGE = "claude-sonnet-5-5"
+.\.venv\Scripts\python.exe -m evals.run --case denver_snow_last_year
+Remove-Item Env:WRIA_SIMULATE_OUTAGE
+```
+
+Expect `answered_by=claude-haiku-5-5 [fallback from claude-sonnet-5-5: OverloadedError 529
+overloaded_error: Simulated outage ... [simulated]]`. To see what happens when both models are
+down, use `$env:WRIA_SIMULATE_OUTAGE = "claude-sonnet-5-5,claude-haiku-5-5"`. The case then fails
+and the report names both errors. Don't put this variable in `.env`, or every run silently goes to
+Haiku.
+
+## Model fallback
+
+- **Every turn starts on `llm.model`** (`claude-sonnet-5-5`), with `llm.max_retries` SDK retries.
+- **What triggers the fallback:** the primary is temporarily unavailable. That means overloaded
+  (529), another 5xx except 501, a rate limit (429), a 408, a timeout or a connection error.
+- **The fallback attempt:** the same request is sent **once** to `llm.fallback_model`
+  (`claude-haiku-5-5`), as a single attempt with no retries. The rest of that turn stays on Haiku.
+  The next turn starts on Sonnet again.
+- **If Haiku fails too:** both actual errors are reported (class, HTTP status, the API's error type
+  and message), so a permissions problem shows up as e.g. `PermissionDeniedError 403
+  permission_error: ...` rather than as an outage. `/chat` returns **503** when Haiku was also
+  unavailable, and **502** otherwise.
+- **Errors that never trigger the fallback:** 400, 401, 403, 404 and 501 are problems with the
+  request or the key, so they are raised directly.
+- **Refusals** are not retried on another model. The answer says the request can't be handled.
+
+Older chat sessions saved by a previous version can be cleared with "Start a new conversation" in
+the UI.
+
 ## Tests and evaluation
 
 ```bash
-python -m pytest -q                       # scoring + agent-loop tests, no API key needed
+python -m pytest -q                       # scoring, agent loop, simulated outages, .env; no API key needed
 ```
 
 ```bash
@@ -84,12 +140,12 @@ python -m evals.run                       # 10 cases against the live agent (use
 
 | Method | Path | Purpose |
 |---|---|---|
-| POST | `/chat` | `{message, session_id?}` → `{session_id, answer (AgentAnswer), tool_calls, model, usage}` |
+| POST | `/chat` | `{message, session_id?}` → `{session_id, answer (AgentAnswer), tool_calls, models, usage}`. `models` = `{requested, answered_by, calls, fallback}` |
 | GET | `/rankings?hazard=&region=` | Deterministic ranking (overall or one hazard) |
 | GET | `/hubs/{id}/score` | Full score breakdown for one hub |
 | GET | `/hubs/{id}/weather?metric=&year=&threshold=` | Day counts from observed weather |
 | GET | `/methodology` | Weights, caps, thresholds, sources |
-| GET | `/hubs`, `/health` | Hub list; data and config status |
+| GET | `/hubs`, `/health` | Hub list; data, models, simulated outage and `api_key_source` (`.env` / `environment` / `missing`, never the key) |
 
 ## Docker
 
@@ -98,10 +154,14 @@ docker build -t weather-risk .
 ```
 
 ```bash
-docker run -p 8000:8000 -e ANTHROPIC_API_KEY weather-risk
+docker run -p 8000:8000 --env-file .env weather-risk
 ```
+
+`.env` is excluded from the image (`.dockerignore`). Docker's `--env-file` needs UTF-8 and
+`KEY=value` lines without quotes.
 
 ## Configuration
 
 Everything that affects a score lives in `config.yaml`, with the reason for each value: thresholds,
-normalisation caps, hazard components, weights, tiers and the LLM model and effort.
+normalisation caps, hazard components, weights, tiers, and the LLM models, effort, timeout and
+retries.

@@ -1,4 +1,4 @@
-"""Claude tool-use loop.
+"""Claude tool-use loop with a one-time model fallback.
 
 Each user turn:
   1. send history + new message with the tool list and a JSON-schema output format
@@ -6,20 +6,27 @@ Each user turn:
   3. the final text block must be JSON matching AgentAnswer (structured outputs); it is
      validated again with Pydantic before it leaves this module.
 History is stored append-only per session, so follow-up questions see earlier turns.
+
+Models: every turn starts on llm.model (Claude Sonnet 5.5). If a call fails because that model
+is temporarily unavailable (overloaded, 5xx, 429, timeout, connection error) after the SDK's own
+retries, the same request is tried once on llm.fallback_model (Claude Haiku 5.5) and the rest of
+the turn stays there. If that attempt fails too, FallbackFailedError keeps both real errors.
 """
 from __future__ import annotations
 
 import json
+import os
 import uuid
 
 import anthropic
+import httpx2
 from pydantic import ValidationError
 
 from app import store, tools
 from app.config import hubs, settings
 from app.schemas import AgentAnswer, answer_json_schema
 
-FALLBACK_BETA = "server-side-fallback-2026-07-01"
+SIMULATE_ENV = "WRIA_SIMULATE_OUTAGE"
 
 
 def _system_prompt() -> str:
@@ -65,25 +72,145 @@ def _client() -> anthropic.Anthropic:
 
 
 def _blocks_to_dicts(content) -> list[dict]:
-    # Keep every block (thinking, tool_use, text, fallback) unchanged for replay.
+    # Keep every block (thinking, tool_use, text) unchanged for replay.
     return [b.to_dict(mode="json", exclude_none=True) for b in content]
 
 
-def _create(client, messages: list[dict]):
+# ---------- availability and error reporting ----------
+
+def is_unavailable(err: BaseException) -> bool:
+    """True for errors that mean "this model is temporarily unavailable", so a fallback can help.
+    Configuration and request problems (400, 401, 403, 404, 501) are not in this list."""
+    if isinstance(err, anthropic.InternalServerError):  # 500, 503, 504, 529 overloaded, ...
+        return getattr(err, "status_code", None) != 501
+    return isinstance(err, (anthropic.APIConnectionError,   # includes APITimeoutError
+                            anthropic.RateLimitError,       # 429 (separate pool per model)
+                            anthropic.RequestTimeoutError))  # 408
+
+
+def describe_error(err: BaseException) -> str:
+    """Class, HTTP status and the API's own error type/message, e.g.
+    'PermissionDeniedError 403 permission_error: Your key cannot use this model'."""
+    parts = [type(err).__name__]
+    status = getattr(err, "status_code", None)
+    if status:
+        parts.append(str(status))
+    body = getattr(err, "body", None)
+    api_type = api_msg = None
+    if isinstance(body, dict):
+        detail = body.get("error") if isinstance(body.get("error"), dict) else body
+        api_type, api_msg = detail.get("type"), detail.get("message")
+    if api_type:
+        parts.append(str(api_type))
+    text = " ".join(parts)
+    if api_msg:
+        text += f": {api_msg}"
+    elif not status:
+        text += f": {err}"
+    if getattr(err, "simulated", False):
+        text += " [simulated]"
+    return text
+
+
+class FallbackFailedError(Exception):
+    """The primary model was unavailable and the fallback model failed too. Keeps both
+    original SDK exceptions so an outage can be told apart from e.g. a permissions problem."""
+
+    def __init__(self, primary_model: str, primary_error: BaseException,
+                 fallback_model: str, fallback_error: BaseException):
+        self.primary_model, self.primary_error = primary_model, primary_error
+        self.fallback_model, self.fallback_error = fallback_model, fallback_error
+        super().__init__(self.describe())
+
+    @property
+    def fallback_unavailable(self) -> bool:
+        return is_unavailable(self.fallback_error)
+
+    def describe(self) -> str:
+        return (f"{self.primary_model} unavailable ({describe_error(self.primary_error)}); "
+                f"{self.fallback_model} fallback failed: {describe_error(self.fallback_error)}")
+
+
+def simulated_outage_models() -> set[str]:
+    """Models listed in WRIA_SIMULATE_OUTAGE (comma-separated). Empty or unset = off."""
+    raw = os.environ.get(SIMULATE_ENV, "")
+    return {m.strip() for m in raw.split(",") if m.strip()}
+
+
+def _simulated_overload(model: str) -> anthropic.OverloadedError:
+    body = {"type": "error", "error": {"type": "overloaded_error",
+                                       "message": f"Simulated outage for {model} ({SIMULATE_ENV})"}}
+    request = httpx2.Request("POST", "https://api.anthropic.com/v1/messages")
+    err = anthropic.OverloadedError(f"Error code: 529 - {body}", body=body,
+                                    response=httpx2.Response(529, request=request, json=body))
+    err.simulated = True
+    return err
+
+
+# ---------- API call ----------
+
+def _create(client, messages: list[dict], model: str, max_retries: int):
+    if model in simulated_outage_models():
+        raise _simulated_overload(model)
     cfg = settings()["llm"]
-    kwargs = dict(
-        model=cfg["model"],
-        max_tokens=cfg["max_tokens"],
-        system=_system_prompt(),
-        tools=tools.TOOL_DEFS,
-        messages=messages,
-        cache_control={"type": "ephemeral"},
-        output_config={"effort": cfg["effort"],
-                       "format": {"type": "json_schema", "schema": answer_json_schema()}},
-    )
-    if cfg.get("refusal_fallback"):
-        kwargs.update(betas=[FALLBACK_BETA], fallbacks="default")
-    return client.beta.messages.create(**kwargs)
+    # system and tools are identical for every model: changing them would invalidate the
+    # thinking blocks replayed from earlier turns.
+    return client.with_options(max_retries=max_retries, timeout=cfg["request_timeout_s"]) \
+        .messages.create(
+            model=model,
+            max_tokens=cfg["max_tokens"],
+            system=_system_prompt(),
+            tools=tools.TOOL_DEFS,
+            messages=messages,
+            cache_control={"type": "ephemeral"},
+            output_config={"effort": cfg["effort"],
+                           "format": {"type": "json_schema", "schema": answer_json_schema()}},
+        )
+
+
+class _Turn:
+    """Model state for one user turn: starts on the primary, switches to the fallback at most once."""
+
+    def __init__(self, client):
+        cfg = settings()["llm"]
+        self.client = client
+        self.primary, self.fallback_model = cfg["model"], cfg.get("fallback_model")
+        self.max_retries = cfg["max_retries"]
+        self.active = self.primary
+        self.primary_error: BaseException | None = None
+        self.fallback: dict | None = None
+        self.calls: list[str] = []
+
+    def call(self, messages: list[dict]):
+        try:
+            resp = _create(self.client, messages, self.active, self.max_retries)
+        except anthropic.APIError as e:
+            if self.active != self.primary:  # already on the fallback: report both errors
+                raise FallbackFailedError(self.primary, self.primary_error,
+                                          self.active, e) from e
+            if not self.fallback_model or not is_unavailable(e):
+                raise
+            resp = self._switch(messages, e)
+        self.calls.append(resp.model)
+        return resp
+
+    def _switch(self, messages: list[dict], primary_error: BaseException):
+        self.primary_error = primary_error
+        self.fallback = {"from": self.primary, "to": self.fallback_model,
+                         "reason": describe_error(primary_error),
+                         "simulated": bool(getattr(primary_error, "simulated", False)),
+                         "at_call": len(self.calls) + 1}
+        try:  # "try once": a single attempt, no SDK retries
+            resp = _create(self.client, messages, self.fallback_model, max_retries=0)
+        except anthropic.APIError as e:
+            raise FallbackFailedError(self.primary, primary_error, self.fallback_model, e) from e
+        self.active = self.fallback_model  # rest of this turn stays on the fallback
+        return resp
+
+    def report(self) -> dict:
+        return {"requested": self.primary,
+                "answered_by": self.calls[-1] if self.calls else None,
+                "calls": self.calls, "fallback": self.fallback}
 
 
 def _out_of_band_answer(text: str) -> AgentAnswer:
@@ -100,15 +227,26 @@ def chat(message: str, session_id: str | None = None, client=None) -> dict:
     trace: list[dict] = []
     usage = {"input_tokens": 0, "output_tokens": 0, "cache_read_input_tokens": 0}
     answer: AgentAnswer | None = None
-    model_used = None
+    turn = _Turn(client)
     max_rounds = settings()["llm"]["max_tool_rounds"]
     repaired = False
 
     for _ in range(max_rounds + 1):
-        resp = _create(client, history + new)
-        model_used = resp.model
+        resp = turn.call(history + new)  # raises on failure: nothing of this turn is stored
         for k in usage:
             usage[k] += getattr(resp.usage, k, 0) or 0
+
+        # A refusal can have empty content and a max_tokens cut-off can end in a tool_use with
+        # no result; storing either would make every later request in the session a 400.
+        # Dropping this last message keeps the history append-only and valid.
+        if resp.stop_reason == "refusal":
+            answer = _out_of_band_answer("I can't help with that request.")
+            break
+        if resp.stop_reason == "max_tokens":
+            answer = _out_of_band_answer("The answer was cut off (max_tokens). Please narrow "
+                                         "the question.")
+            break
+
         new.append({"role": "assistant", "content": _blocks_to_dicts(resp.content)})
 
         if resp.stop_reason == "tool_use":
@@ -126,13 +264,6 @@ def chat(message: str, session_id: str | None = None, client=None) -> dict:
 
         if resp.stop_reason == "pause_turn":
             continue
-        if resp.stop_reason == "refusal":
-            answer = _out_of_band_answer("I can't help with that request.")
-            break
-        if resp.stop_reason == "max_tokens":
-            answer = _out_of_band_answer("The answer was cut off (max_tokens). Please narrow "
-                                         "the question.")
-            break
 
         text = "".join(b.text for b in resp.content if b.type == "text")
         try:
@@ -152,4 +283,4 @@ def chat(message: str, session_id: str | None = None, client=None) -> dict:
 
     store.append_messages(session_id, new)
     return {"session_id": session_id, "answer": answer.model_dump(), "tool_calls": trace,
-            "model": model_used, "usage": usage}
+            "models": turn.report(), "usage": usage}

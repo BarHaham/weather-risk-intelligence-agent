@@ -22,7 +22,8 @@ explains the results. It never produces scores itself.
  FastAPI (app/main.py) ───────────────────────────┘
    │
    ▼
- Agent loop (app/agent.py)  ── Claude Messages API (claude-opus-5-5)
+ Agent loop (app/agent.py)  ── Claude Messages API: claude-sonnet-5-5,
+   │                             falls back once to claude-haiku-5-5 when Sonnet is unavailable
    │   • sends: system prompt, 6 strict tools, history, output_config.format = AgentAnswer JSON schema
    │   • loop: model asks for tools → run them → send results → … → final JSON answer
    │   • validates the final JSON with Pydantic (one repair retry), stores history append-only
@@ -57,15 +58,42 @@ explains the results. It never produces scores itself.
   - `in_scope`, `answer` (markdown)
   - `hubs[{hub_id, hazard, score}]`, `figures[{label, value, unit, source_tool}]`
   - `reasoning_steps`, `data_sources`, `assumptions`, `confidence`, `follow_up_suggestions`
-- **Change from the plan:** the plan used a forced `submit_answer` tool. Claude Opus 5.5 rejects
-  forced `tool_choice`, so the schema is enforced through structured outputs instead. The intent
-  is unchanged: a JSON schema between the LLM and the code.
+- **Change from the plan:** the plan used a forced `submit_answer` tool. The current Claude models
+  reject forced `tool_choice` (the first build used Opus 5.5; Sonnet 5.5 rejects it too), so the
+  schema is enforced through structured outputs instead. The intent is unchanged: a JSON schema
+  between the LLM and the code.
 - **Grounding:** the system prompt says every number must come from a tool result. The evals
   check that every `hubs[].score` equals the model's score (±0.1).
 - **Follow-ups:** history is stored per `session_id` in SQLite and replayed in full, including
   thinking and tool blocks. It is append-only, which the model's thinking blocks require.
-- **Refusals:** server-side fallback (`fallbacks: "default"`, beta) is enabled in config, and
-  `stop_reason` is checked for refusal, `max_tokens` and `pause_turn`.
+- **Refusals and cut-offs:** `stop_reason` is checked for `refusal`, `max_tokens` and `pause_turn`.
+  A refusal is not retried on another model: the earlier server-side refusal fallback was replaced
+  by the availability fallback below. The refused (or cut-off) assistant message is not stored, so
+  an empty turn or a dangling `tool_use` can't break later requests in the session.
+
+### Models and availability fallback
+- **Primary:** `claude-sonnet-5-5` at effort `medium`, Sonnet 5.5's recommended start for multistep
+  tool use. Thinking stays adaptive (on); it isn't disabled.
+- **Fallback:** `claude-haiku-5-5`. It is tried **once** (a single attempt) when the primary is
+  temporarily unavailable after the SDK's own retries (`llm.max_retries`, each call bounded by
+  `llm.request_timeout_s`). "Temporarily unavailable" means 529 or another 5xx except 501, 429,
+  408, a timeout or a connection error. 400, 401, 403, 404 and 501 are raised as they are.
+- **Once switched:** the rest of that turn stays on Haiku. The next turn starts on Sonnet again.
+- **If Haiku fails too:** `FallbackFailedError` keeps both original SDK exceptions. `/chat` returns
+  503 if Haiku was also unavailable, or 502 for anything else (e.g. a 403 on the Haiku model), and
+  the detail names both errors.
+- **What doesn't change between models:** `system` and `tools` are identical for both models, and
+  the history is replayed unchanged. Haiku can't read Sonnet 5.5's thinking blocks; the API drops
+  them silently, and appending only (never editing) keeps the remaining blocks valid.
+- **Reporting:** `/chat` returns `models = {requested, answered_by, calls, fallback}`, where
+  `answered_by` is the model the API reports for the final call. The UI shows it under each
+  answer, and every eval line and the eval summary show it too.
+- **Testing:** `WRIA_SIMULATE_OUTAGE=<model ids>` makes those models fail with a synthetic 529
+  before any request is sent. The tests also drive the real SDK HTTP stack through a mock
+  transport, which checks the SDK's retries against Sonnet and Haiku's single attempt.
+- **API key:** read from the git-ignored `.env` in the repo root, at app startup and when the eval
+  runner starts. A non-empty environment variable takes precedence. UTF-8, UTF-8 BOM, UTF-16 and
+  cp1252 files are all decoded. `/health` reports `api_key_source`, never the key.
 
 ## 4. Data sources
 | Source | What we use | Why |

@@ -3,11 +3,16 @@
 # None of these values were tuned to make any particular hub rank higher or lower.
 
 llm:
-  model: claude-opus-5-5
-  effort: medium            # Opus 5.5 default; chat-style tool use does not need more
+  model: claude-sonnet-5-5          # primary: every turn starts here
+  fallback_model: claude-haiku-5-5  # tried ONCE (single attempt) if the primary is temporarily
+                                    # unavailable: 529/5xx (not 501), 429, 408, timeout, connection
+  effort: medium            # chosen, not the default (Sonnet 5.5 defaults to high); Sonnet 5.5's
+                            # recommended start for multistep tool use, Haiku 5.5's default
   max_tokens: 16000
   max_tool_rounds: 8        # safety stop for the agent loop
-  refusal_fallback: true    # server-side fallback on a policy decline (beta)
+  request_timeout_s: 120    # per API call; bounds how long a hung call delays the fallback
+  max_retries: 1            # SDK retries per call (with backoff); on the primary these happen
+                            # before falling back
 
 data:
   hubs_file: data/hubs.json

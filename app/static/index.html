@@ -110,7 +110,9 @@ function renderAnswer(r) {
     <div class="ans">${md(a.answer)}</div>
     ${chips ? `<div class="chips">${chips}</div>` : ""}
     ${figs}
-    <div class="meta">Confidence: <b>${esc(a.confidence)}</b>${a.in_scope ? "" : " · out of scope"}</div>
+    <div class="meta">Confidence: <b>${esc(a.confidence)}</b>${a.in_scope ? "" : " · out of scope"}
+      · Answered by <b>${esc(r.models?.answered_by || "?")}</b>${r.models?.fallback
+        ? ` <span class="err">(fallback from ${esc(r.models.fallback.from)}: ${esc(r.models.fallback.reason)})</span>` : ""}</div>
     <details><summary>Reasoning, sources &amp; assumptions</summary>
       <b>Reasoning steps</b>${list(a.reasoning_steps)}
       <b>Data sources</b>${list(a.data_sources)}
