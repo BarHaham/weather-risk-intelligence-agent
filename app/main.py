@@ -6,15 +6,31 @@ from pathlib import Path
 
 import anthropic
 from fastapi import FastAPI, HTTPException, Query
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel, Field
+from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app import agent, metrics, scoring, store
 from app.config import hub as get_hub
 from app.config import hubs, settings
 from app.tools import get_methodology
 
-app = FastAPI(title="Weather Risk Intelligence Agent", version="0.1.0")
+
+class UTF8JSONResponse(JSONResponse):
+    # Declare the charset: without it, Windows PowerShell 5.1 decodes JSON as ISO-8859-1
+    # and shows non-ASCII characters (°, em dash, ≤) as mojibake.
+    media_type = "application/json; charset=utf-8"
+
+
+app = FastAPI(title="Weather Risk Intelligence Agent", version="0.1.0",
+              default_response_class=UTF8JSONResponse)
+
+
+@app.exception_handler(StarletteHTTPException)
+async def _http_error(request, exc: StarletteHTTPException):
+    # Error responses bypass default_response_class; give them the same charset.
+    return UTF8JSONResponse({"detail": exc.detail}, status_code=exc.status_code,
+                            headers=getattr(exc, "headers", None))
 STATIC = Path(__file__).parent / "static"
 
 

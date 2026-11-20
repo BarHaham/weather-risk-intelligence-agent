@@ -36,6 +36,36 @@ python -m scripts.refresh_data            # fetch anything missing, rebuild DB
 python -m scripts.refresh_data --force    # re-download everything
 ```
 
+## Windows (PowerShell 5.1 or 7)
+
+Needs Git and Python 3.10+.
+
+```powershell
+git clone -b claude/lucid-thompson-42z611 https://github.com/BarHaham/weather-risk-intelligence-agent.git
+cd weather-risk-intelligence-agent
+py -3 -m venv .venv
+.\.venv\Scripts\python.exe -m pip install --upgrade pip
+.\.venv\Scripts\python.exe -m pip install -r requirements.txt
+.\.venv\Scripts\python.exe -m pytest -q
+```
+
+If `py` isn't found, use `python -m venv .venv` instead. The `pytest` step needs no API key.
+
+Set the key with a prompt, so it isn't saved in PowerShell's history file. It lasts only for this window:
+
+```powershell
+$env:ANTHROPIC_API_KEY = [Net.NetworkCredential]::new('', (Read-Host 'Anthropic API key' -AsSecureString)).Password
+.\.venv\Scripts\python.exe -m uvicorn app.main:app --port 8000
+```
+
+Open http://127.0.0.1:8000. Evals call Claude directly, not through the server. To run them, press Ctrl+C in the server window, which already has the key and the repo folder. In any other window, first `cd` into the clone and run the key line above.
+
+```powershell
+.\.venv\Scripts\python.exe -m evals.run --dry-run
+.\.venv\Scripts\python.exe -m evals.run --case follow_up_detroit
+.\.venv\Scripts\python.exe -m evals.run
+```
+
 ## Tests and evaluation
 
 ```bash

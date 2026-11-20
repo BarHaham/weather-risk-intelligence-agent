@@ -14,6 +14,7 @@ import time
 import uuid
 from pathlib import Path
 
+import anthropic
 import yaml
 
 from app import agent, metrics, scoring, store
@@ -107,9 +108,25 @@ def main() -> None:
             print(f"{c['id']:24} tools={c.get('tools', [])} in_scope={c.get('in_scope')} {exp}")
         return
 
+    if not cases:
+        raise SystemExit(f"no case with id '{args.case}' in evals/cases.yaml")
+
     results = []
     for c in cases:
-        r = run_case(c)
+        try:
+            r = run_case(c)
+        except TypeError as e:  # SDK raises this when no credentials can be resolved
+            if "authentication" not in str(e).lower():
+                raise
+            raise SystemExit("No Anthropic credentials found in this window: set "
+                             "ANTHROPIC_API_KEY (only --dry-run works without it).")
+        except anthropic.AuthenticationError:
+            raise SystemExit("Anthropic rejected the API key (401): check ANTHROPIC_API_KEY.")
+        except anthropic.APIError as e:  # keep going; record the case as failed
+            r = {"id": c["id"], "passed": False, "skipped": False, "seconds": 0,
+                 "checks": [("api call", False, f"{type(e).__name__}: {e}")],
+                 "answer": None, "tool_calls": [],
+                 "usage": {"input_tokens": 0, "output_tokens": 0}}
         results.append(r)
         status = "PASS" if r["passed"] else "FAIL"
         print(f"{status}  {c['id']:24} {r['seconds']:>5}s")

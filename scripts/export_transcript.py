@@ -46,7 +46,9 @@ def block_text(content) -> str:
 
 
 def default_transcript() -> str:
-    slug = str(ROOT).replace("/", "-")
+    # Claude Code names project folders by replacing every non-alphanumeric character
+    # with "-" (e.g. C:\Users\me\repo -> C--Users-me-repo, /home/u/repo -> -home-u-repo).
+    slug = re.sub(r"[^A-Za-z0-9]", "-", str(ROOT))
     files = glob.glob(os.path.expanduser(f"~/.claude/projects/{slug}/*.jsonl"))
     if not files:
         raise SystemExit("no transcript found; pass the .jsonl path")
