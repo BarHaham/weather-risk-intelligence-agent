@@ -131,8 +131,20 @@ explains the results. It never produces scores itself.
   - **Hub card:** shows county, region, score, tier and rank. A typed question that doesn't
     name the city is sent as "About the Denver, Colorado hub: …", and the chat shows exactly
     what was sent.
-  - **Labels:** city labels are larger (about 21 px on desktop, 15 px on phones), with a paper
-    halo, and they move automatically so they never overlap.
+  - **Labels:** city labels stay at about 15–17 px on screen at every width, with a paper halo.
+    They are sized from the rendered map width, and their placement is recomputed on resize,
+    so they never overlap or leave the map. A browser check sweeps 320–1600 px.
+- **Accessibility and robustness** (from an independent review; each fix has a browser
+  regression check):
+  - **Contrast:** tier words use darker text tokens that reach WCAG AA (≥ 4.5:1) in both themes.
+  - **Focus:** focus rings are visible. Focus order follows the layout (ranking, then the hub
+    card), and pressing Enter on a hub moves to its question.
+  - **Requests:** all ask controls are disabled while a request runs. "New conversation"
+    cancels a request in flight and drops its late answer and session. Error responses (422,
+    proxy pages, network failures) are shown as readable messages.
+  - **Phones:** the conversation is a fixed-height scroll box, so the map never gets pushed
+    down. Tapping an example doesn't open the keyboard.
+  - **Map failure:** if the map can't load, the atlas collapses to a short notice.
 
 ## 4. Data sources
 | Source | What we use | Why |

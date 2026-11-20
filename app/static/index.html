@@ -8,41 +8,49 @@
 <link rel="icon" href="/static/favicon-32.png" type="image/png" sizes="32x32">
 <link rel="apple-touch-icon" href="/static/apple-touch-icon.png">
 <style>
-  /* Weather-atlas palette: warm paper, navy ink, teal accent, parchment land on a pale sea. */
-  :root { --bg:#f6f1e6; --panel:#fffcf5; --ink:#14213d; --muted:#5a6478; --line:#e5dccb;
+  /* Weather-atlas palette: warm paper, navy ink, teal accent, parchment land on a pale sea.
+     --Tier = marker/legend fill; --Tier-text = tier words (WCAG AA 4.5:1 on panel and --hl). */
+  :root { color-scheme: light dark;
+          --bg:#f6f1e6; --panel:#fffcf5; --ink:#14213d; --muted:#5a6478; --line:#e5dccb;
           --accent:#0f766e; --user:#e9eef6; --hl:#eef6f4;
           --sea:#e4ecec; --land:#ede3cd; --land-edge:#fffaf0; --grid:rgba(20,33,61,.16);
           --Low:#2f7d5b; --Moderate:#b9831a; --High:#c4501b; --Severe:#9b1c31;
+          --Low-text:#2a6f51; --Moderate-text:#8a5a00; --High-text:#a8410f; --Severe-text:#9b1c31;
           --serif:"Iowan Old Style","Palatino Linotype",Palatino,"Book Antiqua",Georgia,serif; }
   @media (prefers-color-scheme: dark) {
     :root { --bg:#0e1525; --panel:#15203a; --ink:#f3ede0; --muted:#a8b0c2; --line:#27324f;
             --accent:#3cc4b4; --user:#1f2c4a; --hl:#1b2d44;
             --sea:#101a2e; --land:#243251; --land-edge:#15203a; --grid:rgba(243,237,224,.14);
-            --Low:#4fb487; --Moderate:#dba73a; --High:#ec7440; --Severe:#e2566b; }
+            --Low:#4fb487; --Moderate:#dba73a; --High:#ec7440; --Severe:#e2566b;
+            --Low-text:#4fb487; --Moderate-text:#dba73a; --High-text:#ec7440; --Severe-text:#f27a8a; }
+    .brand .tile { fill:#2a3d6b; }  /* keep the navy logo tile visible on the dark masthead */
   }
   * { box-sizing: border-box; }
   body { margin:0; font:15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; background:var(--bg); color:var(--ink); }
   h1, h2, h3 { font-family:var(--serif); font-weight:600; letter-spacing:.01em; }
   .masthead { padding:14px 24px; border-bottom:1px solid var(--line); background:var(--panel); }
-  .brand { display:flex; align-items:center; gap:12px; max-width:1440px; margin:0 auto; }
+  .brand { display:flex; align-items:center; gap:12px; max-width:1392px; margin:0 auto; }
   .brand svg { width:34px; height:34px; flex:none; }
   .brand h1 { margin:0; font-size:22px; }
   .brand p { margin:0; color:var(--muted); font-size:13px; }
   @media (max-width: 599px) { .brand p .long { display:none; } .masthead { padding:12px 16px; } }
-  /* Desktop: chat and atlas share the screen equally. Mobile: one column, chat first. */
+  /* Desktop: chat and atlas share the screen equally, same height. Mobile: one column, chat first. */
   main.atlas { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:20px;
                padding:20px 24px; max-width:1440px; margin:0 auto; align-items:start; }
   @media (max-width: 899px) { main.atlas { grid-template-columns:minmax(0,1fr); padding:16px; gap:16px; } }
   .panel { background:var(--panel); border:1px solid var(--line); border-radius:12px; min-width:0; }
   .meta { font-size:13px; color:var(--muted); }
   a { color:var(--accent); }
-  button { font:inherit; }
+  button { font:inherit; -webkit-tap-highlight-color:transparent; }
+  :focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
+  .linklike { background:none; border:0; padding:0; font-size:13px; color:var(--accent); text-decoration:underline; cursor:pointer; }
   /* ---------- chat ---------- */
   .chat { display:flex; flex-direction:column; height:max(600px, calc(100vh - 118px)); }
   .chat-head { display:flex; justify-content:space-between; align-items:baseline; padding:14px 18px 10px;
                border-bottom:1px solid var(--line); }
   .chat-head h2 { margin:0; font-size:17px; }
   #log { flex:1; overflow-y:auto; padding:16px 18px; }
+  #log:focus { outline:none; }
   .welcome { flex:1; display:none; flex-direction:column; justify-content:center;
              padding:24px clamp(18px, 6%, 56px) max(24px, 9vh); }  /* sits a little above centre */
   .chat.empty .welcome { display:flex; }
@@ -51,13 +59,18 @@
   .welcome .examples { margin-top:14px; display:flex; flex-direction:column; gap:8px; }
   .welcome .examples button { text-align:left; padding:9px 12px; border:1px solid var(--line); border-radius:10px;
                               background:var(--bg); color:var(--ink); cursor:pointer; }
-  .welcome .examples button:hover, .welcome .examples button:focus-visible { border-color:var(--accent); }
+  .welcome .examples button:hover, .welcome .examples button:active { border-color:var(--accent); }
   .welcome .hint { margin-top:16px; }
-  @media (max-width: 899px) { .chat { height:auto; } .chat:not(.empty) #log { height:60vh; } .welcome { padding:20px 16px; } }
+  @media (max-width: 899px) {
+    .chat { height:auto; }
+    .chat:not(.empty) #log { flex:0 0 60vh; height:60vh; min-height:0; }  /* a real scroll box on phones */
+    .welcome { padding:20px 16px; }
+  }
   .askbox, .askbar { display:flex; gap:8px; }
   .askbar { padding:12px 18px; border-top:1px solid var(--line); }
   input[type=text] { flex:1; min-width:0; padding:11px 13px; border-radius:10px; border:1px solid var(--line);
-                     background:var(--bg); color:var(--ink); font-size:15px; }
+                     background:var(--bg); color:var(--ink); font-size:15px; text-overflow:ellipsis; }
+  input[type=text]::placeholder { color:var(--muted); opacity:1; }
   input[type=text]:focus { outline:2px solid var(--accent); outline-offset:1px; border-color:transparent; }
   .send { padding:11px 18px; border-radius:10px; border:0; background:var(--ink); color:var(--panel); font-weight:600; cursor:pointer; }
   button:disabled { opacity:.5; cursor:wait; }
@@ -74,37 +87,45 @@
   tr.headline td { font-weight:600; }
   .follow button, .suggest button { margin:4px 6px 0 0; font-size:13px; padding:5px 11px; border-radius:999px;
                    border:1px solid var(--accent); background:transparent; color:var(--accent); cursor:pointer; text-align:left; }
-  .err { color:var(--High); }
+  .follow button:active, .suggest button:active { background:var(--hl); }
+  .err { color:var(--High-text); }
   /* ---------- atlas ---------- */
   .atlas-panel { padding:16px 18px 14px; }
+  @media (min-width: 900px) {  /* same height as the chat; the atlas scrolls inside itself if needed */
+    .atlas-panel { height:max(600px, calc(100vh - 118px)); overflow-y:auto; overscroll-behavior:contain;
+                   display:flex; flex-direction:column; }
+    .atlas-panel > * { flex:none; }
+    .atlas-panel .attrib { margin-top:auto; padding-top:12px; }
+  }
   .atlas-head { display:flex; flex-wrap:wrap; justify-content:space-between; align-items:baseline; gap:4px 12px; }
   .atlas-head h2 { margin:0; font-size:17px; }
   #map { width:100%; height:auto; display:block; margin-top:10px; border-radius:10px; }
   #map .sea { fill:var(--sea); }
   #map .state { fill:var(--land); stroke:var(--land-edge); stroke-width:1.2; }
   #map .grid { fill:none; stroke:var(--grid); stroke-width:1; stroke-dasharray:3 4; }
+  #markers { font-size:26px; }  /* set from JS so labels stay about 15-17 px on screen at any width */
   #map .hub { cursor:pointer; outline:none; -webkit-tap-highlight-color:transparent; }
   #map .hub circle { stroke:var(--panel); stroke-width:4; transform-box:fill-box; transform-origin:center;
                      transition:transform .15s ease, opacity .15s ease; }
-  #map .hub text { font:650 26px system-ui, -apple-system, "Segoe UI", sans-serif; letter-spacing:.2px; fill:var(--ink);
-                   paint-order:stroke; stroke:var(--panel); stroke-width:8px; stroke-linejoin:round; }
-  @media (max-width: 899px) { #map .hub text { font-size:38px; } }
+  #map .hub text { font-weight:650; font-family:system-ui, -apple-system, "Segoe UI", sans-serif; letter-spacing:.2px;
+                   fill:var(--ink); paint-order:stroke; stroke:var(--panel); stroke-width:.3em; stroke-linejoin:round; }
   #markers.has-hl .hub:not(.hl):not(.selected) { opacity:.38; }
   #map .hub.hl circle, #map .hub:hover circle, #map .hub:focus-visible circle { transform:scale(1.45); stroke:var(--accent); stroke-width:4; }
-  #map .hub.hl text { text-decoration:underline; text-decoration-thickness:3px; text-underline-offset:6px; }
+  #map .hub.hl text, #map .hub:focus-visible text { text-decoration:underline; text-decoration-thickness:.1em; text-underline-offset:.2em; }
   #map .hub.selected circle { stroke:var(--ink); stroke-width:5; transform:scale(1.3); }
   .legend { display:flex; flex-wrap:wrap; gap:6px 12px; font-size:12px; color:var(--muted); margin:8px 0 0; }
   .legend i { display:inline-block; width:10px; height:10px; border-radius:50%; margin-right:4px; vertical-align:-1px; }
   .atlas-foot { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1.15fr); grid-template-areas:"rank card";
                 gap:16px; margin-top:14px; padding-top:12px; border-top:1px solid var(--line); }
-  @media (max-width: 1199px) { .atlas-foot { grid-template-columns:minmax(0,1fr); grid-template-areas:"card" "rank"; } }
+  @media (max-width: 1199px) { .atlas-foot { grid-template-columns:minmax(0,1fr); grid-template-areas:"rank" "card"; } }
   .atlas-foot h3 { margin:0 0 6px; font-size:15px; }
   .ranking-wrap { grid-area:rank; }
   #ranking { list-style:none; margin:0; padding:0; }
   .rank-row { width:100%; display:grid; grid-template-columns:1.6em minmax(0,1fr) auto; gap:6px; align-items:baseline;
               padding:6px 8px; border:0; border-radius:8px; background:transparent; color:var(--ink); cursor:pointer;
               text-align:left; font-size:14px; }
-  .rank-row:hover, .rank-row.hl, .rank-row:focus-visible { background:var(--hl); outline:none; }
+  .rank-row:hover, .rank-row.hl, .rank-row:active { background:var(--hl); }
+  .rank-row:focus-visible { background:var(--hl); outline:2px solid var(--accent); outline-offset:-2px; }
   .rank-row[aria-pressed="true"] { background:var(--hl); font-weight:650; }
   .rank-row[aria-pressed="true"] .n { color:var(--accent); }
   .rank-row .n { color:var(--muted); font-variant-numeric:tabular-nums; }
@@ -120,29 +141,29 @@
 <body>
 <header class="masthead">
   <div class="brand">
-    <svg viewBox="0 0 64 64" aria-hidden="true"><rect width="64" height="64" rx="14" fill="#14213d"/>
+    <svg viewBox="0 0 64 64" aria-hidden="true"><rect class="tile" width="64" height="64" rx="14" fill="#14213d"/>
       <path d="M32 9.5c-8.6 0-15.5 6.8-15.5 15.3 0 11.2 15.5 29.7 15.5 29.7s15.5-18.5 15.5-29.7C47.5 16.3 40.6 9.5 32 9.5z" fill="#2bb3a3"/>
-      <circle cx="32" cy="25" r="6" fill="#14213d"/></svg>
+      <circle class="tile" cx="32" cy="25" r="6" fill="#14213d"/></svg>
     <div><h1>Weather Risk Atlas</h1>
       <p>Weather-disruption exposure of our distribution hubs.<span class="long"> Scores come from a deterministic model; the AI explains them.</span></p></div>
   </div>
 </header>
 <main class="atlas">
   <section class="panel chat empty" id="chat" aria-label="Chat">
-    <div class="chat-head"><h2>Ask about your hubs</h2><a href="#" id="newchat">New conversation</a></div>
+    <div class="chat-head"><h2>Ask about your hubs</h2><button type="button" class="linklike" id="newchat">New conversation</button></div>
     <div class="welcome" id="welcome">
       <h2 id="welcome-title">What would you like to know about your hubs?</h2>
       <form class="askbox" id="f0">
-        <input id="q0" type="text" autocomplete="off" aria-labelledby="welcome-title"
-               placeholder="Ask about any hub, hazard or ranking">
+        <input id="q0" type="text" autocomplete="off" maxlength="2000" aria-labelledby="welcome-title"
+               placeholder="Ask about any hub">
         <button class="send">Ask</button>
       </form>
       <div class="examples" id="examples" role="group" aria-label="Example questions"></div>
       <p class="meta hint">Or pick a hub on the map to ask about it.</p>
     </div>
-    <div id="log" aria-live="polite"></div>
+    <div id="log" aria-live="polite" tabindex="-1"></div>
     <form class="askbar" id="f">
-      <input id="q" type="text" autocomplete="off" aria-label="Your question" placeholder="Ask a follow-up or a new question">
+      <input id="q" type="text" autocomplete="off" maxlength="2000" aria-label="Your question" placeholder="Ask a follow-up">
       <button class="send" id="send">Ask</button>
     </form>
   </section>
@@ -152,17 +173,17 @@
     <svg id="map" viewBox="0 0 975 610" role="group" aria-label="Map of company hubs; select a hub to ask about it">
       <defs><clipPath id="land48"></clipPath></defs>
       <rect class="sea" width="975" height="610"/>
-      <g id="states"></g><g id="grid" clip-path="url(#land48)"></g><g id="markers"></g>
+      <g id="states" aria-hidden="true"></g><g id="grid" aria-hidden="true" clip-path="url(#land48)"></g><g id="markers"></g>
     </svg>
     <div class="legend" id="legend"></div>
     <div class="atlas-foot">
-      <div class="hubcard" id="hubcard" aria-live="polite">
-        <h3>Explore a hub</h3>
-        <p class="meta">Hover a city in the ranking to find it on the map. Select it to see the hub and ask about it.</p>
-      </div>
       <div class="ranking-wrap">
         <h3>Overall risk ranking</h3>
         <ol id="ranking" aria-label="Hubs ranked by overall risk"><li class="meta">Loading…</li></ol>
+      </div>
+      <div class="hubcard" id="hubcard" aria-live="polite">
+        <h3>Explore a hub</h3>
+        <p class="meta">Hover a city in the ranking to find it on the map. Select it to see the hub and ask about it.</p>
       </div>
     </div>
     <p class="attrib meta" id="attrib"></p>
@@ -176,12 +197,15 @@ const EXAMPLES = [
 ];
 const TIERS = ["Low", "Moderate", "High", "Severe"];
 const SVG = "http://www.w3.org/2000/svg";
-let sessionId = null, HUBS = [];
+// Every control that sends a question; all are disabled while a request is running.
+const ASK_SEL = "#send, #f0 button, #hubask button, #hubcard .suggest button, .follow button, #examples button";
+let sessionId = null, HUBS = [], busy = false, convGen = 0, inflight = null, labelUnits = 26;
 try { sessionId = localStorage.getItem("wr_session"); } catch (e) {}
 const $ = id => document.getElementById(id);
 const log = $("log"), chat = $("chat");
 const esc = s => String(s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 const narrow = () => window.matchMedia("(max-width: 899px)").matches;
+const stacked = () => window.matchMedia("(max-width: 1199px)").matches;   // ranking above the hub card
 const score = v => Number(v).toFixed(1);  // 41 -> "41.0"
 
 function md(text) {  // tiny, safe Markdown subset: paragraphs, bullets, bold, italics, code
@@ -202,6 +226,12 @@ function add(html, cls) {
   const d = document.createElement("div");
   d.className = "msg " + cls; d.innerHTML = html; log.appendChild(d);
   log.scrollTop = log.scrollHeight; return d;
+}
+
+function setBusy(on) {
+  busy = on;
+  document.querySelectorAll(ASK_SEL).forEach(b => b.disabled = on);
+  chat.setAttribute("aria-busy", on ? "true" : "false");
 }
 
 // Main result first: the answer text, then everything numeric in ONE collapsed "Breakdown".
@@ -237,32 +267,54 @@ function renderAnswer(r) {
       <b>Tool calls</b><ul>${tools || "<li class='meta'>none</li>"}</ul>
     </details>
     <div class="follow">${follow}</div>`, "bot");
-  el.querySelectorAll(".follow button").forEach(b => b.onclick = () => ask(b.textContent));
+  el.querySelectorAll(".follow button").forEach(b => { b.onclick = () => ask(b.textContent); b.disabled = busy; });
+  // Long answers: show the question and the start of the answer, not the end.
+  const q = el.previousElementSibling, top = q && q.classList.contains("user") ? q : el;
+  log.scrollTop += top.getBoundingClientRect().top - log.getBoundingClientRect().top - 8;
 }
 
-function startConversation() {  // empty welcome screen -> usual conversation layout
+function startConversation(fromTyping) {  // empty welcome screen -> usual conversation layout
   if (!chat.classList.contains("empty")) return;
   chat.classList.remove("empty");
-  $("q").focus({ preventScroll: true });
+  // Focus the follow-up box only when the user was typing or has a mouse; on touch devices a
+  // focused input would pop up the keyboard over the answer.
+  if (fromTyping || !window.matchMedia("(pointer: coarse)").matches) $("q").focus({ preventScroll: true });
+  else log.focus({ preventScroll: true });
 }
 
-async function ask(text) {
-  if (!text.trim()) return;
-  startConversation();
+function errorText(res, body) {
+  const d = body && body.detail;
+  const msg = typeof d === "string" ? d : Array.isArray(d) ? d.map(x => x.msg || "").filter(Boolean).join("; ") : "";
+  return msg || `The assistant is unavailable (${res.status}). Please try again.`;
+}
+
+async function ask(text, opts = {}) {
+  if (busy || !text.trim()) return false;
+  const gen = convGen, controller = new AbortController();
+  inflight = controller;
+  setBusy(true);
+  startConversation(opts.fromTyping);
   add(esc(text), "user");
-  const btn = $("send"); btn.disabled = true;
   const pending = add("<span class='meta'>Thinking and running tools…</span>", "bot");
   try {
-    const res = await fetch("/chat", { method:"POST", headers:{"Content-Type":"application/json"},
+    const res = await fetch("/chat", { method:"POST", headers:{"Content-Type":"application/json"}, signal: controller.signal,
                                        body: JSON.stringify({ message:text, session_id:sessionId }) });
-    const body = await res.json();
+    const body = await res.json().catch(() => ({}));
+    if (gen !== convGen) return true;            // the user started a new conversation meanwhile
     pending.remove();
-    if (!res.ok) { add(`<span class="err">${esc(body.detail || res.statusText)}</span>`, "bot"); return; }
+    if (!res.ok) { add(`<span class="err">${esc(errorText(res, body))}</span>`, "bot"); return true; }
     sessionId = body.session_id;
     try { localStorage.setItem("wr_session", sessionId); } catch (e) {}
     renderAnswer(body);
-  } catch (e) { pending.remove(); add(`<span class="err">${esc(e)}</span>`, "bot"); }
-  finally { btn.disabled = false; }
+  } catch (e) {
+    if (gen !== convGen || e.name === "AbortError") return true;
+    console.error(e);
+    pending.remove();
+    add(`<span class="err">Could not reach the server. Check your connection and try again.</span>`, "bot");
+  } finally {
+    if (gen === convGen) setBusy(false);
+  }
+  return true;
 }
 
 // ---------- atlas: map, ranking and hub card ----------
@@ -277,13 +329,14 @@ function highlight(id, on) {  // ranking row <-> map marker, both ways
   $("markers").classList.toggle("has-hl", !!document.querySelector("#markers .hub.hl"));
 }
 
-function askAbout(h, text) {
+function askAbout(h, text, fromTyping = false) {
   text = text.trim();
-  if (!text) return;
+  if (!text || busy) return false;
   // Make the hub explicit unless the question already names it; the chat shows what is sent.
   const msg = text.toLowerCase().includes(h.city.toLowerCase()) ? text : `About the ${fullName(h)} hub: ${text}`;
   if (narrow()) chat.scrollIntoView({ behavior: "smooth", block: "start" });
-  ask(msg);
+  ask(msg, { fromTyping });
+  return true;
 }
 
 function selectHub(id, opts = {}) {
@@ -297,38 +350,62 @@ function selectHub(id, opts = {}) {
     <h3 id="hub-name">${esc(fullName(h))}</h3>
     <div class="meta">${esc(h.county)} County · ${esc(h.region)} region</div>
     <div class="stats">Overall risk <b>${score(h.overall_score)}</b>
-      <span class="tier" style="color:var(--${esc(h.tier)})">${esc(h.tier)}</span>
+      <span class="tier" style="color:var(--${esc(h.tier)}-text)">${esc(h.tier)}</span>
       <span class="meta">· #${esc(h.rank)} of ${HUBS.length}</span></div>
     <div class="suggest"><button type="button">${esc(question)}</button></div>
-    <form class="askbox" id="hubask"><input type="text" autocomplete="off" aria-label="${esc(`Ask about ${fullName(h)}`)}"
-      placeholder="${esc(`Ask about ${fullName(h)}…`)}"><button class="send">Ask</button></form>`;
-  card.querySelector(".suggest button").onclick = () => askAbout(h, question);
+    <form class="askbox" id="hubask"><input type="text" autocomplete="off" maxlength="2000"
+      aria-label="${esc(`Ask about ${fullName(h)}`)}" placeholder="Ask about this hub…"><button class="send">Ask</button></form>`;
+  const suggestion = card.querySelector(".suggest button");
+  suggestion.onclick = () => askAbout(h, question);
   card.querySelector("#hubask").onsubmit = e => {
-    e.preventDefault(); const inp = e.target.querySelector("input"); askAbout(h, inp.value); inp.value = ""; };
-  if (opts.fromRanking && narrow()) card.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    e.preventDefault(); const inp = e.target.querySelector("input");
+    if (askAbout(h, inp.value, true)) inp.value = ""; };     // keep the text if a request is running
+  if (busy) card.querySelectorAll("button").forEach(b => b.disabled = true);
+  if (stacked()) card.scrollIntoView({ behavior: "smooth", block: "nearest" });
+  if (opts.keyboard) suggestion.focus({ preventScroll: true });  // keyboard users land on the question
 }
 
-// Keep city labels readable: a label that would overlap another label or marker, or run off
-// the map, moves to the left of its marker, then below or above it, whichever fits first.
+// Keep city labels readable: try right, left, right-below, below and above each marker, and take
+// the first spot that overlaps no other label or marker and stays on the map (else the least bad).
 function placeLabels() {
   const hubs = [...document.querySelectorAll("#markers .hub")];
+  if (!hubs.length) return;
+  const u = labelUnits;
   const at = g => g.transform.baseVal.consolidate().matrix;
   const circles = hubs.map(g => { const m = at(g); return { x: m.e - 17, y: m.f - 17, width: 34, height: 34, g }; });
-  const overlap = (a, b) => a.x < b.x + b.width && b.x < a.x + a.width && a.y < b.y + b.height && b.y < a.y + a.height;
+  const area = (a, b) => Math.max(0, Math.min(a.x + a.width, b.x + b.width) - Math.max(a.x, b.x)) *
+                         Math.max(0, Math.min(a.y + a.height, b.y + b.height) - Math.max(a.y, b.y));
+  const spots = [{ x: 22, y: .35 * u, a: "start" }, { x: -22, y: .35 * u, a: "end" }, { x: 22, y: 14 + .85 * u, a: "start" },
+                 { x: 0, y: 18 + .9 * u, a: "middle" }, { x: 0, y: -20, a: "middle" }];
   const placed = [];
-  const spots = [{ x: 22, y: 9, anchor: "start" }, { x: -22, y: 9, anchor: "end" }, { x: 0, y: 46, anchor: "middle" },
-                 { x: 0, y: -26, anchor: "middle" }];
   for (const g of hubs) {
     const t = g.querySelector("text"), m = at(g);
+    const boxFor = s => {
+      t.setAttribute("x", s.x); t.setAttribute("y", s.y); t.setAttribute("text-anchor", s.a);
+      const b = t.getBBox(), pad = 1.5;  // tolerate sub-pixel touching only (font metrics jitter)
+      return { x: m.e + b.x - 4, y: m.f + b.y + pad, width: b.width + 8, height: b.height - 2 * pad };
+    };
+    let best = null;
     for (const s of spots) {
-      t.setAttribute("x", s.x); t.setAttribute("y", s.y); t.setAttribute("text-anchor", s.anchor);
-      const b = t.getBBox(), box = { x: m.e + b.x - 4, y: m.f + b.y, width: b.width + 8, height: b.height };
-      const inMap = box.x >= 0 && box.x + box.width <= 975 && box.y >= 0 && box.y + box.height <= 610;
-      const clash = placed.some(p => overlap(p, box)) || circles.some(c => c.g !== g && overlap(c, box));
-      if (inMap && !clash) break;  // otherwise try the next spot (the last one is kept if none fits)
+      const box = boxFor(s);
+      const off = Math.max(0, -box.x) + Math.max(0, box.x + box.width - 975) + Math.max(0, -box.y) + Math.max(0, box.y + box.height - 610);
+      const cost = placed.reduce((n, p) => n + area(p, box), 0) + circles.reduce((n, c) => n + (c.g === g ? 0 : area(c, box)), 0) + off * 1e4;
+      if (!best || cost < best.cost) best = { s, box, cost };
+      if (cost === 0) break;
     }
-    const b = t.getBBox(); placed.push({ x: m.e + b.x - 4, y: m.f + b.y, width: b.width + 8, height: b.height });
+    const final = boxFor(best.s);
+    placed.push(final);
   }
+}
+
+function fitLabels() {  // label size in SVG units so that it is about 15-16 CSS px on screen
+  const w = $("map").getBoundingClientRect().width;
+  if (!w) return;
+  const units = Math.round(Math.min(48, Math.max(26, (w < 500 ? 15 : 16) * 975 / w)));
+  if (units === labelUnits && document.querySelector("#markers .hub text[x]")) return;
+  labelUnits = units;
+  $("markers").style.fontSize = units + "px";
+  placeLabels();
 }
 
 function drawMap(atlas) {
@@ -356,15 +433,15 @@ function drawMap(atlas) {
     const tip = document.createElementNS(SVG, "title"); tip.textContent = `${fullName(h)}: overall ${score(h.overall_score)} (${h.tier})`;
     g.append(c, label, tip);
     g.addEventListener("click", () => selectHub(h.id));
-    g.addEventListener("keydown", e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); selectHub(h.id); } });
+    g.addEventListener("keydown", e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); selectHub(h.id, { keyboard: true }); } });
     g.addEventListener("mouseenter", () => highlight(h.id, true));
     g.addEventListener("mouseleave", () => highlight(h.id, false));
     g.addEventListener("focus", () => highlight(h.id, true));
     g.addEventListener("blur", () => highlight(h.id, false));
     markers.appendChild(g);
   }
-  placeLabels();
-  window.matchMedia("(max-width: 899px)").addEventListener("change", placeLabels);  // label size changes
+  fitLabels();
+  new ResizeObserver(fitLabels).observe($("map"));
   $("legend").innerHTML = "<span>Overall risk tier:</span>" +
     TIERS.map(t => `<span><i style="background:var(--${t})"></i>${t}</span>`).join("");
   $("attrib").textContent = atlas.attribution;
@@ -375,7 +452,7 @@ function drawRanking() {
   ol.innerHTML = [...HUBS].sort((a, b) => a.rank - b.rank).map(h => `<li>
     <button type="button" class="rank-row" data-id="${esc(h.id)}" aria-pressed="false">
       <span class="n">${esc(h.rank)}.</span><span>${esc(h.city)}, ${esc(h.state)}</span>
-      <span><span class="sc">${score(h.overall_score)}</span> <span class="tier" style="color:var(--${esc(h.tier)})">${esc(h.tier)}</span></span>
+      <span><span class="sc">${score(h.overall_score)}</span> <span class="tier" style="color:var(--${esc(h.tier)}-text)">${esc(h.tier)}</span></span>
     </button></li>`).join("");
   ol.querySelectorAll(".rank-row").forEach(b => {
     const id = b.dataset.id;
@@ -383,21 +460,43 @@ function drawRanking() {
     b.addEventListener("mouseleave", () => highlight(id, false));
     b.addEventListener("focus", () => highlight(id, true));
     b.addEventListener("blur", () => highlight(id, false));
-    b.addEventListener("click", () => selectHub(id, { fromRanking: true }));
+    b.addEventListener("click", e => selectHub(id, { keyboard: e.detail === 0 }));  // detail 0 = Enter/Space
   });
 }
 
-Promise.all([fetch("/static/us-states.json").then(r => r.json()), fetch("/map/hubs").then(r => r.json())])
+function mapUnavailable() {  // degrade the whole atlas, not just the card
+  HUBS = [];
+  ["states", "markers", "grid", "land48"].forEach(id => { const n = $(id); if (n) n.innerHTML = ""; });
+  $("map").style.display = "none"; $("map").setAttribute("aria-hidden", "true");
+  $("legend").hidden = true;
+  document.querySelector(".ranking-wrap").hidden = true;
+  document.querySelector(".welcome .hint").hidden = true;
+  $("hubcard").innerHTML = "<p class='meta'>The hub map could not be loaded. You can still ask questions in the chat.</p>";
+}
+
+const getJSON = u => fetch(u).then(r => { if (!r.ok) throw new Error(`${u} ${r.status}`); return r.json(); });
+Promise.all([getJSON("/static/us-states.json"), getJSON("/map/hubs")])
   .then(([atlas, hubsOnMap]) => { HUBS = hubsOnMap; drawMap(atlas); drawRanking(); })
-  .catch(() => { $("hubcard").innerHTML = "<p class='meta'>Map unavailable.</p>"; $("ranking").innerHTML = ""; });
+  .catch(e => { console.warn(e); mapUnavailable(); });
 
 // ---------- chat controls ----------
 const ex = $("examples");
 EXAMPLES.forEach(t => { const b = document.createElement("button"); b.type = "button"; b.textContent = t; b.onclick = () => ask(t); ex.appendChild(b); });
-$("f0").onsubmit = e => { e.preventDefault(); const q = $("q0"); const v = q.value; q.value = ""; ask(v); };
-$("f").onsubmit = e => { e.preventDefault(); const q = $("q"); const v = q.value; q.value = ""; ask(v); };
-$("newchat").onclick = e => { e.preventDefault(); sessionId = null;
-  try { localStorage.removeItem("wr_session"); } catch (err) {} log.innerHTML = ""; chat.classList.add("empty"); $("q0").focus(); };
+for (const [formId, inputId] of [["f0", "q0"], ["f", "q"]]) {
+  $(formId).onsubmit = e => {
+    e.preventDefault(); const q = $(inputId);
+    if (busy || !q.value.trim()) return;                    // keep the text if a request is running
+    const v = q.value; q.value = ""; ask(v, { fromTyping: true });
+  };
+}
+$("newchat").onclick = () => {
+  convGen++;                                                // late answers of the old conversation are dropped
+  if (inflight) inflight.abort();
+  setBusy(false);
+  sessionId = null;
+  try { localStorage.removeItem("wr_session"); } catch (err) {}
+  log.innerHTML = ""; chat.classList.add("empty"); $("q0").focus();
+};
 </script>
 </body>
 </html>
