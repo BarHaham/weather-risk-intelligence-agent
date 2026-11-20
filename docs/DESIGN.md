@@ -11,7 +11,8 @@ explains the results. It never produces scores itself.
 - **Hazards:** 5 (winter, flood, hurricane, wind/tornado, heat).
 - **Data sources:** 2 public sources.
 - **Out of scope:** wildfire, earthquake, drought, hail, live forecasts and alerts, other cities.
-- **Deferred:** voice input, and alerts when a score changes (see §9).
+- **Deferred:** voice input. Score changes on `main` open a GitHub issue (see "Score-change
+  monitoring"); alerts beyond that are a next step (§9).
 
 ## 2. System architecture
 
@@ -398,8 +399,10 @@ Always checked:
   - Exposure is not the same as vulnerability: building condition, backup power and the
     hub's own network role are not modelled.
 - **Next steps:**
-  - Alerts: a daily job recomputes the scores, diffs them against the last snapshot in SQLite,
-    and posts to a webhook when a tier changes. Fixed caps make the diffs meaningful.
+  - Alerts: score changes on `main` already open a GitHub issue (the "Score changes"
+    workflow). Next: notify a webhook or chat channel on a tier change, and a scheduled job that
+    re-fetches the upstream data (Open-Meteo revisions, new FEMA NRI releases) and reports
+    changes before anyone commits them. Fixed caps make the diffs meaningful.
   - Live NWS alerts as a separate overlay.
   - Station data (NOAA GHCN-Daily), to measure where the gridded estimates can differ from
     station records.
