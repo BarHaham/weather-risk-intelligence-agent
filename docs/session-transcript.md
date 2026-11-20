@@ -4167,118 +4167,2399 @@ bb69f16 Windows fixes from runbook review: UTF-8 charset on JSON, clearer eval e
 }
 ```
 
+<details><summary>Tool result</summary>
+
+```
+Exit code 128
+wrote /home/user/weather-risk-intelligence-agent/docs/session-transcript.md (328,585 chars)
+0
+fatal: Needed a single revision
+```
+</details>
+
+**Tool call:** `Bash`
+
+```json
+{
+ "command": "git status --short --untracked-files=all; git log --oneline -2; git rev-parse HEAD; git rev-parse origin/claude/lucid-thompson-42z611",
+ "description": "Confirm transcript commit pushed and tree clean"
+}
+```
+
+<details><summary>Tool result</summary>
+
+```
+3bcb528 Refresh session transcript export
+bb69f16 Windows fixes from runbook review: UTF-8 charset on JSON, clearer eval errors
+3bcb5280fbc5a08e0891f62a4210c628fb026c0a
+3bcb5280fbc5a08e0891f62a4210c628fb026c0a
+```
+</details>
+
+**Tool call:** `mcp__github__update_pull_request`
+
+```json
+{
+ "owner": "BarHaham",
+ "repo": "weather-risk-intelligence-agent",
+ "pullNumber": 1,
+ "body": "## Summary\nAn AI agent that helps analysts decide which of 7 US distribution hubs are most exposed to weather disruption.\n- A **deterministic Python risk model** scores each hub from public data (Open-Meteo ERA5 daily weather + FEMA National Risk Index frequencies).\n- **Claude** answers chat questions by calling that model through 6 strict tools, and returns a **JSON-schema-enforced** answer (`AgentAnswer`) that the UI renders.\n- Design, architecture, storage choice and assumptions: `docs/DESIGN.md`. Run instructions, including a Windows/PowerShell section: `README.md`. AI session transcript: `docs/session-transcript.md`.\n\n## What's included\n- `app/sources/`: Open-Meteo and FEMA NRI clients. Raw responses are cached in `data/cache/` (committed), and SQLite is rebuilt from them at startup, so the demo runs offline.\n- `app/scoring.py`: the risk model.\n  - Fixed normalisation caps:\n    - Observed day counts: 10% of days (36.5 days/yr).\n    - FEMA frequencies: the national 99th percentile across 3,232 US counties.\n  - Hazard score = mean of its components. Overall = weighted sum 
+… [truncated, 3868 more chars]
+```
+
+<details><summary>Tool result</summary>
+
+```
+{"id":"5411194102","url":"https://github.com/BarHaham/weather-risk-intelligence-agent/pull/1"}
+```
+</details>
+
+### 🤖 Claude
+
+The draft PR is open: [BarHaham/weather-risk-intelligence-agent#1](https://github.com/BarHaham/weather-risk-intelligence-agent/pull/1). I created `main` as one empty commit so the PR had a base.
+
+**Houston's data came through.** All 7 hubs now have full 2020–2025 weather history, so nothing is missing. The PR describes the earlier gap and its effect: Houston was scored from FEMA data alone at 56.7 (High), and with real weather it's 47.4 (Moderate). It's still ranked first, and no other hub's score changed.
+
+**Changes before you run it.** I had the commands below checked against the code by three independent reviewers, and fixed four Windows problems they confirmed:
+- Answers no longer show garbled characters in Windows PowerShell 5.1.
+- The key is now entered at a prompt, so it isn't saved in PowerShell's history file.
+- The eval runner gives a clear message when the key is missing or wrong.
+- The transcript exporter now finds the session log on Windows.
+
+All 15 tests pass, and all of this is pushed.
+
+The commands assume Python 3.10 or newer. The test step needs no API key.
+
+**1. Clone and install** (from any folder):
+
+```bash
+git clone -b claude/lucid-thompson-42z611 https://github.com/BarHaham/weather-risk-intelligence-agent.git
+```
+
+```bash
+cd weather-risk-intelligence-agent
+```
+
+```bash
+py -3 -m venv .venv
+```
+If `py` isn't found, use `python -m venv .venv` instead.
+
+```bash
+.\.venv\Scripts\python.exe -m pip install --upgrade pip
+```
+
+```bash
+.\.venv\Scripts\python.exe -m pip install -r requirements.txt
+```
+
+```bash
+.\.venv\Scripts\python.exe -m pytest -q
+```
+This should print `15 passed`.
+
+**2. Set the key and start the server.** The first command prompts for the key and keeps it for this window only:
+
+```bash
+$env:ANTHROPIC_API_KEY = [Net.NetworkCredential]::new('', (Read-Host 'Anthropic API key' -AsSecureString)).Password
+```
+
+```bash
+.\.venv\Scripts\python.exe -m uvicorn app.main:app --port 8000
+```
+
+**3. Ask a question and a follow-up.** Open http://127.0.0.1:8000.
+- Click **"Which hubs in the Midwest are most exposed to winter disruption?"**. The answer should give Minneapolis 62.2, Detroit 52.7, Chicago 45.8.
+- Then type **What drives Detroit's score?** It should name winter first (13.2 of Detroit's 29.3 points), then wind (8.2), then flood (5.8).
+- Under "Reasoning, sources & assumptions" on the second answer, the tool calls should include `get_score_breakdown` for `detroit`. That shows the follow-up used the first question's context.
+
+**4. Run the evals.** Press Ctrl+C in the server window, which already has the key and is in the repo folder. In any other window, `cd` into the clone and run the key line from step 2 first.
+
+```bash
+.\.venv\Scripts\python.exe -m evals.run --case follow_up_detroit
+```
+
+```bash
+.\.venv\Scripts\python.exe -m evals.run
+```
+
+The full run is 10 cases and 11 chat turns, each making a few calls to Claude Opus 5.5, so it's worth running the single case first. `--dry-run` prints the expected values without any API calls.
+
+**Not yet tested:** nothing has run against Claude itself yet, because there was no API key here. Your test will be the first real run.
+
+---
+
+## 🧑 User
+
+I’ve created a local .env file and confirmed Git ignores it. Could you update the app and evals to read the API key from it?
+I’d like to use Sonnet 5.5 by default. If Sonnet is temporarily unavailable, try Haiku 5.5 once. Let’s replace the current refusal fallback with that and make sure the eval results show which model actually answered. Please test the switch with a simulated outage and push the changes to the same branch.
+
+### 🤖 Claude
+
+I'll check the model-specific API rules for Sonnet 5.5 and Haiku 5.5, and how the installed SDK classifies an outage, before writing the plan.
+
+**Tool call:** `Bash`
+
+```json
+{
+ "command": "cd /tmp/claude-0/bundled-skills/2.1.329/584084131c90118515174e77db29bc70/claude-api/shared && grep -n -E \"^#+ .*(Sonnet 5\\.5|Haiku 5\\.5)\" model-migration.md | head -20",
+ "description": "Locate Sonnet 5.5 and Haiku 5.5 migration sections"
+}
+```
+
+**Tool call:** `Bash`
+
+```json
+{
+ "command": "python3 - <<'EOF'\nimport inspect, anthropic\nfrom anthropic import _client\nsrc = inspect.getsource(_client.Anthropic._make_status_error)\nprint(src)\nprint([n for n in dir(anthropic) if n.endswith(\"Error\")])\nimport anthropic._base_client as b\ns = inspect.getsource(b.BaseClient._should_retry) if hasattr(b.BaseClient, \"_should_retry\") else \"\"\nprint(s[:1800])\nEOF",
+ "description": "Inspect SDK status-error mapping and retry rules"
+}
+```
+
+<details><summary>Tool result</summary>
+
+```
+2099:## Migrating to Claude Sonnet 5.5
+2133:# Before - accepted on Claude Sonnet 5, 400 on Claude Sonnet 5.5
+2234:### Claude Sonnet 5.5 Migration Checklist
+2252:## Migrating to Claude Haiku 5.5
+2275:# After - Claude Haiku 5.5
+2395:### Claude Haiku 5.5 Migration Checklist
+Shell cwd was reset to /home/user/weather-risk-intelligence-agent
+```
+</details>
+
+<details><summary>Tool result</summary>
+
+```
+@final
+    def _make_status_error(
+        self,
+        err_msg: str,
+        *,
+        body: object,
+        response: httpx2.Response,
+    ) -> _exceptions.APIStatusError:
+        return make_status_error(err_msg, body=body, response=response)
+
+['APIConnectionError', 'APIError', 'APIResponseValidationError', 'APIStatusError', 'APITimeoutError', 'APIWebhookValidationError', 'AnthropicError', 'AuthenticationError', 'BadRequestError', 'CMEKContextUnavailableError', 'CMEKKeyDisabledError', 'CMEKKeyNetworkBlockedError', 'CMEKKeyUnreachableError', 'ClaudeCodeKeyCreatorNotMemberError', 'ClaudeCodeVersionTooOldError', 'ClientClosedRequestError', 'ConflictError', 'ContentTooLargeError', 'ContractSpendLimitReachedError', 'CredentialsError', 'DeadlineExceededError', 'EnforcedSpendLimitReachedError', 'GatewayTimeoutError', 'HTTPNotImplementedError', 'IdentityTokenFileError', 'InternalServerError', 'LinkedOrganizationBillingUnavailableError', 'LinkedOrganizationSpendLimitReachedError', 'NotFoundError', 'OrganizationOnHoldError', 'OrganizationTypeNotSupportedError', 'OverloadedError', 'ParentOrganizationRequiredError', 'PaymentRequiredError', 'PermissionDeniedError', 'PreconditionFailedError', 'RampLimitExceededError', 'RateLimitError', 'RequestBodyEncodingInvalidError', 'RequestBodyEncodingUnsupportedError', 'RequestBodyTooLargeAfterDecodingError', 'RequestHeaderFieldsTooLargeError', 'RequestTimeoutError', 'RequestTooLargeError', 'RetryableError', 'SandboxEgressRestrictedError', 'Serv
+… [truncated, 1384 more chars]
+```
+</details>
+
+**Tool call:** `Read`
+
+```json
+{
+ "file_path": "/tmp/claude-0/bundled-skills/2.1.329/584084131c90118515174e77db29bc70/claude-api/shared/model-migration.md",
+ "offset": 2099,
+ "limit": 310
+}
+```
+
+<details><summary>Tool result</summary>
+
+```
+2099	## Migrating to Claude Sonnet 5.5
+2100	
+2101	> **Model ID `claude-sonnet-5-5` is authoritative as written here.** When the user asks to migrate to Claude Sonnet 5.5, write `model="claude-sonnet-5-5"` exactly (no date suffix; `anthropic.claude-sonnet-5-5` on Amazon Bedrock). Do **not** fetch the docs to verify - this guide is the source of truth for migration target IDs. The corresponding entry exists in `shared/models.md`.
+2102	
+2103	Claude Sonnet 5.5 succeeds Claude Sonnet 5 in the Sonnet line **at the same prices** - $2 / $10 per MTok input / output, 5-minute cache writes $2.50, 1-hour cache writes $4, and Claude Sonnet 5's batch rates - except cache reads, at $0.10, half Claude Sonnet 5's rate. Same tokenizer as Claude Sonnet 5 (token counts unchanged), 1M token context window, 128K max output (up to 300K on the Message Batches API with the `output-300k-2026-03-24` beta header). Available at launch on the Claude API (`claude-sonnet-5-5`), Amazon Bedrock (`anthropic.claude-sonnet-5-5`), Claude Platform on AWS, Google Cloud, and Microsoft Foundry (all three as `claude-sonnet-5-5`). On Foundry it is hosted on Azure only, with Global Standard deployments only, so the features Foundry doesn't offer when hosted on Azure are unavailable for it there - code execution, programmatic tool calling, Agent Skills, the Files API, and the newer web search and web fetch versions (`shared/platform-availability.md`). The SDK constants listed below may be missing from the SDK version a p
+… [truncated, 60280 more chars]
+```
+</details>
+
+**Tool call:** `Bash`
+
+```json
+{
+ "command": "python3 - <<'EOF'\nimport inspect, anthropic\nfrom anthropic import _exceptions as e\nprint(inspect.getsource(e.make_status_error) if hasattr(e,'make_status_error') else 'no make_status_error in _exceptions')\nfor n in [\"OverloadedError\",\"ServiceUnavailableError\",\"InternalServerError\",\"GatewayTimeoutError\",\"RetryableError\",\"DeadlineExceededError\",\"RateLimitError\",\"APITimeoutError\",\"APIConnectionError\"]:\n    c=getattr(anthropic,n); print(n, [b.__name__ for b in c.__mro__[1:4]], getattr(c,'status_code', None) if isinstance(getattr(c,'status_code',None),int) else '')\nEOF\ngrep -n \"HTTP_PROXY\\|NO_PROXY\\|no_proxy\" /root/.ccr/README.md; env | grep -i -E \"^(http_proxy|https_proxy|no_proxy)=\" | sed 's/=.*/=<set>/'",
+ "description": "Inspect SDK error class hierarchy and proxy env vars"
+}
+```
+
+<details><summary>Tool result</summary>
+
+```
+no make_status_error in _exceptions
+OverloadedError ['InternalServerError', 'APIStatusError', 'APIError'] 529
+ServiceUnavailableError ['InternalServerError', 'APIStatusError', 'APIError'] 503
+InternalServerError ['APIStatusError', 'APIError', 'AnthropicError'] 
+GatewayTimeoutError ['InternalServerError', 'APIStatusError', 'APIError'] 504
+RetryableError ['AnthropicError', 'Exception', 'BaseException'] 
+DeadlineExceededError ['InternalServerError', 'APIStatusError', 'APIError'] 504
+RateLimitError ['APIStatusError', 'APIError', 'AnthropicError'] 429
+APITimeoutError ['APIConnectionError', 'APIError', 'AnthropicError'] 
+APIConnectionError ['APIError', 'AnthropicError', 'Exception'] 
+51:1.16.1 (upgrade it) or a tool configured with HTTP_PROXY (unset HTTP_PROXY for
+93:Ruby bundler (reads only HTTP_PROXY, which this proxy does not serve),
+no_proxy=<set>
+https_proxy=<set>
+NO_PROXY=<set>
+HTTPS_PROXY=<set>
+```
+</details>
+
+### 🤖 Claude
+
+I've checked the model rules and the SDK, so I'll write the draft plan now.
+
+**Tool call:** `Write`
+
+```json
+{
+ "file_path": "/root/.claude/plans/root-claude-uploads-054feb9f-992e-53ec-fuzzy-deer.md",
+ "content": "# Plan: load the key from `.env`, use Sonnet 5.5 by default, fall back to Haiku 5.5 once\n\n## Context\nThe user has a git-ignored `.env` file on Windows and wants the app and the evals to read\n`ANTHROPIC_API_KEY` from it. Changes requested:\n- **Default model:** Claude Sonnet 5.5 (`claude-sonnet-5-5`).\n- **Fallback:** if Sonnet is temporarily unavailable, try Claude Haiku 5.5 (`claude-haiku-5-5`) once.\n- **Remove:** the current server-side *refusal* fallback (`fallbacks: \"default\"` plus a beta header). The Haiku fallback replaces it.\n- **Eval reporting:** results must show which model actually answered.\n- **Testing:** prove the switch with a simulated outage.\n- **Delivery:** push to `claude/lucid-thompson-42z611`, which feeds draft PR #1.\n\nThis is the existing repo built earlier in this session. The current state:\n- `app/agent.py` calls `client.beta.messages.create` with `model` from `config.yaml` (`claude-opus-5-5`), `fallbacks=\"default\"` and the beta header.\n- `agent.chat()` returns `model` = the last `resp.model` only.\n- `evals/run.py` never prints the model.\
+… [truncated, 9666 more chars]
+```
+
+<details><summary>Tool result</summary>
+
+```
+The file /root/.claude/plans/root-claude-uploads-054feb9f-992e-53ec-fuzzy-deer.md has been updated successfully. (file state is current in your context — no need to Read it back)
+```
+</details>
+
+**Tool call:** `Agent`
+
+```json
+{
+ "subagent_type": "Plan",
+ "description": "Critique fallback/.env plan",
+ "prompt": "You are reviewing an implementation plan before it is executed. Be a critical reviewer: find gaps, wrong assumptions, edge cases, and simpler alternatives. Do NOT write code or modify files.\n\nPlan file: /root/.claude/plans/root-claude-uploads-054feb9f-992e-53ec-fuzzy-deer.md (read it first).\nRepository: /home/user/weather-risk-intelligence-agent (Python 3.13, FastAPI, anthropic SDK 2.11.0 installed with httpx2 as its HTTP library). Key files: app/agent.py (Claude tool-use loop; currently calls client.beta.messages.create with fallbacks=\"default\" + betas), app/main.py (FastAPI, error mapping, /health), app/config.py (settings/hubs loaders), config.yaml (llm block), evals/run.py (eval runner), tests/test_agent_loop.py (FakeClient-based tests), app/static/index.html (UI), README.md, docs/DESIGN.md, Dockerfile, .gitignore.\n\nUser request: read ANTHROPIC_API_KEY from a local git-ignored .env file (user is on Windows; they may use Windows PowerShell 5.1 or 7) for both the app and the evals; default model Claude Sonnet 5.5 (\"claude-sonnet-5-5\"); if Sonnet is temporarily unavailable, try Claude H
+… [truncated, 2341 more chars]
+```
+
+<details><summary>Tool result</summary>
+
+```
+Async agent launched successfully. (This tool result is internal metadata — never quote or paste any part of it, including the agentId below, into a user-facing reply.)
+agentId: a83a596c3a8b4d278 (internal ID - do not mention to user. Use SendMessage with to: 'a83a596c3a8b4d278', summary: '<5-10 word recap>' to continue this agent.)
+The agent is working in the background. You will be notified automatically when it completes. You know nothing about its results until that notification arrives — do not report, assume, or predict them; continue other work or respond to the user in the meantime.
+Do not duplicate this agent's work — avoid working with the same files or topics it is using.
+output_file: /tmp/claude-0/-home-user-weather-risk-intelligence-agent/054feb9f-992e-53ec-86ec-b86ccf98458a/tasks/a83a596c3a8b4d278.output
+Do NOT Read or tail this file via the shell tool — it is the full subagent JSONL transcript and reading it will overflow your context. If the user asks for progress, say the agent is still running; you'll get a completion notification.
+```
+</details>
+
+### 🤖 Claude
+
+While a reviewer checks the plan, one decision is yours to make:
+
+**Tool call:** `AskUserQuestion`
+
+```json
+{
+ "questions": [
+  {
+   "question": "Should a Sonnet 5.5 rate-limit error (HTTP 429) count as \"temporarily unavailable\" and trigger the one-time Haiku 5.5 fallback? Overloaded (529), other 5xx errors, timeouts and connection failures will trigger it either way, after the SDK's own retries. Sonnet and Haiku have separate rate-limit pools, so Haiku often still works when Sonnet is rate-limited. The eval results will label any Haiku answer either way.",
+   "header": "429 policy",
+   "multiSelect": false,
+   "options": [
+    {
+     "label": "Yes, fall back on 429 (Recommended)",
+     "description": "A rate-limited Sonnet call (e.g. during a quick 10-case eval run on a low tier) gets answered by Haiku instead of failing. The result is labelled answered_by=claude-haiku-5-5 with reason RateLimitError 429."
+    },
+    {
+     "label": "No, surface 429 as an error",
+     "description": "Only overloads, 5xx, timeouts and connection failures fall back. A rate limit fails the turn (UI shows the 429 message; eval case marked failed), so Sonnet-only eval runs stay pure."
+    }
+   ]
+  }
+ ]
+}
+```
+
+<details><summary>Tool result</summary>
+
+```
+Your questions have been answered: "Should a Sonnet 5.5 rate-limit error (HTTP 429) count as "temporarily unavailable" and trigger the one-time Haiku 5.5 fallback? Overloaded (529), other 5xx errors, timeouts and connection failures will trigger it either way, after the SDK's own retries. Sonnet and Haiku have separate rate-limit pools, so Haiku often still works when Sonnet is rate-limited. The eval results will label any Haiku answer either way."="Yes, fall back on 429 (Recommended)". You can now continue with these answers in mind.
+```
+</details>
+
+**Tool call:** `Edit`
+
+```json
+{
+ "replace_all": false,
+ "file_path": "/root/.claude/plans/root-claude-uploads-054feb9f-992e-53ec-fuzzy-deer.md",
+ "old_string": "  - `RateLimitError` (429) is separate. Its inclusion is pending the user's answer.",
+ "new_string": "  - `RateLimitError` (429) is a separate class, and it also triggers the fallback. **User decision:** Sonnet and Haiku have separate rate-limit pools, and the answer is labelled with the model either way."
+}
+```
+
+<details><summary>Tool result</summary>
+
+```
+The file /root/.claude/plans/root-claude-uploads-054feb9f-992e-53ec-fuzzy-deer.md has been updated successfully. (file state is current in your context — no need to Read it back)
+```
+</details>
+
+**Tool call:** `Edit`
+
+```json
+{
+ "replace_all": false,
+ "file_path": "/root/.claude/plans/root-claude-uploads-054feb9f-992e-53ec-fuzzy-deer.md",
+ "old_string": "  - 429 \u2192 fallback or no fallback, per the user's answer",
+ "new_string": "  - 429 \u2192 fallback, with reason `RateLimitError 429`"
+}
+```
+
+<details><summary>Tool result</summary>
+
+```
+The file /root/.claude/plans/root-claude-uploads-054feb9f-992e-53ec-fuzzy-deer.md has been updated successfully. (file state is current in your context — no need to Read it back)
+```
+</details>
+
+**Tool call:** `Bash`
+
+```json
+{
+ "command": "pip index versions python-dotenv 2>/dev/null | head -2; python3 -c \"import dotenv; print('installed', dotenv.__version__ if hasattr(dotenv,'__version__') else '')\" 2>&1 | tail -1",
+ "description": "Check python-dotenv availability (read-only)"
+}
+```
+
+<details><summary>Tool result</summary>
+
+```
+python-dotenv (1.2.4)
+Available versions: 1.2.4, 1.2.3, 1.2.2, 1.2.1, 1.2.0, 1.1.1, 1.1.0, 1.0.1, 1.0.0, 0.21.1, 0.21.0, 0.20.0, 0.19.2, 0.19.1, 0.19.0, 0.18.0, 0.17.1, 0.17.0, 0.16.0, 0.15.0, 0.14.0, 0.13.0, 0.12.0, 0.11.0, 0.10.5, 0.10.4, 0.10.3, 0.10.2, 0.10.1, 0.10.0, 0.9.1, 0.9.0, 0.8.2, 0.8.1, 0.8.0, 0.7.1, 0.7.0, 0.6.5, 0.6.4, 0.6.3, 0.6.2, 0.6.1, 0.6.0, 0.5.1, 0.5.0, 0.4.0, 0.3.0, 0.2.0, 0.1.5, 0.1.3, 0.1.2, 0.1.0
+installed
+```
+</details>
+
+### 🤖 Claude
+
+I've recorded your 429 decision in the plan. `python-dotenv` 1.2.4 is available, and it's already installed here.
+
+An independent reviewer is still checking the plan's riskier assumptions: the fallback logic, the SDK calls, the outage test against a local stub server, and `.env` decoding on Windows. I'll fold its findings into the plan and send it to you for approval when it finishes.
+
+---
+
+## 🧑 User
+
+<task-notification>
+<task-id>a83a596c3a8b4d278</task-id>
+<tool-use-id>toolu_01BArKgKKzUHrwy4Sa3crSCw</tool-use-id>
+<output-file>/tmp/claude-0/-home-user-weather-risk-intelligence-agent/054feb9f-992e-53ec-86ec-b86ccf98458a/tasks/a83a596c3a8b4d278.output</output-file>
+<status>completed</status>
+<summary>Agent "Critique fallback/.env plan" finished</summary>
+<note>A task-notification fires each time this agent stops with no live background children of its own. The user can send it another message and resume it, so the same task-id may notify more than once.</note>
+<result>The plan is mostly sound, and the SDK assumptions in items 2 and 3 checked out against the installed package. I found 14 issues, listed below by importance, plus a short list of things that are over-built. The first two will break things in practice.
+
+## Issues, most important first
+
+**1. A refusal or a `max_tokens` cut-off can break a session for good.** In `/home/user/weather-risk-intelligence-agent/app/agent.py` (lines 112, 129–135), every response is appended to history before `stop_reason` is checked.
+- When a refusal fires before any output, `content` is an empty list. The skill docs confirm this, and say a partial refused output should be discarded.
+- Storing `{"role":"assistant","content":[]}` makes every later request in that session fail with a 400, which correctly never triggers the fallback.
+- A `max_tokens` cut-off can leave a `tool_use` with no `tool_result`, which gives the same permanent 400.
+- With the server-side refusal fallback gone, every refusal now reaches this path.
+- **Fix:** on `refusal` or `max_tokens`, don't append that assistant message to `new`. Dropping the final, never-replayed message is still append-only. Add a test for it.
+
+**2. Test isolation is weaker than the plan says.**
+- If `WRIA_SIMULATE_OUTAGE` is still set in the user's PowerShell window (the README tells them to set it), the existing and new FakeClient tests will fail.
+- Loading `.env` at the top of `app/main.py` means any test that imports `app.main` (a `/health` test, for example) pulls the developer's real `.env` into the environment.
+- **Fix:**
+  - Add `tests/conftest.py` with an autouse fixture that removes `WRIA_SIMULATE_OUTAGE` and `ANTHROPIC_BASE_URL`.
+  - Read `WRIA_SIMULATE_OUTAGE` when each call is made, not at import.
+  - Load `.env` in the startup hook (or make sure no test imports `main` unpatched).
+  - Treat an empty value as "off".
+  - Leave `WRIA_SIMULATE_OUTAGE` out of `.env.example`. A forgotten line there would quietly put every eval on Haiku.
+  - In the README, show how to switch it off: `Remove-Item Env:WRIA_SIMULATE_OUTAGE`.
+
+**3. Swap the `ThreadingHTTPServer` stub for `httpx2.MockTransport`.** I ran this here with no network: `anthropic.Anthropic(api_key="test", base_url="http://stub.invalid", http_client=anthropic.DefaultHttpxClient(transport=httpx2.MockTransport(handler)))`.
+- It used the real SDK path: 3 Sonnet attempts with retry counts 0/1/2, a real `OverloadedError` raised, then 1 Haiku attempt, in 0.038 s total with `retry-after-ms: 1`.
+- No sockets or threads are needed. An explicit `transport` also makes httpx ignore proxy env vars.
+- Here, `NO_PROXY` already includes `127.0.0.1` and `localhost`, so the stub would work in this container. A corporate proxy on the user's Windows machine might not exempt it.
+- Smallest 200 body the SDK parses: `id`, `type:"message"`, `role`, `model`, `content`, `stop_reason`, `stop_sequence`, `usage{input_tokens, output_tokens}`. The SDK doesn't validate strictly; missing optional usage fields come back as `None`, which the existing `getattr(...) or 0` handles.
+
+**4. The "once" rule is too strict after Haiku has taken over a turn.** With `fallback_max_retries: 0` on every Haiku call for the rest of the turn, one brief error on Haiku's 2nd or 3rd tool-round call ends the whole turn.
+- **Fix:** only the switch attempt is a single try. Once Haiku has answered, later calls in that turn use normal retries.
+- Also wrap any failure of the fallback attempt, including a Haiku-only 400, in `ModelsUnavailableError` with the original as `__cause__`. Otherwise the user sees a bare "Anthropic API error 400" with no hint that Sonnet was down.
+
+**5. Define "temporarily unavailable" with an explicit list.** `InternalServerError` also covers `HTTPNotImplementedError` (501), which isn't temporary. `RequestTimeoutError` (408) is a separate class, so it's missed. Suggested list: `APIConnectionError`, `RateLimitError`, `RequestTimeoutError`, and `InternalServerError` except 501.
+
+**6. The fallback can be slow to start.**
+- The SDK obeys `retry-after` with no cap (`_calculate_retry_timeout`). A 429 with `retry-after: 30` and `primary_max_retries: 2` delays the fallback by about 60 s.
+- Timeouts are worse: the default read timeout is 600 s and timeouts are retried, so a hanging Sonnet could take about 30 minutes to fall back.
+- **Fix:** add a `request_timeout_s` (e.g. 300) applied through `with_options(timeout=...)`, and/or set `primary_max_retries: 1`. At least document it. Tests should assert the configured retry count, not a hard-coded 3.
+
+**7. `.env` loader details.**
+- Skip empty values. Copying `.env.example` unchanged gives `ANTHROPIC_API_KEY=`, which would set an empty key and report its source as `.env`.
+- Treat an empty environment variable as unset.
+- Handle a key line with no `=`: python-dotenv returns `None` for it.
+- Use `interpolate=False`.
+- Fall back to `cp1252` (or `errors="replace"`) when the file isn't valid UTF-8. PowerShell 5.1's `Set-Content` writes ANSI by default.
+- Use `ROOT/.env`, not the current directory or `find_dotenv`.
+- Warn if a `.env.txt` exists (Notepad adds `.txt`), and suggest `notepad .env` in the README.
+- python-dotenv 1.2.3 is installed here only because another package (`magika`) pulls it in, so the `requirements.txt` entry is needed. Tested: it handles CRLF, `export`, quotes, trailing spaces and a leading BOM character. The UTF-16 decoding step is still needed.
+
+**8. Keep eval console output to plain ASCII.** The plan's sample output uses `×` and `→`. On Windows, Python 3.13 uses cp1252 when output is redirected (`&gt; out.txt`, `| Tee-Object`), and `→` then raises `UnicodeEncodeError`. Use `x9` and `-&gt;`.
+
+**9. Verification step 3 doesn't prove the key was read.** If api.anthropic.com can't be reached, the connection error now triggers the fallback, both models fail, and `/chat` also returns 503. Check the error text for the 401 wording, or better, unit-test that `anthropic.Anthropic().api_key` equals the value from a temporary UTF-16 `.env`. That needs no live call.
+
+**10. Eval tests.**
+- Don't call `evals.run.main()` from tests: it overwrites `evals/results/latest.json`. Pull the printing out into small functions (`format_case_line(r)`, `summary_line(results)`) and test those.
+- `run_case` has no `client` parameter, so use `monkeypatch.setattr(agent, "_client", ...)`.
+
+**11. The system prompt must not depend on the model.** Both models reject replayed thinking blocks if `system`, `tools` or earlier messages changed. Never put the model name or a fallback notice in `_system_prompt()`. The current prompt is fine; just tighten the wording "no behaviour change beyond the model names".
+
+**12. Docs and Docker gaps.**
+- `README.md` line 87 still documents `model` in the `/chat` response.
+- `README.md` line 101 (`docker run -e ANTHROPIC_API_KEY`) needs a host variable. With a `.env`-only setup, use `--env-file .env`. Docker's own parser expects UTF-8 and doesn't strip quotes, and `.env` will be excluded from the image.
+- The `config.yaml` comment on `effort` says "Opus 5.5 default". Sonnet 5.5 defaults to `high`; `medium` is a deliberate choice.
+- `docs/DESIGN.md` line 60 still says Opus 5.5.
+
+**13. Transcript export.** `scripts/export_transcript.py` only redacts emails. Add a redaction for strings matching `sk-ant-[A-Za-z0-9_-]{20,}` before re-exporting. The current transcript only has placeholder text such as `sk-ant-invalid`.
+
+**14. Old sessions (low risk).** The `messages` table survives restarts, and the UI keeps the session id in localStorage. History written through the beta endpoint could contain `fallback` blocks, which the non-beta endpoint may reject. That only matters if a refusal fallback ever happened; "Start a new conversation" clears it. A README note is enough.
+
+**One interpretation to state to the user:** the plan reads "replace the refusal fallback with that" as "refusals are no longer retried". That's defensible, since Haiku runs the same classifier categories, but say it explicitly in the PR description.
+
+## Over-built for the request
+- The HTTP-server stub and its three variants. One MockTransport test (Sonnet 529 three times, then Haiku) plus one both-down test is enough; the eval variant can use FakeClient.
+- Recording where every `.env` key came from. Only the source of `ANTHROPIC_API_KEY` matters.
+
+## Fine as is
+- **Non-beta `client.messages.create`:** it takes `cache_control`, `output_config` and `thinking`, and the request body I captured had all of them.
+- **`client.with_options(max_retries=...)`:** it exists on `anthropic.Anthropic` in 2.11.0.
+- **Building `anthropic.OverloadedError(msg, response=httpx2.Response(529, request=httpx2.Request(...)), body=...)`:** it works. Without `request=` it raises `RuntimeError`. Pass a realistic body such as `{"type":"error","error":{"type":"overloaded_error",...}}`. Build the reason from `type(e).__name__` and `e.status_code`; `e.message` on real errors is the whole JSON dump.
+- **The fallback logic:**
+  - the turn stays on Haiku once it switches, and the next turn starts on Sonnet again;
+  - the fallback retry happens inside `_call`, so it doesn't use up a tool round;
+  - a failed call adds nothing to history;
+  - thinking blocks are passed back unchanged;
+  - the repair path stays append-only;
+  - a mid-turn failure stores nothing.
+- **Reporting:** `resp.model` for "answered by", the fallback record, `ModelsUnavailableError` mapped to 503, and 429 triggering the fallback per the user's decision.
+- **Other:** adding `.dockerignore`, loading `.env` explicitly rather than at import in `config.py`, and the count of 15 existing tests (4 + 11).
+
+### Critical Files for Implementation
+- /home/user/weather-risk-intelligence-agent/app/agent.py
+- /home/user/weather-risk-intelligence-agent/app/config.py
+- /home/user/weather-risk-intelligence-agent/app/main.py
+- /home/user/weather-risk-intelligence-agent/evals/run.py
+- /home/user/weather-risk-intelligence-agent/tests/test_agent_loop.py (plus a new tests/conftest.py)</result>
+<usage><subagent_tokens>208797</subagent_tokens><tool_uses>34</tool_uses><duration_ms>459436</duration_ms></usage>
+</task-notification>
+
+### 🤖 Claude
+
+The review confirmed the SDK assumptions and found two problems that would break things in practice:
+- A refusal or a `max_tokens` cut-off is saved to history, and that breaks the session for every later message.
+- A leftover outage-simulation variable could leak into the tests.
+
+I'm folding these and the other confirmed points into the plan:
+
+**Tool call:** `Write`
+
+```json
+{
+ "file_path": "/root/.claude/plans/root-claude-uploads-054feb9f-992e-53ec-fuzzy-deer.md",
+ "content": "# Plan: load the key from `.env`, use Sonnet 5.5 by default, fall back to Haiku 5.5 once\n\n## Context\nThe user has a git-ignored `.env` file on Windows and wants the app and the evals to read\n`ANTHROPIC_API_KEY` from it. Changes requested:\n- **Default model:** Claude Sonnet 5.5 (`claude-sonnet-5-5`).\n- **Fallback:** if Sonnet is temporarily unavailable, try Claude Haiku 5.5 (`claude-haiku-5-5`) once.\n- **Remove:** the server-side *refusal* fallback (`fallbacks: \"default\"` plus a beta header). The Haiku fallback replaces it.\n- **Eval reporting:** results must show which model actually answered.\n- **Testing:** prove the switch with a simulated outage.\n- **Delivery:** push to `claude/lucid-thompson-42z611`, which feeds draft PR #1.\n\nToday:\n- `app/agent.py` calls `client.beta.messages.create` (Opus 5.5 plus `fallbacks=\"default\"`).\n- `chat()` reports only the last `resp.model`.\n- `evals/run.py` never prints the model.\n\n**Decisions:**\n- *User:* HTTP 429 counts as \"temporarily unavailable\".\n- *Interpretation, to be stated in the PR:* refusals are no longer retri
+… [truncated, 9963 more chars]
+```
+
+<details><summary>Tool result</summary>
+
+```
+The file /root/.claude/plans/root-claude-uploads-054feb9f-992e-53ec-fuzzy-deer.md has been updated successfully. (file state is current in your context — no need to Read it back)
+```
+</details>
+
+**Tool call:** `ExitPlanMode`
+
+```json
+{
+ "plan": "# Plan: load the key from `.env`, use Sonnet 5.5 by default, fall back to Haiku 5.5 once\n\n## Context\nThe user has a git-ignored `.env` file on Windows and wants the app and the evals to read\n`ANTHROPIC_API_KEY` from it. Changes requested:\n- **Default model:** Claude Sonnet 5.5 (`claude-sonnet-5-5`).\n- **Fallback:** if Sonnet is temporarily unavailable, try Claude Haiku 5.5 (`claude-haiku-5-5`) once.\n- **Remove:** the server-side *refusal* fallback (`fallbacks: \"default\"` plus a beta header). The Haiku fallback replaces it.\n- **Eval reporting:** results must show which model actually answered.\n- **Testing:** prove the switch with a simulated outage.\n- **Delivery:** push to `claude/lucid-thompson-42z611`, which feeds draft PR #1.\n\nToday:\n- `app/agent.py` calls `client.beta.messages.create` (Opus 5.5 plus `fallbacks=\"default\"`).\n- `chat()` reports only the last `resp.model`.\n- `evals/run.py` never prints the model.\n\n**Decisions:**\n- *User:* HTTP 429 counts as \"temporarily unavailable\".\n- *Interpretation, to be stated in the PR:* refusals are no longer retried on another model. Haiku runs the same classifiers, so a refusal still ends with the existi
+… [truncated, 9963 more chars]
+```
+
+<details><summary>User feedback (via tool rejection)</summary>
+
+```
+The user doesn't want to proceed with this tool use. The tool use was rejected (eg. if it was a file edit, the new_string was NOT written to the file). To tell you how to proceed, the user said:
+This looks good. If Haiku also fails, please keep the actual error so I can tell a permissions issue from an outage. Also, use a temporary directory for the .env tests so they can’t overwrite an existing file. With those tweaks, please go ahead.
+```
+</details>
+
+**Tool call:** `Edit`
+
+```json
+{
+ "replace_all": false,
+ "file_path": "/root/.claude/plans/root-claude-uploads-054feb9f-992e-53ec-fuzzy-deer.md",
+ "old_string": "    3. Any failure of that attempt is wrapped in `ModelsUnavailableError` (both reasons, with `__cause__`).",
+ "new_string": "    3. Any failure of that attempt raises `FallbackFailedError`. **It keeps both actual errors** (user request), so a permissions problem can be told apart from an outage:\n       - attributes: `primary_error` and `fallback_error`, both the original SDK exceptions, plus `__cause__ = fallback_error`\n       - a `describe()` that gives the class, HTTP status, and the API's own `error.type` and `message` from the response body, e.g. `Haiku fallback failed: PermissionDeniedError 403 permission_error: \"\u2026\"`"
+}
+```
+
+<details><summary>Tool result</summary>
+
+```
+The file /root/.claude/plans/root-claude-uploads-054feb9f-992e-53ec-fuzzy-deer.md has been updated successfully. (file state is current in your context — no need to Read it back)
+```
+</details>
+
+**Tool call:** `Edit`
+
+```json
+{
+ "replace_all": false,
+ "file_path": "/root/.claude/plans/root-claude-uploads-054feb9f-992e-53ec-fuzzy-deer.md",
+ "old_string": "- **`main.py`:** map `ModelsUnavailableError` to 503: \"Sonnet 5.5 and Haiku 5.5 both unavailable: \u2026\".",
+ "new_string": "- **`main.py`:** map `FallbackFailedError` to an HTTP status that depends on Haiku's actual error:\n  - Haiku also unavailable \u2192 503.\n  - Anything else (401, 403, 404, 400) \u2192 502.\n  - The detail always names both errors."
+}
+```
+
+<details><summary>Tool result</summary>
+
+```
+The file /root/.claude/plans/root-claude-uploads-054feb9f-992e-53ec-fuzzy-deer.md has been updated successfully. (file state is current in your context — no need to Read it back)
+```
+</details>
+
+**Tool call:** `Edit`
+
+```json
+{
+ "replace_all": false,
+ "file_path": "/root/.claude/plans/root-claude-uploads-054feb9f-992e-53ec-fuzzy-deer.md",
+ "old_string": "  - both down \u2192 `ModelsUnavailableError`; one Haiku attempt; nothing stored for the turn",
+ "new_string": "  - both down \u2192 `FallbackFailedError`; one Haiku attempt; nothing stored for the turn\n  - Haiku 403 after a Sonnet 529 \u2192 `fallback_error` is a `PermissionDeniedError` (status 403); the message shows it; `/chat` returns 502, not 503"
+}
+```
+
+<details><summary>Tool result</summary>
+
+```
+The file /root/.claude/plans/root-claude-uploads-054feb9f-992e-53ec-fuzzy-deer.md has been updated successfully. (file state is current in your context — no need to Read it back)
+```
+</details>
+
+**Tool call:** `Edit`
+
+```json
+{
+ "replace_all": false,
+ "file_path": "/root/.claude/plans/root-claude-uploads-054feb9f-992e-53ec-fuzzy-deer.md",
+ "old_string": "- **`.env` loader tests:**",
+ "new_string": "- **`.env` loader tests:** `load_env_file(path)` takes the path as a parameter, and every test writes its file in pytest's `tmp_path` (user request). No test reads or writes the repo's real `.env`."
+}
+```
+
+<details><summary>Tool result</summary>
+
+```
+The file /root/.claude/plans/root-claude-uploads-054feb9f-992e-53ec-fuzzy-deer.md has been updated successfully. (file state is current in your context — no need to Read it back)
+```
+</details>
+
+**Tool call:** `Edit`
+
+```json
+{
+ "replace_all": false,
+ "file_path": "/root/.claude/plans/root-claude-uploads-054feb9f-992e-53ec-fuzzy-deer.md",
+ "old_string": "3. Start the server with a temporary UTF-16 `.env` holding a dummy key. `/health` should report `api_key_source: \".env\"`. Remove the file afterwards.",
+ "new_string": "3. Clone the pushed branch into a temporary directory. Give that clone a UTF-16 `.env` with a dummy key and start the server from it. `/health` should report `api_key_source: \".env\"`. The working repo's `.env` path is never touched."
+}
+```
+
+<details><summary>Tool result</summary>
+
+```
+The file /root/.claude/plans/root-claude-uploads-054feb9f-992e-53ec-fuzzy-deer.md has been updated successfully. (file state is current in your context — no need to Read it back)
+```
+</details>
+
+**Tool call:** `Edit`
+
+```json
+{
+ "replace_all": false,
+ "file_path": "/root/.claude/plans/root-claude-uploads-054feb9f-992e-53ec-fuzzy-deer.md",
+ "old_string": "- **If both models are down:** catch `ModelsUnavailableError`, mark the case failed with both reasons, and continue.",
+ "new_string": "- **If the fallback also fails:** catch `FallbackFailedError` and mark the case failed with both actual errors (class, status, API message). Then continue."
+}
+```
+
+<details><summary>Tool result</summary>
+
+```
+The file /root/.claude/plans/root-claude-uploads-054feb9f-992e-53ec-fuzzy-deer.md has been updated successfully. (file state is current in your context — no need to Read it back)
+```
+</details>
+
+**Tool call:** `ExitPlanMode`
+
+```json
+{
+ "plan": "# Plan: load the key from `.env`, use Sonnet 5.5 by default, fall back to Haiku 5.5 once\n\n## Context\nThe user has a git-ignored `.env` file on Windows and wants the app and the evals to read\n`ANTHROPIC_API_KEY` from it. Changes requested:\n- **Default model:** Claude Sonnet 5.5 (`claude-sonnet-5-5`).\n- **Fallback:** if Sonnet is temporarily unavailable, try Claude Haiku 5.5 (`claude-haiku-5-5`) once.\n- **Remove:** the server-side *refusal* fallback (`fallbacks: \"default\"` plus a beta header). The Haiku fallback replaces it.\n- **Eval reporting:** results must show which model actually answered.\n- **Testing:** prove the switch with a simulated outage.\n- **Delivery:** push to `claude/lucid-thompson-42z611`, which feeds draft PR #1.\n\nToday:\n- `app/agent.py` calls `client.beta.messages.create` (Opus 5.5 plus `fallbacks=\"default\"`).\n- `chat()` reports only the last `resp.model`.\n- `evals/run.py` never prints the model.\n\n**Decisions:**\n- *User:* HTTP 429 counts as \"temporarily unavailable\".\n- *Interpretation, to be stated in the PR:* refusals are no longer retried on another model. Haiku runs the same classifiers, so a refusal still ends with the existi
+… [truncated, 10935 more chars]
+```
+
+<details><summary>Tool result</summary>
+
+```
+User has approved your plan. You can now start coding. Start with updating your todo list if applicable
+
+Your plan has been saved to: /root/.claude/plans/root-claude-uploads-054feb9f-992e-53ec-fuzzy-deer.md
+You can refer back to it if needed during implementation.
+
+## Approved Plan:
+# Plan: load the key from `.env`, use Sonnet 5.5 by default, fall back to Haiku 5.5 once
+
+## Context
+The user has a git-ignored `.env` file on Windows and wants the app and the evals to read
+`ANTHROPIC_API_KEY` from it. Changes requested:
+- **Default model:** Claude Sonnet 5.5 (`claude-sonnet-5-5`).
+- **Fallback:** if Sonnet is temporarily unavailable, try Claude Haiku 5.5 (`claude-haiku-5-5`) once.
+- **Remove:** the server-side *refusal* fallback (`fallbacks: "default"` plus a beta header). The Haiku fallback replaces it.
+- **Eval reporting:** results must show which model actually answered.
+- **Testing:** prove the switch with a simulated outage.
+- **Delivery:** push to `claude/lucid-thompson-42z611`, which feeds draft PR #1.
+
+Today:
+- `app/agent.py` calls `client.beta.messages.create` (Opus 5.5 plus `fallbacks="default"`).
+- `chat()` reports only the last `resp.model`.
+- `evals/run.py` never prints the model.
+
+**Decisions:**
+- *User:* HTTP 429 counts as "temporarily unavailable".
+- *Interpretation, to be stated in the PR:* refusals are no longer retried on another model. Haiku runs the same classifiers, so a refusal still ends with the existing "I can't help with that request" answer.
+
+## Verif
+… [truncated, 10547 more chars]
+```
+</details>
+
+### 🤖 Claude
+
+Plan approved, so I'm implementing it. Several of the changes touch the same files, so I'll write the code myself, then have independent reviewers check the diff before I push.
+
+**Tool call:** `TaskCreate`
+
+```json
+{
+ "subject": ".env loader + config/health wiring",
+ "description": "load_env_file(path) with BOM/UTF-16/cp1252 handling; call from main startup and evals; /health api_key_source; .env.example, .dockerignore, requirements",
+ "activeForm": "Adding .env loading"
+}
+```
+
+<details><summary>Tool result</summary>
+
+```
+Task #6 created successfully: .env loader + config/health wiring
+```
+</details>
+
+**Tool call:** `TaskCreate`
+
+```json
+{
+ "subject": "Sonnet primary + Haiku-once fallback in agent",
+ "description": "non-beta create, unavailable tuple, FallbackFailedError keeping both errors, sticky per turn, simulated outage env, don't store refusal/max_tokens message, models reporting; main.py mapping; UI meta line",
+ "activeForm": "Implementing model fallback"
+}
+```
+
+<details><summary>Tool result</summary>
+
+```
+Task #7 created successfully: Sonnet primary + Haiku-once fallback in agent
+```
+</details>
+
+**Tool call:** `TaskCreate`
+
+```json
+{
+ "subject": "Eval model reporting",
+ "description": "per-turn models, format_case_line/summary_line ASCII, FallbackFailedError handling, dry-run shows models",
+ "activeForm": "Adding eval model reporting"
+}
+```
+
+<details><summary>Tool result</summary>
+
+```
+Task #8 created successfully: Eval model reporting
+```
+</details>
+
+**Tool call:** `TaskCreate`
+
+```json
+{
+ "subject": "Tests: fallback, MockTransport outage, .env in tmp_path",
+ "description": "conftest autouse env cleanup; update FakeClient; test_model_fallback.py; test_env_file.py",
+ "activeForm": "Writing outage tests"
+}
+```
+
+<details><summary>Tool result</summary>
+
+```
+Task #9 created successfully: Tests: fallback, MockTransport outage, .env in tmp_path
+```
+</details>
+
+**Tool call:** `TaskCreate`
+
+```json
+{
+ "subject": "Review, docs, PR update, transcript, push",
+ "description": "adversarial review workflow on diff; README/DESIGN; transcript sk-ant redaction + re-export; temp-clone server check; PR body; commit and push",
+ "activeForm": "Reviewing and shipping"
+}
+```
+
+<details><summary>Tool result</summary>
+
+```
+Task #10 created successfully: Review, docs, PR update, transcript, push
+```
+</details>
+
+**Tool call:** `TaskUpdate`
+
+```json
+{
+ "taskId": "6",
+ "status": "in_progress"
+}
+```
+
+<details><summary>Tool result</summary>
+
+```
+Updated task #6 status
+```
+</details>
+
+**Tool call:** `Read`
+
+```json
+{
+ "file_path": "/home/user/weather-risk-intelligence-agent/app/config.py"
+}
+```
+
+<details><summary>Tool result</summary>
+
+```
+1	"""Load config.yaml and hubs.json once; paths are resolved relative to the repo root."""
+2	from __future__ import annotations
+3	
+4	import json
+5	from functools import lru_cache
+6	from pathlib import Path
+7	
+8	import yaml
+9	
+10	ROOT = Path(__file__).resolve().parent.parent
+11	
+12	
+13	@lru_cache
+14	def settings() -> dict:
+15	    with open(ROOT / "config.yaml", encoding="utf-8") as f:
+16	        return yaml.safe_load(f)
+17	
+18	
+19	def path(key: str) -> Path:
+20	    return ROOT / settings()["data"][key]
+21	
+22	
+23	@lru_cache
+24	def hubs() -> list[dict]:
+25	    with open(path("hubs_file"), encoding="utf-8") as f:
+26	        return json.load(f)
+27	
+28	
+29	def hub(hub_id: str) -> dict | None:
+30	    hub_id = hub_id.strip().lower()
+31	    for h in hubs():
+32	        if h["id"] == hub_id or h["city"].lower() == hub_id:
+33	            return h
+34	    return None
+35
+```
+</details>
+
+**Tool call:** `Bash`
+
+```json
+{
+ "command": "python3 -c \"\nimport inspect, dotenv; from dotenv import dotenv_values; print(inspect.signature(dotenv_values))\nimport io; print(dotenv_values(stream=io.StringIO('\ufeffA=1\\r\\nexport B=\\\"two\\\"\\nC\\nD=\\n# x\\nE=\\$A\\n'), interpolate=False))\n\"",
+ "description": "Check python-dotenv dotenv_values API and parsing"
+}
+```
+
+<details><summary>Tool result</summary>
+
+```
+(dotenv_path: Union[str, ForwardRef('os.PathLike[str]'), NoneType] = None, stream: Optional[IO[str]] = None, verbose: bool = False, interpolate: bool = True, encoding: Optional[str] = 'utf-8') -> Dict[str, Optional[str]]
+OrderedDict({'A': '1', 'B': 'two', 'C': None, 'D': '', 'E': '$A'})
+```
+</details>
+
+**Tool call:** `Edit`
+
+```json
+{
+ "replace_all": false,
+ "file_path": "/home/user/weather-risk-intelligence-agent/app/config.py",
+ "old_string": "\"\"\"Load config.yaml and hubs.json once; paths are resolved relative to the repo root.\"\"\"\nfrom __future__ import annotations\n\nimport json\nfrom functools import lru_cache\nfrom pathlib import Path\n\nimport yaml\n\nROOT = Path(__file__).resolve().parent.parent\n",
+ "new_string": "\"\"\"Load config.yaml, hubs.json and the optional .env file; paths are relative to the repo root.\"\"\"\nfrom __future__ import annotations\n\nimport codecs\nimport io\nimport json\nimport os\nimport warnings\nfrom functools import lru_cache\nfrom pathlib import Path\n\nimport yaml\nfrom dotenv import dotenv_values\n\nROOT = Path(__file__).resolve().parent.parent\nENV_FILE = ROOT / \".env\"\nAPI_KEY_VAR = \"ANTHROPIC_API_KEY\"\n\n# Where ANTHROPIC_API_KEY came from: \"environment\", \".env\" or \"missing\" (never the value).\napi_key_source = \"missing\"\n\n\ndef _decode_env_bytes(raw: bytes) -> str:\n    \"\"\"Decode a .env file whatever editor or shell wrote it.\n\n    Windows PowerShell 5.1 writes UTF-16 LE with `>` / Out-File and ANSI (cp1252) with\n    Set-Content; Notepad may ad
+… [truncated, 1587 more chars]
+```
+
+<details><summary>Tool result</summary>
+
+```
+The file /home/user/weather-risk-intelligence-agent/app/config.py has been updated successfully. (file state is current in your context — no need to Read it back)
+```
+</details>
+
+**Tool call:** `Bash`
+
+```json
+{
+ "command": "grep -q \"python-dotenv\" requirements.txt || sed -i 's/^PyYAML>=6.0$/PyYAML>=6.0\\npython-dotenv>=1.0/' requirements.txt && cat requirements.txt && printf '# Copy to .env (git-ignored) and fill in. Read by the app and the eval runner.\\nANTHROPIC_API_KEY=\\n' > .env.example && printf '.env\\n.env.*\\n!.env.example\\n.venv/\\n__pycache__/\\n*.pyc\\n.pytest_cache/\\ndata/weather_risk.db\\nevals/results/\\n.git/\\n' > .dockerignore && cat .env.example .dockerignore && git check-ignore -v .env .env.example; echo \"check-ignore exit=$?\"",
+ "description": "Add python-dotenv, .env.example and .dockerignore"
+}
+```
+
+<details><summary>Tool result</summary>
+
+```
+anthropic>=2.11,<3
+fastapi>=0.115
+uvicorn>=0.30
+pydantic>=2.7
+requests>=2.31
+PyYAML>=6.0
+python-dotenv>=1.0
+pytest>=8.0
+# Copy to .env (git-ignored) and fill in. Read by the app and the eval runner.
+ANTHROPIC_API_KEY=
+.env
+.env.*
+!.env.example
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+data/weather_risk.db
+evals/results/
+.git/
+.gitignore:5:.env	.env
+check-ignore exit=0
+[This command modified 1 file you've previously read: requirements.txt. Call Read before editing.]
+```
+</details>
+
+### 🤖 Claude
+
+Next is `app/agent.py`, which I'm rewriting around the new fallback logic:
+
+**Tool call:** `TaskUpdate`
+
+```json
+{
+ "taskId": "6",
+ "status": "completed"
+}
+```
+
+<details><summary>Tool result</summary>
+
+```
+Updated task #6 status
+```
+</details>
+
+**Tool call:** `TaskUpdate`
+
+```json
+{
+ "taskId": "7",
+ "status": "in_progress"
+}
+```
+
+<details><summary>Tool result</summary>
+
+```
+Updated task #7 status
+```
+</details>
+
+**Tool call:** `Read`
+
+```json
+{
+ "file_path": "/home/user/weather-risk-intelligence-agent/app/agent.py",
+ "offset": 60,
+ "limit": 100
+}
+```
+
+<details><summary>Tool result</summary>
+
+```
+60	- follow_up_suggestions: up to 3 useful next questions."""
+61	
+62	
+63	def _client() -> anthropic.Anthropic:
+64	    return anthropic.Anthropic()
+65	
+66	
+67	def _blocks_to_dicts(content) -> list[dict]:
+68	    # Keep every block (thinking, tool_use, text, fallback) unchanged for replay.
+69	    return [b.to_dict(mode="json", exclude_none=True) for b in content]
+70	
+71	
+72	def _create(client, messages: list[dict]):
+73	    cfg = settings()["llm"]
+74	    kwargs = dict(
+75	        model=cfg["model"],
+76	        max_tokens=cfg["max_tokens"],
+77	        system=_system_prompt(),
+78	        tools=tools.TOOL_DEFS,
+79	        messages=messages,
+80	        cache_control={"type": "ephemeral"},
+81	        output_config={"effort": cfg["effort"],
+82	                       "format": {"type": "json_schema", "schema": answer_json_schema()}},
+83	    )
+84	    if cfg.get("refusal_fallback"):
+85	        kwargs.update(betas=[FALLBACK_BETA], fallbacks="default")
+86	    return client.beta.messages.create(**kwargs)
+87	
+88	
+89	def _out_of_band_answer(text: str) -> AgentAnswer:
+90	    return AgentAnswer(in_scope=False, answer=text, hubs=[], figures=[], reasoning_steps=[],
+91	                       data_sources=[], assumptions=[], confidence="low",
+92	                       follow_up_suggestions=[])
+93	
+94	
+95	def chat(message: str, session_id: str | None = None, client=None) -> dict:
+96	    client = client or _client()
+97	    session_id = session_id or uuid.uuid4().hex
+98	    history = store.load_message
+… [truncated, 2895 more chars]
+```
+</details>
+
+**Tool call:** `Bash`
+
+```json
+{
+ "command": "python3 - <<'EOF'\nimport pathlib\np = pathlib.Path(\"app/agent.py\"); s = p.read_text(encoding=\"utf-8\")\nstart = s.index(\"def _client() -> anthropic.Anthropic:\")\nhead = s[:start]\nhead = head.replace('''\"\"\"Claude tool-use loop.\n\nEach user turn:\n  1. send history + new message with the tool list and a JSON-schema output format\n  2. while Claude asks for tools, run them (deterministic Python) and send results back\n  3. the final text block must be JSON matching AgentAnswer (structured outputs); it is\n     validated again with Pydantic before it leaves this module.\nHistory is stored append-only per session, so follow-up questions see earlier turns.\n\"\"\"''', '''\"\"\"Claude tool-use loop with a one-time model fallback.\n\nEach user turn:\n  1. send history + new message with the tool list and a JSON-schema output format\n  2. while Claude asks for tools, run them (deterministic Python) and send results back\n  3. the final text block must be JSON matching AgentAnswer (structured outputs); it is\n     validated again with Pydantic before it leaves this module.\nHistory is stored append-only per session, so follow-up questions see earlier turns.\n\nModel
+… [truncated, 11229 more chars]
+```
+
+<details><summary>Tool result</summary>
+
+```
+"""Claude tool-use loop with a one-time model fallback.
+
+Each user turn:
+  1. send history + new message with the tool list and a JSON-schema output format
+  2. while Claude asks for tools, run them (deterministic Python) and send results back
+  3. the final text block must be JSON matching AgentAnswer (structured outputs); it is
+     validated again with Pydantic before it leaves this module.
+History is stored append-only per session, so follow-up questions see earlier turns.
+
+Models: every turn starts on llm.model (Claude Sonnet 5.5). If a call fails because that model
+is temporarily unavailable (overloaded, 5xx, 429, timeout, connection error) after the SDK's own
+retries, the same request is tried once on llm.fallback_model (Claude Haiku 5.5) and the rest of
+the turn stays there. If that attempt fails too, FallbackFailedError keeps both real errors.
+""
+from __future__ import annotations
+
+import json
+import os
+import uuid
+
+import anthropic
+import httpx2
+from pydantic import ValidationError
+
+from app import store, tools
+from app.config import hubs, settings
+from app.schemas import AgentAnswer, answer_json_schema
+
+SIMULATE_ENV = "WRIA_SIMULATE_OUTAGE"
+```
+</details>
+
+### 🤖 Claude
+
+The docstring's closing quote came out as `""`. I'll fix that and check the module compiles:
+
+**Tool call:** `Bash`
+
+```json
+{
+ "command": "python3 - <<'EOF'\nimport pathlib\np = pathlib.Path(\"app/agent.py\"); s = p.read_text(encoding=\"utf-8\")\ns = s.replace('keeps both real errors.\\n\"\"\\nfrom __future__', 'keeps both real errors.\\n\"\"\"\\nfrom __future__', 1)\np.write_text(s, encoding=\"utf-8\")\nEOF\npython3 -c \"import ast,sys; ast.parse(open('app/agent.py',encoding='utf-8').read()); print('agent.py parses')\"; grep -n \"FALLBACK_BETA\\|beta\\.\\|fallbacks\" app/agent.py",
+ "description": "Fix docstring quote and verify agent.py parses"
+}
+```
+
+<details><summary>Tool result</summary>
+
+```
+agent.py parses
+```
+</details>
+
+### 🤖 Claude
+
+Now `config.yaml`, `main.py` and the UI:
+
+**Tool call:** `Edit`
+
+```json
+{
+ "replace_all": false,
+ "file_path": "/home/user/weather-risk-intelligence-agent/config.yaml",
+ "old_string": "llm:\n  model: claude-opus-5-5\n  effort: medium            # Opus 5.5 default; chat-style tool use does not need more\n  max_tokens: 16000\n  max_tool_rounds: 8        # safety stop for the agent loop\n  refusal_fallback: true    # server-side fallback on a policy decline (beta)",
+ "new_string": "llm:\n  model: claude-sonnet-5-5          # primary: every turn starts here\n  fallback_model: claude-haiku-5-5  # tried ONCE (single attempt) if the primary is temporarily\n                                    # unavailable: 529/5xx (not 501), 429, 408, timeout, connection\n  effort: medium            # chosen, not the default (Sonnet 5.5 defaults to high); Sonnet 5.5's\n                            # recommended start for multistep tool use, Haiku 5.5's default\n  max_tokens: 16000\n  max_tool_rounds: 8        # safety stop for the agent loop\n  request_timeout_s: 120    # per API call; bounds how long a hung call delays the fallback\n  max_retries: 1            # SDK retries per call (with backoff); on the primary these happen\n                            # before falling back
+… [truncated, 3 more chars]
+```
+
+<details><summary>Tool result</summary>
+
+```
+The file /home/user/weather-risk-intelligence-agent/config.yaml has been updated successfully. (file state is current in your context — no need to Read it back)
+```
+</details>
+
+**Tool call:** `Read`
+
+```json
+{
+ "file_path": "/home/user/weather-risk-intelligence-agent/app/main.py",
+ "limit": 75
+}
+```
+
+<details><summary>Tool result</summary>
+
+```
+1	"""FastAPI app: the chat endpoint the UI uses, plus read-only data endpoints."""
+2	from __future__ import annotations
+3	
+4	import os
+5	from pathlib import Path
+6	
+7	import anthropic
+8	from fastapi import FastAPI, HTTPException, Query
+9	from fastapi.responses import FileResponse, JSONResponse
+10	from pydantic import BaseModel, Field
+11	from starlette.exceptions import HTTPException as StarletteHTTPException
+12	
+13	from app import agent, metrics, scoring, store
+14	from app.config import hub as get_hub
+15	from app.config import hubs, settings
+16	from app.tools import get_methodology
+17	
+18	
+19	class UTF8JSONResponse(JSONResponse):
+20	    # Declare the charset: without it, Windows PowerShell 5.1 decodes JSON as ISO-8859-1
+21	    # and shows non-ASCII characters (°, em dash, ≤) as mojibake.
+22	    media_type = "application/json; charset=utf-8"
+23	
+24	
+25	app = FastAPI(title="Weather Risk Intelligence Agent", version="0.1.0",
+26	              default_response_class=UTF8JSONResponse)
+27	
+28	
+29	@app.exception_handler(StarletteHTTPException)
+30	async def _http_error(request, exc: StarletteHTTPException):
+31	    # Error responses bypass default_response_class; give them the same charset.
+32	    return UTF8JSONResponse({"detail": exc.detail}, status_code=exc.status_code,
+33	                            headers=getattr(exc, "headers", None))
+34	STATIC = Path(__file__).parent / "static"
+35	
+36	
+37	@app.on_event("startup")
+38	def _startup() -> None:
+39	    store.build_from_cache()
+40	
+41
+… [truncated, 1432 more chars]
+```
+</details>
+
+**Tool call:** `Bash`
+
+```json
+{
+ "command": "python3 - <<'EOF'\nimport pathlib\np = pathlib.Path(\"app/main.py\"); s = p.read_text(encoding=\"utf-8\")\ns = s.replace('''import os\nfrom pathlib import Path\n''', '''from pathlib import Path\n''')\ns = s.replace('''from app import agent, metrics, scoring, store\nfrom app.config import hub as get_hub\nfrom app.config import hubs, settings\n''', '''from app import agent, config, metrics, scoring, store\nfrom app.config import hub as get_hub\nfrom app.config import hubs, settings\n''')\ns = s.replace('''                            headers=getattr(exc, \"headers\", None))\nSTATIC = Path(__file__).parent / \"static\"\n\n\[email redacted](\"startup\")\ndef _startup() -> None:\n    store.build_from_cache()\n''', '''                            headers=getattr(exc, \"headers\", None))\n\n\nSTATIC = Path(__file__).parent / \"static\"\n\n\[email redacted](\"startup\")\ndef _startup() -> None:\n    # Load ANTHROPIC_API_KEY (etc.) from the repo's .env at startup rather than at import, so\n    # tests that import this module never pick up a developer's real .env.\n    config.load_env_file()\n    store.build_from_cache()\n''')\ns = s.replace('''            \"llm_model\": setting
+… [truncated, 2170 more chars]
+```
+
+<details><summary>Tool result</summary>
+
+```
+@app.get("/health")
+def health():
+    return {"status": "ok",
+            "observed_weather_hubs": [h["id"] for h in hubs() if store.has_weather(h["id"])],
+            "nri_loaded": bool(store.nri_caps()),
+            "llm": {"model": settings()["llm"]["model"],
+                    "fallback_model": settings()["llm"].get("fallback_model"),
+                    "simulated_outage": sorted(agent.simulated_outage_models())},
+            "api_key_source": config.api_key_source}
+
+
+@app.post("/chat")
+def chat(req: ChatRequest):
+    try:
+        return agent.chat(req.message, req.session_id)
+    except agent.FallbackFailedError as e:
+        # Both errors are named; the status follows the fallback's real error, so an outage
+        # (503) can be told apart from a permissions/config problem on the fallback (502).
+        raise HTTPException(503 if e.fallback_unavailable else 502, e.describe())
+    except TypeError as e:  # SDK raises this when no credentials can be resolved at all
+        if "authentication" not in str(e).lower():
+            raise
+        raise HTTPException(503, "No Anthropic credentials found: set ANTHROPIC_API_KEY "
+                                 "(in .env or the environment).")
+    except anthropic.AuthenticationError as e:
+        raise HTTPException(503, "Anthropic credentials missing or invalid: check "
+                                 f"ANTHROPIC_API_KEY ({agent.describe_error(e)}).")
+    except anthropic.RateLimitError as e:  # only reached when no fallbac
+… [truncated, 730 more chars]
+```
+</details>
+
+### 🤖 Claude
+
+Next, the UI meta line, so each answer shows which model replied:
+
+**Tool call:** `Edit`
+
+```json
+{
+ "replace_all": false,
+ "file_path": "/home/user/weather-risk-intelligence-agent/app/static/index.html",
+ "old_string": "    <div class=\"meta\">Confidence: <b>${esc(a.confidence)}</b>${a.in_scope ? \"\" : \" \u00b7 out of scope\"}</div>",
+ "new_string": "    <div class=\"meta\">Confidence: <b>${esc(a.confidence)}</b>${a.in_scope ? \"\" : \" \u00b7 out of scope\"}\n      \u00b7 Answered by <b>${esc(r.models?.answered_by || \"?\")}</b>${r.models?.fallback\n        ? ` <span class=\"err\">(fallback from ${esc(r.models.fallback.from)}: ${esc(r.models.fallback.reason)})</span>` : \"\"}</div>"
+}
+```
+
+<details><summary>Tool result</summary>
+
+```
+The file /home/user/weather-risk-intelligence-agent/app/static/index.html has been updated successfully. (file state is current in your context — no need to Read it back)
+```
+</details>
+
+**Tool call:** `TaskUpdate`
+
+```json
+{
+ "taskId": "7",
+ "status": "completed"
+}
+```
+
+<details><summary>Tool result</summary>
+
+```
+Updated task #7 status
+```
+</details>
+
+**Tool call:** `TaskUpdate`
+
+```json
+{
+ "taskId": "8",
+ "status": "in_progress"
+}
+```
+
+<details><summary>Tool result</summary>
+
+```
+Updated task #8 status
+```
+</details>
+
+**Tool call:** `Read`
+
+```json
+{
+ "file_path": "/home/user/weather-risk-intelligence-agent/evals/run.py"
+}
+```
+
+<details><summary>Tool result</summary>
+
+```
+1	"""Run the evaluation set against the live agent (needs ANTHROPIC_API_KEY; costs API tokens).
+2	
+3	  python -m evals.run                 # all cases
+4	  python -m evals.run --case dallas_why
+5	  python -m evals.run --dry-run       # no LLM calls: show the expected values per case
+6	
+7	Results are printed as a table and written to evals/results/latest.json.
+8	"""
+9	from __future__ import annotations
+10	
+11	import argparse
+12	import json
+13	import time
+14	import uuid
+15	from pathlib import Path
+16	
+17	import anthropic
+18	import yaml
+19	
+20	from app import agent, metrics, scoring, store
+21	
+22	HERE = Path(__file__).parent
+23	
+24	
+25	def expected_ranking(spec: dict) -> list[str]:
+26	    hz = None if spec["hazard"] == "overall" else spec["hazard"]
+27	    return [r["hub_id"] for r in scoring.rank(hz, spec.get("region"))][: spec["top_n"]]
+28	
+29	
+30	def expected_figure(spec: dict):
+31	    stat = metrics.weather_stat(spec["hub_id"], spec["metric"], spec.get("year"),
+32	                                spec.get("threshold"))
+33	    return stat.get(spec["field"]), stat
+34	
+35	
+36	def model_score(hub_id: str, hazard: str) -> float:
+37	    b = scoring.score_hub(hub_id)
+38	    if hazard == "overall":
+39	        return b.overall_score
+40	    return next(h.score for h in b.hazards if h.hazard == hazard)
+41	
+42	
+43	def check_case(case: dict, result: dict) -> list[tuple[str, bool, str]]:
+44	    a = result["answer"]
+45	    calls = [t["tool"] for t in result["tool_calls"]]
+46	    checks: list[
+… [truncated, 4932 more chars]
+```
+</details>
+
+**Tool call:** `Bash`
+
+```json
+{
+ "command": "python3 - <<'EOF'\nimport pathlib\np = pathlib.Path(\"evals/run.py\"); s = p.read_text(encoding=\"utf-8\")\ns = s.replace('''\"\"\"Run the evaluation set against the live agent (needs ANTHROPIC_API_KEY; costs API tokens).\n\n  python -m evals.run                 # all cases\n  python -m evals.run --case dallas_why\n  python -m evals.run --dry-run       # no LLM calls: show the expected values per case\n\nResults are printed as a table and written to evals/results/latest.json.\n\"\"\"''', '''\"\"\"Run the evaluation set against the live agent (needs ANTHROPIC_API_KEY, from .env or the\nenvironment; costs API tokens).\n\n  python -m evals.run                 # all cases\n  python -m evals.run --case dallas_why\n  python -m evals.run --dry-run       # no LLM calls: show the expected values per case\n\nResults are printed as a table (with the model that actually answered each case) and written\nto evals/results/latest.json.\n\"\"\"''')\ns = s.replace(\"from app import agent, metrics, scoring, store\\n\", \"from app import agent, config, metrics, scoring, store\\nfrom app.config import settings\\n\")\nstart = s.index(\"def run_case(case: dict) -> dict:\")\ns = s[:start] +
+… [truncated, 6047 more chars]
+```
+
+<details><summary>Tool result</summary>
+
+```
+Models: claude-sonnet-5-5 (fallback once: claude-haiku-5-5); API key: missing
+midwest_winter           tools=['rank_hubs'] in_scope=True {'ranking': ['minneapolis', 'detroit', 'chicago']}
+miami_vs_houston         tools=['compare_hubs'] in_scope=True {}
+denver_snow_last_year    tools=['weather_stat'] in_scope=True {'figure': 11.8}
+```
+</details>
+
+### 🤖 Claude
+
+If the fallback fails in the second turn of a two-turn case, the first turn's model record would be lost. I'll keep the completed turns' records on the error:
+
+**Tool call:** `Bash`
+
+```json
+{
+ "command": "python3 - <<'EOF'\nimport pathlib\np = pathlib.Path(\"evals/run.py\"); s = p.read_text(encoding=\"utf-8\")\ns = s.replace('''    for turn in case[\"turns\"]:\n        result = agent.chat(turn, sid)\n        turn_models.append(result[\"models\"])\n''', '''    for turn in case[\"turns\"]:\n        try:\n            result = agent.chat(turn, sid)\n        except Exception as e:\n            e.turn_models = turn_models  # models of the turns that did complete\n            raise\n        turn_models.append(result[\"models\"])\n''')\ns = s.replace('''            r = failed_case(c, e.describe(), [{\"requested\": e.primary_model, \"answered_by\": None,''', '''            r = failed_case(c, e.describe(), getattr(e, \"turn_models\", []) + [{\n                                               \"requested\": e.primary_model, \"answered_by\": None,''')\ns = s.replace('''        except anthropic.APIError as e:  # keep going; record the case as failed\n            r = failed_case(c, agent.describe_error(e))''', '''        except anthropic.APIError as e:  # keep going; record the case as failed\n            r = failed_case(c, agent.describe_error(e), getattr(e, \"turn_models\", []))'''
+… [truncated, 239 more chars]
+```
+
+<details><summary>Tool result</summary>
+
+```
+except agent.FallbackFailedError as e:  # both models failed: keep both real errors
+            r = failed_case(c, e.describe(), getattr(e, "turn_models", []) + [{
+                                               "requested": e.primary_model, "answered_by": None,
+                                               "calls": [], "fallback": {
+                                                   "from": e.primary_model, "to": e.fallback_model,
+                                                   "reason": agent.describe_error(e.primary_error),
+                                                   "fallback_error": agent.describe_error(e.fallback_error)}}])
+        except anthropic.APIError as e:  # keep going; record the case as failed
+            r = failed_case(c, agent.describe_error(e), getattr(e, "turn_models", []))
+```
+</details>
+
+### 🤖 Claude
+
+Next are the tests. First I'll confirm how the SDK classifies a few edge errors (501, 408, connection) and whether `DefaultHttpxClient` accepts a mock transport:
+
+**Tool call:** `Bash`
+
+```json
+{
+ "command": "python3 - <<'EOF'\nimport anthropic, httpx2\nfor n in [\"HTTPNotImplementedError\",\"RequestTimeoutError\",\"PermissionDeniedError\",\"NotFoundError\",\"ServiceUnavailableError\"]:\n    c=getattr(anthropic,n); print(n, [b.__name__ for b in c.__mro__[1:3]])\nreq=httpx2.Request(\"POST\",\"https://api.anthropic.com/v1/messages\")\ne=anthropic.APIConnectionError(request=req); print(type(e).__name__, str(e))\nt=anthropic.APITimeoutError(request=req); print(type(t).__name__, str(t))\nc = anthropic.Anthropic(api_key=\"x\", base_url=\"http://stub.invalid\", http_client=anthropic.DefaultHttpxClient(transport=httpx2.MockTransport(lambda r: httpx2.Response(200, json={}))))\nprint(\"mock client ok\", type(c.with_options(max_retries=0, timeout=5)).__name__)\ntry:\n    import httpx; print(\"httpx installed (TestClient possible)\")\nexcept ImportError: print(\"no httpx package\")\nEOF",
+ "description": "Check SDK error classes and MockTransport client construction"
+}
+```
+
+<details><summary>Tool result</summary>
+
+```
+HTTPNotImplementedError ['InternalServerError', 'APIStatusError']
+RequestTimeoutError ['APIStatusError', 'APIError']
+PermissionDeniedError ['APIStatusError', 'APIError']
+NotFoundError ['APIStatusError', 'APIError']
+ServiceUnavailableError ['InternalServerError', 'APIStatusError']
+APIConnectionError Connection error.
+APITimeoutError Request timed out or interrupted. This could be due to a network timeout, dropped connection, or request cancellation. See https://docs.anthropic.com/en/api/errors#long-requests for more details.
+mock client ok Anthropic
+no httpx package
+```
+</details>
+
+**Tool call:** `TaskUpdate`
+
+```json
+{
+ "taskId": "8",
+ "status": "completed"
+}
+```
+
+<details><summary>Tool result</summary>
+
+```
+Updated task #8 status
+```
+</details>
+
+**Tool call:** `TaskUpdate`
+
+```json
+{
+ "taskId": "9",
+ "status": "in_progress"
+}
+```
+
+<details><summary>Tool result</summary>
+
+```
+Updated task #9 status
+```
+</details>
+
+**Tool call:** `Write`
+
+```json
+{
+ "file_path": "/home/user/weather-risk-intelligence-agent/tests/conftest.py",
+ "content": "\"\"\"Isolate every test from the developer's environment.\n\nA leftover WRIA_SIMULATE_OUTAGE, ANTHROPIC_BASE_URL or ANTHROPIC_API_KEY in the shell (or values\na test loads from a temporary .env) must not leak into other tests, so the whole os.environ is\nsnapshotted and restored around each test.\n\"\"\"\nimport os\n\nimport pytest\n\nfrom app import config\n\nISOLATED = [\"WRIA_SIMULATE_OUTAGE\", \"ANTHROPIC_BASE_URL\", \"ANTHROPIC_API_KEY\",\n            \"ANTHROPIC_AUTH_TOKEN\"]\n\n\[email redacted](autouse=True)\ndef isolated_env():\n    saved_env = dict(os.environ)\n    saved_source = config.api_key_source\n    for key in ISOLATED:\n        os.environ.pop(key, None)\n    yield\n    os.environ.clear()\n    os.environ.update(saved_env)\n    config.api_key_source = saved_source\n"
+}
+```
+
+<details><summary>Tool result</summary>
+
+```
+File created successfully at: /home/user/weather-risk-intelligence-agent/tests/conftest.py (file state is current in your context — no need to Read it back)
+```
+</details>
+
+**Tool call:** `Write`
+
+```json
+{
+ "file_path": "/home/user/weather-risk-intelligence-agent/tests/fakes.py",
+ "content": "\"\"\"Test doubles for the Anthropic client: scripted responses and real SDK error objects.\"\"\"\nimport json\nfrom types import SimpleNamespace\n\nimport anthropic\nimport httpx2\n\nSONNET = \"claude-sonnet-5-5\"\nHAIKU = \"claude-haiku-5-5\"\nREQUEST = httpx2.Request(\"POST\", \"https://api.anthropic.com/v1/messages\")\n\n\ndef answer_json(**over) -> str:\n    a = {\"in_scope\": True, \"answer\": \"Houston ranks first.\", \"hubs\": [], \"figures\": [],\n         \"reasoning_steps\": [\"called rank_hubs\"], \"data_sources\": [\"FEMA NRI\"],\n         \"assumptions\": [\"weights from config\"], \"confidence\": \"medium\",\n         \"follow_up_suggestions\": []}\n    a.update(over)\n    return json.dumps(a)\n\n\ndef msg(content, stop, model=None):\n    \"\"\"A scripted response. model=None means 'whatever model was requested'.\"\"\"\n    usage = SimpleNamespace(input_tokens=10, output_tokens=5, cache_read_input_tokens=0)\n    return SimpleNamespace(content=content, stop_reason=stop, model=model, usage=usage)\n\n\ndef api_error(cls, status: int, etype: str, message: str):\n    \"\"\"A real SDK
+… [truncated, 1872 more chars]
+```
+
+<details><summary>Tool result</summary>
+
+```
+File created successfully at: /home/user/weather-risk-intelligence-agent/tests/fakes.py (file state is current in your context — no need to Read it back)
+```
+</details>
+
+**Tool call:** `Write`
+
+```json
+{
+ "file_path": "/home/user/weather-risk-intelligence-agent/tests/test_agent_loop.py",
+ "content": "\"\"\"Agent-loop mechanics with a fake Anthropic client (no network, no API key).\n\nChecks: tool calls are executed and returned in one user message, the history is replayed\non the next request, the final JSON is validated, and follow-ups see earlier turns.\n\"\"\"\nimport json\nimport uuid\n\nfrom anthropic.types import TextBlock, ToolUseBlock\n\nfrom app import agent, store\nfrom tests.fakes import SONNET, FakeClient, answer_json, msg\n\n\ndef setup_module():\n    store.build_from_cache()\n\n\ndef text(t):\n    return TextBlock(type=\"text\", text=t, citations=None)\n\n\ndef test_tool_round_then_validated_answer():\n    fake = FakeClient([\n        msg([ToolUseBlock(type=\"tool_use\", id=\"t1\", name=\"rank_hubs\",\n                          input={\"hazard\": \"overall\", \"region\": None})], \"tool_use\"),\n        msg([text(answer_json())], \"end_turn\"),\n    ])\n    out = agent.chat(\"Which hub is riskiest?\", uuid.uuid4().hex, client=fake)\n    assert out[\"answer\"][\"answer\"] == \"Houston ranks first.\"\n    assert out[\"tool_calls\"] == [{\"tool\": \"rank_hubs\", \"inpu
+… [truncated, 1969 more chars]
+```
+
+<details><summary>Tool result</summary>
+
+```
+The file /home/user/weather-risk-intelligence-agent/tests/test_agent_loop.py has been updated successfully. (file state is current in your context — no need to Read it back)
+```
+</details>
+
+### 🤖 Claude
+
+Now the fallback tests: the outage scenarios, the error classes, and the real SDK HTTP path through a mock transport:
+
+**Tool call:** `Write`
+
+```json
+{
+ "file_path": "/home/user/weather-risk-intelligence-agent/tests/test_model_fallback.py",
+ "content": "\"\"\"Simulated outages: Sonnet 5.5 is the primary, Haiku 5.5 is tried once when Sonnet is\ntemporarily unavailable, and the result always says which model actually answered.\"\"\"\nimport json\nimport uuid\n\nimport anthropic\nimport httpx2\nimport pytest\nfrom anthropic.types import TextBlock, ToolUseBlock\nfrom fastapi import HTTPException\n\nfrom app import agent, main, store\nfrom app.config import settings\nfrom evals import run as eval_run\nfrom tests.fakes import (HAIKU, REQUEST, SONNET, FakeClient, answer_json, api_error, msg,\n                         overloaded)\n\nRETRIES = settings()[\"llm\"][\"max_retries\"]\n\n\ndef setup_module():\n    store.build_from_cache()\n\n\ndef text(t):\n    return TextBlock(type=\"text\", text=t, citations=None)\n\n\ndef tool_use(name, args, id_=\"t1\"):\n    return ToolUseBlock(type=\"tool_use\", id=id_, name=name, input=args)\n\n\ndef final():\n    return msg([text(answer_json())], \"end_turn\")\n\n\ndef sid():\n    return uuid.uuid4().hex\n\n\n# ---------- the switch ----------\n\ndef test_config_defaults_to_sonnet_with_haiku_fallback(
+… [truncated, 13475 more chars]
+```
+
+<details><summary>Tool result</summary>
+
+```
+File created successfully at: /home/user/weather-risk-intelligence-agent/tests/test_model_fallback.py (file state is current in your context — no need to Read it back)
+```
+</details>
+
+**Tool call:** `Write`
+
+```json
+{
+ "file_path": "/home/user/weather-risk-intelligence-agent/tests/test_env_file.py",
+ "content": "\"\"\".env loading. Every test writes its own file in pytest's tmp_path: no test reads or\nwrites the repository's real .env.\"\"\"\nimport os\nimport warnings\n\nimport anthropic\nimport pytest\n\nfrom app import config\n\nKEY = \"[api key redacted]\"\n\n\ndef write(tmp_path, text, encoding):\n    p = tmp_path / \".env\"\n    p.write_bytes(text.encode(encoding))\n    return p\n\n\ndef test_tests_never_target_the_repo_env_file(tmp_path):\n    assert tmp_path not in config.ENV_FILE.parents and config.ENV_FILE != tmp_path / \".env\"\n\n\[email redacted](\"encoding\", [\"utf-8\", \"utf-8-sig\", \"utf-16\", \"utf-16-le-bom\", \"cp1252\"])\ndef test_key_is_read_whatever_the_file_encoding(tmp_path, encoding):\n    body = f\"# written on Windows\\r\\nANTHROPIC_API_KEY={KEY}\\r\\nWRIA_NOTE=caf\u00e9\\r\\n\"\n    if encoding == \"utf-16-le-bom\":  # what Windows PowerShell 5.1's `>` / Out-File writes\n        p = tmp_path / \".env\"\n        p.write_bytes(b\"\\xff\\xfe\" + body.encode(\"utf-16-le\"))\n    else:\n        p = write(tmp_path, body, encoding)\n    loaded = config.load_env_file(p)\n
+… [truncated, 2119 more chars]
+```
+
+<details><summary>Tool result</summary>
+
+```
+File created successfully at: /home/user/weather-risk-intelligence-agent/tests/test_env_file.py (file state is current in your context — no need to Read it back)
+```
+</details>
+
+**Tool call:** `Bash`
+
+```json
+{
+ "command": "python3 -m pytest -q 2>&1 | tail -25",
+ "description": "Run the full test suite"
+}
+```
+
+<details><summary>Tool result</summary>
+
+```
+app/agent.py:206: FallbackFailedError
+=============================== warnings summary ===============================
+app/main.py:38
+  /home/user/weather-risk-intelligence-agent/app/main.py:38: DeprecationWarning: 
+          on_event is deprecated, use lifespan event handlers instead.
+  
+          Read more about it in the
+          [FastAPI docs for Lifespan Events](https://fastapi.tiangolo.com/advanced/events/).
+          
+    @app.on_event("startup")
+
+../../../usr/local/lib/python3.13/site-packages/fastapi/applications.py:5039
+  /usr/local/lib/python3.13/site-packages/fastapi/applications.py:5039: DeprecationWarning: 
+          on_event is deprecated, use lifespan event handlers instead.
+  
+          Read more about it in the
+          [FastAPI docs for Lifespan Events](https://fastapi.tiangolo.com/advanced/events/).
+          
+    return self.router.on_event(event_type)  # ty: ignore[deprecated]
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED tests/test_model_fallback.py::test_sdk_http_outage_retries_sonnet_then_tries_haiku_once
+1 failed, 59 passed, 2 warnings in 3.75s
+```
+</details>
+
+**Tool call:** `Bash`
+
+```json
+{
+ "command": "python3 -m pytest -q tests/test_model_fallback.py::test_sdk_http_outage_retries_sonnet_then_tries_haiku_once 2>&1 | grep -E \"Error|error|assert|describe|fallback failed\" | head -20",
+ "description": "Show the failing SDK HTTP test details"
+}
+```
+
+<details><summary>Tool result</summary>
+
+```
+>       assert request.headers["x-api-key"] == "test-key"
+>       raise KeyError(key)
+E       KeyError: 'x-api-key'
+/usr/local/lib/python3.13/site-packages/httpx2/_models.py:325: KeyError
+        errors for the caller) happens above, where middleware can inspect error
+        responses first. Connection failures raise typed errors (`APITimeoutError`,
+        `APIConnectionError`). `call`, an API call that has a span, records the attempt.
+            raise APITimeoutError(request=request) from err
+            if isinstance(err, AnthropicError):
+                # SDK-originated errors already carry their own type; don't wrap.
+>           raise APIConnectionError(request=request) from err
+E           anthropic.APIConnectionError: Connection error.
+/usr/local/lib/python3.13/site-packages/anthropic/_base_client.py:1466: APIConnectionError
+>       assert request.headers["x-api-key"] == "test-key"
+>       raise KeyError(key)
+E       KeyError: 'x-api-key'
+/usr/local/lib/python3.13/site-packages/httpx2/_models.py:325: KeyError
+primary_error = APIConnectionError('Connection error.')
+    def _switch(self, messages: list[dict], primary_error: BaseException):
+        self.primary_error = primary_error
+```
+</details>
+
+**Tool call:** `Bash`
+
+```json
+{
+ "command": "python3 - <<'EOF'\nimport anthropic, httpx2\nseen = {}\ndef h(r):\n    seen.update({k: (v if k.lower() not in (\"x-api-key\", \"authorization\") else v[:12] + \"...\") for k, v in r.headers.items()})\n    return httpx2.Response(200, json={\"id\":\"m\",\"type\":\"message\",\"role\":\"assistant\",\"model\":\"claude-haiku-5-5\",\"content\":[{\"type\":\"text\",\"text\":\"hi\"}],\"stop_reason\":\"end_turn\",\"stop_sequence\":None,\"usage\":{\"input_tokens\":1,\"output_tokens\":1}})\nc = anthropic.Anthropic(api_key=\"test-key\", base_url=\"http://stub.invalid\", http_client=anthropic.DefaultHttpxClient(transport=httpx2.MockTransport(h)))\nc.messages.create(model=\"claude-haiku-5-5\", max_tokens=10, messages=[{\"role\":\"user\",\"content\":\"x\"}])\nprint({k: v for k, v in seen.items() if k.lower() in (\"x-api-key\",\"authorization\",\"anthropic-version\",\"anthropic-beta\")})\nEOF",
+ "description": "Inspect auth headers the SDK sends"
+}
+```
+
+<details><summary>Tool result</summary>
+
+```
+{'authorization': 'Bearer test-...', 'anthropic-version': '2026-10-21'}
+```
+</details>
+
+### 🤖 Claude
+
+SDK 2.11 sends the key as `Authorization: Bearer`. I'll update the test assertion to match:
+
+**Tool call:** `Edit`
+
+```json
+{
+ "replace_all": false,
+ "file_path": "/home/user/weather-risk-intelligence-agent/tests/test_model_fallback.py",
+ "old_string": "        assert request.headers[\"x-api-key\"] == \"test-key\"",
+ "new_string": "        # SDK 2.x sends the API key as a bearer token\n        assert request.headers.get(\"authorization\") == \"Bearer test-key\""
+}
+```
+
+<details><summary>Tool result</summary>
+
+```
+The file /home/user/weather-risk-intelligence-agent/tests/test_model_fallback.py has been updated successfully. (file state is current in your context — no need to Read it back)
+```
+</details>
+
+**Tool call:** `Bash`
+
+```json
+{
+ "command": "python3 -m pytest -q -p no:warnings 2>&1 | tail -3 && python3 -m pytest -q -p no:warnings tests/test_model_fallback.py -v 2>&1 | grep -E \"PASSED|FAILED\" | sed 's/tests\\/test_model_fallback.py:://' | head -40",
+ "description": "Rerun all tests and list fallback test results"
+}
+```
+
+<details><summary>Tool result</summary>
+
+```
+............................................................             [100%]
+60 passed in 2.25s
+```
+</details>
+
+### 🤖 Claude
+
+All 60 tests pass: the 15 original tests plus 45 new ones. Before shipping, I'll have three independent reviewers check the code diff, each finding verified separately, while I update the docs.
+
+**Tool call:** `TaskUpdate`
+
+```json
+{
+ "taskId": "9",
+ "status": "completed"
+}
+```
+
+<details><summary>Tool result</summary>
+
+```
+Updated task #9 status
+```
+</details>
+
+**Tool call:** `TaskUpdate`
+
+```json
+{
+ "taskId": "10",
+ "status": "in_progress"
+}
+```
+
+<details><summary>Tool result</summary>
+
+```
+Updated task #10 status
+```
+</details>
+
+**Tool call:** `Workflow`
+
+```json
+{
+ "script": "export const meta = {\n  name: 'fallback-diff-review',\n  description: 'Review the Sonnet->Haiku fallback and .env changes for real bugs, then adversarially verify each finding',\n  phases: [\n    { title: 'Review', detail: 'three lenses over the uncommitted diff' },\n    { title: 'Verify', detail: 'skeptic per finding' },\n  ],\n}\n\nconst REPO = args.repo\nconst FINDINGS = {\n  type: 'object',\n  properties: { findings: { type: 'array', items: { type: 'object', properties: {\n    title: { type: 'string' }, file_line: { type: 'string' }, problem: { type: 'string' },\n    failure_scenario: { type: 'string', description: 'concrete inputs/state -> wrong behaviour' },\n    fix: { type: 'string' }, severity: { type: 'string', enum: ['important', 'minor'] },\n  }, required: ['title', 'file_line', 'problem', 'failure_scenario', 'fix', 'severity'] } } },\n  required: ['findings'],\n}\nconst VERDICT = { type: 'object', properties: {\n  real: { type: 'boolean' }, reasoning: { type: 'string' }, corrected_fix: { type: 'string' },\n}, required: ['real', 'reasoning', 'corrected_fix'] }\n\nconst common = `Repository: ${REPO} (read-only: do NOT modify, create or delete any files in 
+… [truncated, 4924 more chars]
+```
+
+<details><summary>Tool result</summary>
+
+```
+Workflow launched in background. Task ID: w4ba9ox85
+Summary: Review the Sonnet->Haiku fallback and .env changes for real bugs, then adversarially verify each finding
+Transcript dir: /root/.claude/projects/-home-user-weather-risk-intelligence-agent/054feb9f-992e-53ec-86ec-b86ccf98458a/subagents/workflows/wf_03a4d4e3-ef4
+Script file: /root/.claude/projects/-home-user-weather-risk-intelligence-agent/054feb9f-992e-53ec-86ec-b86ccf98458a/workflows/scripts/fallback-diff-review-wf_03a4d4e3-ef4.js
+(Edit this file with Write/Edit and re-invoke Workflow with {scriptPath: "/root/.claude/projects/-home-user-weather-risk-intelligence-agent/054feb9f-992e-53ec-86ec-b86ccf98458a/workflows/scripts/fallback-diff-review-wf_03a4d4e3-ef4.js"} to iterate without resending the script.)
+Run ID: wf_03a4d4e3-ef4
+To resume after editing the script, with the same args if this run had any: Workflow({scriptPath: "/root/.claude/projects/-home-user-weather-risk-intelligence-agent/054feb9f-992e-53ec-86ec-b86ccf98458a/workflows/scripts/fallback-diff-review-wf_03a4d4e3-ef4.js", resumeFromRunId: "wf_03a4d4e3-ef4"}) — agent() calls return cached results up to the first one that failed, no longer matches (edited, added, removed, or in a different call order) or never started. Cached results may themselves be empty: inspect journal.jsonl before assuming there is something to recover.
+
+You will be notified when it completes. Use /workflows to watch live progress.
+```
+</details>
+
+### 🤖 Claude
+
+While the review runs, I'll update the docs, starting with the README:
+
+**Tool call:** `Read`
+
+```json
+{
+ "file_path": "/home/user/weather-risk-intelligence-agent/README.md"
+}
+```
+
+<details><summary>Tool result</summary>
+
+```
+1	# Weather Risk Intelligence Agent
+2	
+3	An AI agent that helps logistics analysts decide which distribution hubs are most exposed to
+4	weather disruption. A **deterministic risk model** (Python) scores 7 hubs from public data.
+5	**Claude** answers questions by calling that model through tools, and returns a
+6	**JSON-schema-validated** answer that the chat UI renders.
+7	
+8	- Design and architecture: [`docs/DESIGN.md`](docs/DESIGN.md)
+9	- AI session transcript (plan and full conversation): [`docs/session-transcript.md`](docs/session-transcript.md)
+10	
+11	## Quick start
+12	
+13	```bash
+14	python -m pip install -r requirements.txt
+15	```
+16	
+17	```bash
+18	export ANTHROPIC_API_KEY=...        # needed for /chat and the evals only
+19	```
+20	
+21	```bash
+22	python -m uvicorn app.main:app --port 8000
+23	```
+24	
+25	Open http://localhost:8000 and click one of the example questions.
+26	
+27	The public data is already cached in `data/cache/` (raw API responses). The SQLite database
+28	is rebuilt from that cache at startup, so the app runs offline and doesn't depend on API quotas.
+29	To re-download the data:
+30	
+31	```bash
+32	python -m scripts.refresh_data            # fetch anything missing, rebuild DB
+33	```
+34	
+35	```bash
+36	python -m scripts.refresh_data --force    # re-download everything
+37	```
+38	
+39	## Windows (PowerShell 5.1 or 7)
+40	
+41	Needs Git and Python 3.10+.
+42	
+43	```powershell
+44	git clone -b claude/lucid-thompson-42z611 https://github.com/BarHaham/weather-risk-intelligence
+… [truncated, 2451 more chars]
+```
+</details>
+
+**Tool call:** `Bash`
+
+```json
+{
+ "command": "python3 - <<'EOF'\nimport pathlib\np = pathlib.Path(\"README.md\"); s = p.read_text(encoding=\"utf-8\")\ns = s.replace('''**JSON-schema-validated** answer that the chat UI renders.\n''', '''**JSON-schema-validated** answer that the chat UI renders.\n\nThe agent runs on **Claude Sonnet 5.5**. If Sonnet is temporarily unavailable, the same request is\ntried once on **Claude Haiku 5.5**, and every answer (UI, `/chat`, eval results) says which model\nactually answered.\n''')\ns = s.replace('''```bash\nexport ANTHROPIC_API_KEY=...        # needed for /chat and the evals only\n```\n''', '''Put your key in a `.env` file in the repo root (git-ignored; see `.env.example`). It is needed\nonly for `/chat` and the evals:\n\n```bash\ncp .env.example .env    # then edit: ANTHROPIC_API_KEY=sk-ant-...\n```\n\nA variable already set in the environment takes precedence over `.env`.\n''')\ns = s.replace('''Set the key with a prompt, so it isn't saved in PowerShell's history file. It lasts only for this window:\n\n```powershell\n$env:ANTHROPIC_API_KEY = [Net.NetworkCredential]::new('', (Read-Host 'Anthropic API key' -AsSecureString)).Password\n.\\\\.venv\\\\Scripts\\\\python.exe -m uvic
+… [truncated, 5140 more chars]
+```
+
+<details><summary>Tool result</summary>
+
+```
+4:weather disruption. A **deterministic risk model** (Python) scores 7 hubs from public data.
+5:**Claude** answers questions by calling that model through tools, and returns a
+9:tried once on **Claude Haiku 5.5**, and every answer (UI, `/chat`, eval results) says which model
+25:cp .env.example .env    # then edit: ANTHROPIC_API_KEY=sk-ant-...
+65:when you include the dot in the name, and add one line: `ANTHROPIC_API_KEY=sk-ant-...`. Any
+70:`$env:ANTHROPIC_API_KEY = [Net.NetworkCredential]::new('', (Read-Host 'Anthropic API key' -AsSecureString)).Password`
+86:Each eval line shows `answered_by=<model>`. When the fallback was used, it adds
+87:`[fallback from claude-sonnet-5-5: <reason>]`. The summary counts answers per model.
+91:`WRIA_SIMULATE_OUTAGE` makes the listed models fail with a synthetic 529 "overloaded" error before
+95:$env:WRIA_SIMULATE_OUTAGE = "claude-sonnet-5-5"
+100:Expect `answered_by=claude-haiku-5-5 [fallback from claude-sonnet-5-5: OverloadedError 529
+101:overloaded_error: Simulated outage ... [simulated]]`. To see what happens when both models are
+102:down, use `$env:WRIA_SIMULATE_OUTAGE = "claude-sonnet-5-5,claude-haiku-5-5"`. The case then fails
+108:- **Every turn starts on `llm.model`** (`claude-sonnet-5-5`), with `llm.max_retries` SDK retries.
+111:- **The fallback attempt:** the same request is sent **once** to `llm.fallback_model`
+112:  (`claude-haiku-5-5`), as a single attempt with no retries. The rest of that turn stays on Haiku.
+120:- **Refusals** are n
+… [truncated, 591 more chars]
+```
+</details>
+
+**Tool call:** `Edit`
+
+```json
+{
+ "replace_all": false,
+ "file_path": "/home/user/weather-risk-intelligence-agent/README.md",
+ "old_string": "without setting the key again. Create it with `notepad .env`, which saves without adding `.txt`\nwhen you include the dot in the name, and add one line: `ANTHROPIC_API_KEY=sk-ant-...`. Any\nencoding works, including the UTF-16 that PowerShell 5.1's `>` writes.",
+ "new_string": "without setting the key again. Create it with `notepad .env` (Notepad offers to create the file)\nand add one line: `ANTHROPIC_API_KEY=sk-ant-...`. Any encoding works, including the UTF-16 that\nPowerShell 5.1's `>` writes. If the file ends up named `.env.txt`, the app warns you to rename it."
+}
+```
+
+<details><summary>Tool result</summary>
+
+```
+The file /home/user/weather-risk-intelligence-agent/README.md has been updated successfully. (note: the file had been modified on disk since you last read it — the edit applied cleanly, but the file contains other changes not in your context. Read it before edits that depend on surrounding content.)
+```
+</details>
+
+**Tool call:** `Bash`
+
+```json
+{
+ "command": "grep -n -i \"opus\\|claude-\\|refusal\\|fallback\\|ANTHROPIC_API_KEY\\|Messages API\" docs/DESIGN.md",
+ "description": "Find model and fallback references in DESIGN.md"
+}
+```
+
+<details><summary>Tool result</summary>
+
+```
+25: Agent loop (app/agent.py)  ── Claude Messages API (claude-opus-5-5)
+60:- **Change from the plan:** the plan used a forced `submit_answer` tool. Claude Opus 5.5 rejects
+67:- **Refusals:** server-side fallback (`fallbacks: "default"`, beta) is enabled in config, and
+68:  `stop_reason` is checked for refusal, `max_tokens` and `pause_turn`.
+```
+</details>
+
+**Tool call:** `Read`
+
+```json
+{
+ "file_path": "/home/user/weather-risk-intelligence-agent/docs/DESIGN.md",
+ "offset": 20,
+ "limit": 52
+}
+```
+
+<details><summary>Tool result</summary>
+
+```
+20	   │  POST /chat {message, session_id}          GET /rankings, /hubs/{id}/score, ...
+21	   ▼                                              ▲
+22	 FastAPI (app/main.py) ───────────────────────────┘
+23	   │
+24	   ▼
+25	 Agent loop (app/agent.py)  ── Claude Messages API (claude-opus-5-5)
+26	   │   • sends: system prompt, 6 strict tools, history, output_config.format = AgentAnswer JSON schema
+27	   │   • loop: model asks for tools → run them → send results → … → final JSON answer
+28	   │   • validates the final JSON with Pydantic (one repair retry), stores history append-only
+29	   ▼
+30	 Tools (app/tools.py) ── thin wrappers, no logic of their own
+31	   ├─ rank_hubs / compare_hubs / get_score_breakdown ──▶ app/scoring.py  (risk model)
+32	   ├─ weather_stat                                     ──▶ app/metrics.py  (day counts)
+33	   └─ list_hubs / get_methodology                      ──▶ config.yaml, data/hubs.json
+34	   ▼
+35	 SQLite (app/store.py, data/weather_risk.db)  ◀── built from ──  data/cache/*.json (raw API responses)
+36	                                                                     ▲
+37	 scripts/refresh_data.py ── app/sources/open_meteo.py (ERA5 daily weather, 2020-2025)
+38	                         └─ app/sources/fema_nri.py   (FEMA National Risk Index, counties)
+39	```
+40	
+41	**How the components talk**
+42	1. The UI only talks to FastAPI, over JSON/HTTP. The ranking side panel calls `/rankings`
+43	   directly, so the deterministic numbers are visible without any LLM
+… [truncated, 2033 more chars]
+```
+</details>
+
+**Tool call:** `Bash`
+
+```json
+{
+ "command": "python3 - <<'EOF'\nimport pathlib\np = pathlib.Path(\"docs/DESIGN.md\"); s = p.read_text(encoding=\"utf-8\")\ns = s.replace(\" Agent loop (app/agent.py)  \u2500\u2500 Claude Messages API (claude-opus-5-5)\\n\",\n              \" Agent loop (app/agent.py)  \u2500\u2500 Claude Messages API: claude-sonnet-5-5,\\n\"\n              \"   \u2502                             falls back once to claude-haiku-5-5 when Sonnet is unavailable\\n\")\ns = s.replace('''- **Change from the plan:** the plan used a forced `submit_answer` tool. Claude Opus 5.5 rejects\n  forced `tool_choice`, so the schema is enforced through structured outputs instead. The intent\n  is unchanged: a JSON schema between the LLM and the code.''', '''- **Change from the plan:** the plan used a forced `submit_answer` tool. The current Claude models\n  reject forced `tool_choice` (the first build used Opus 5.5; Sonnet 5.5 rejects it too), so the\n  schema is enforced through structured outputs instead. The intent is unchanged: a JSON schema\n  between the LLM and the code.''')\ns = s.replace('''- **Refusals:** server-side fallback (`fallbacks: \"default\"`, beta) is enabled in config, and\n  `stop_reason` is c
+… [truncated, 3398 more chars]
+```
+
+<details><summary>Tool result</summary>
+
+```
+19:API_KEY = re.compile(r"sk-ant-[A-Za-z0-9_-]{20,}")
+27:    text = API_KEY.sub("[api key redacted]", text)
+key [api key redacted] and sk-ant-invalid
+```
+</details>
+
+**Tool call:** `Bash`
+
+```json
+{
+ "command": "set -e; SRC=/home/user/weather-risk-intelligence-agent; T=$(mktemp -d /tmp/claude-0/-home-user-weather-risk-intelligence-agent/054feb9f-992e-53ec-86ec-b86ccf98458a/scratchpad/envcheck.XXXX); cd $SRC && git ls-files -co --exclude-standard | tar -cf - -T - | tar -xf - -C $T; ls -a $T | head -20; test ! -e $SRC/.env && echo \"repo .env: absent (untouched)\"; python3 -c \"\nimport sys; open(sys.argv[1]+'/.env','wb').write(b'\\xff\\xfe' + 'ANTHROPIC_API_KEY=[api key redacted]\\r\\n'.encode('utf-16-le'))\" $T; head -c 4 $T/.env | od -An -tx1; cd $T && env -u ANTHROPIC_API_KEY python3 -m uvicorn app.main:app --port 8790 > $T/uv.log 2>&1 & sleep 4; curl -s localhost:8790/health; echo; curl -s -X POST localhost:8790/chat -H 'content-type: application/json' -d '{\"message\":\"hi\"}'; echo; pkill -f \"port 8790\" || true; sleep 1; cd $T && env -u ANTHROPIC_API_KEY WRIA_SIMULATE_OUTAGE=claude-sonnet-5-5,claude-haiku-5-5 python3 -m uvicorn app.main:app --port 8791 > $T/uv2.log 2>&1 & sleep 4; curl -s localhost:8791/health | python3 -c \"import json,sys; d=json.load(sys.stdin); print('llm:', d['llm'], '| key:', d['api_key_source'])\"; curl -s -X POST localhost:8791/chat -H 'conten
+… [truncated, 197 more chars]
+```
+
+<details><summary>Tool result</summary>
+
+```
+.
+..
+.dockerignore
+.env.example
+.gitignore
+Dockerfile
+README.md
+app
+config.yaml
+data
+docs
+evals
+requirements.txt
+scripts
+tests
+repo .env: absent (untouched)
+ ff fe 41 00
+{"status":"ok","observed_weather_hubs":["chicago","minneapolis","detroit","denver","dallas","miami","houston"],"nri_loaded":true,"llm":{"model":"claude-sonnet-5-5","fallback_model":"claude-haiku-5-5","simulated_outage":[]},"api_key_source":".env"}
+{"detail":"Anthropic credentials missing or invalid: check ANTHROPIC_API_KEY (AuthenticationError 401 authentication_error: invalid x-api-key)."}
+Terminated
+[1]+  Exit 143                cd $T && env -u ANTHROPIC_API_KEY python3 -m uvicorn app.main:app --port 8790 > $T/uv.log 2>&1
+llm: {'model': 'claude-sonnet-5-5', 'fallback_model': 'claude-haiku-5-5', 'simulated_outage': ['claude-haiku-5-5', 'claude-sonnet-5-5']} | key: .env
+{"detail":"claude-sonnet-5-5 unavailable (OverloadedError 529 overloaded_error: Simulated outage for claude-sonnet-5-5 (WRIA_SIMULATE_OUTAGE) [simulated]); claude-haiku-5-5 fallback failed: OverloadedError 529 overloaded_error: Simulated outage for claude-haiku-5-5 (WRIA_SIMULATE_OUTAGE) [simulated]"}
+```
+</details>
+
+**Tool call:** `Bash`
+
+```json
+{
+ "command": "T=$(ls -d /tmp/claude-0/-home-user-weather-risk-intelligence-agent/054feb9f-992e-53ec-86ec-b86ccf98458a/scratchpad/envcheck.* | head -1); cd $T && (env -u ANTHROPIC_API_KEY WRIA_SIMULATE_OUTAGE=claude-sonnet-5-5 python3 -m uvicorn app.main:app --port 8792 > $T/uv3.log 2>&1 &); sleep 4; curl -s -o $T/r.json -w \"HTTP %{http_code}\\n\" -X POST localhost:8792/chat -H 'content-type: application/json' -d '{\"message\":\"hi\"}'; cat $T/r.json; echo; pkill -f \"port 8792\"; true",
+ "description": "Real-API check: simulated Sonnet outage, Haiku called with dummy key"
+}
+```
+
+<details><summary>Tool result</summary>
+
+```
+HTTP 502
+{"detail":"claude-sonnet-5-5 unavailable (OverloadedError 529 overloaded_error: Simulated outage for claude-sonnet-5-5 (WRIA_SIMULATE_OUTAGE) [simulated]); claude-haiku-5-5 fallback failed: AuthenticationError 401 authentication_error: invalid x-api-key"}
+Shell cwd was reset to /home/user/weather-risk-intelligence-agent
+```
+</details>
+
+**Tool call:** `Bash`
+
+```json
+{
+ "command": "T=$(ls -d /tmp/claude-0/-home-user-weather-risk-intelligence-agent/054feb9f-992e-53ec-86ec-b86ccf98458a/scratchpad/envcheck.* | head -1); cd $T && env -u ANTHROPIC_API_KEY WRIA_SIMULATE_OUTAGE=claude-sonnet-5-5 python3 -m evals.run --case denver_snow_last_year; echo \"exit=$?\"; python3 -c \"import json; r=json.load(open('evals/results/latest.json')); print(json.dumps({k:r[0][k] for k in ('id','passed','answered_by','models')}, indent=1))\"",
+ "description": "Run one eval with simulated Sonnet outage in temp copy"
+}
+```
+
+<details><summary>Tool result</summary>
+
+```
+Models: claude-sonnet-5-5 (fallback once: claude-haiku-5-5); API key: .env
+NOTE: WRIA_SIMULATE_OUTAGE is set - simulating an outage for claude-sonnet-5-5
+FAIL  denver_snow_last_year        0s  answered_by=none [fallback from claude-sonnet-5-5: OverloadedError 529 overloaded_error: Simulated outage for claude-sonnet-5-5 (WRIA_SIMULATE_OUTAGE) [simulated]]
+        [FAIL] api call claude-sonnet-5-5 unavailable (OverloadedError 529 overloaded_error: Simulated outage for claude-sonnet-5-5 (WRIA_SIMULATE_OUTAGE) [simulated]); claude-haiku-5-5 fallback failed: AuthenticationError 401 authentication_error: invalid x-api-key
+
+0/1 cases passed; total tokens 0
+Answered by: no answer x1 (fallback: denver_snow_last_year)
+exit=0
+{
+ "id": "denver_snow_last_year",
+ "passed": false,
+ "answered_by": null,
+ "models": [
+  {
+   "requested": "claude-sonnet-5-5",
+   "answered_by": null,
+   "calls": [],
+   "fallback": {
+    "from": "claude-sonnet-5-5",
+    "to": "claude-haiku-5-5",
+    "reason": "OverloadedError 529 overloaded_error: Simulated outage for claude-sonnet-5-5 (WRIA_SIMULATE_OUTAGE) [simulated]",
+    "fallback_error": "AuthenticationError 401 authentication_error: invalid x-api-key"
+   }
+  }
+ ]
+}
+Shell cwd was reset to /home/user/weather-risk-intelligence-agent
+```
+</details>
+
+### 🤖 Claude
+
+The eval output shows the model on every line, and the failure keeps both real errors. Each eval case line now shows the model that answered, and the summary counts answers per model. `latest.json` records the requested model, the calls made and the fallback for each turn.
+
+All 60 tests pass. The code and docs are written but not committed yet. Three independent reviewers are checking the diff, and I'll commit and push once they're done.
+
+---
+
+## 🧑 User
+
+Stop hook feedback:
+[command hook]: There are uncommitted changes in the repository. Please commit and push these changes to the remote branch.
+
+### 🤖 Claude
+
+The review is still running, but this is a draft PR, so I'll commit and push the tested work now. Any fixes from the review will go in a follow-up commit.
+
+**Tool call:** `Bash`
+
+```json
+{
+ "command": "python3 -m pytest -q -p no:warnings 2>&1 | tail -1 && git status --short --untracked-files=all && test ! -e .env && echo \"no .env in repo\" && git add -A && git status --short && git commit -q -m \"Sonnet 5.5 by default, one-time Haiku 5.5 fallback, API key from .env\n\n- Default model claude-sonnet-5-5. If it is temporarily unavailable (529 or\n  another 5xx except 501, 429, 408, timeout, connection error) after the SDK's\n  retries, the same request is tried once on claude-haiku-5-5 (single attempt);\n  the rest of that turn stays on Haiku, the next turn starts on Sonnet.\n- Replaces the server-side refusal fallback (fallbacks + beta header removed;\n  non-beta messages.create). Refusals are no longer retried on another model.\n- If Haiku fails too, FallbackFailedError keeps both real SDK errors; /chat\n  returns 503 when Haiku was also unavailable and 502 otherwise (e.g. a 403),\n  naming both errors.\n- Refused or max_tokens-truncated assistant messages are no longer stored, so\n  they cannot break later requests in the session.\n- Results report models {requested, answered_by, calls, fallback}; eval lines\n  show answered_by and the fallback reason; summary cou
+… [truncated, 902 more chars]
+```
+
+<details><summary>Tool result</summary>
+
+```
+60 passed in 2.40s
+ M README.md
+ M app/agent.py
+ M app/config.py
+ M app/main.py
+ M app/static/index.html
+ M config.yaml
+ M docs/DESIGN.md
+ M evals/run.py
+ M requirements.txt
+ M scripts/export_transcript.py
+ M tests/test_agent_loop.py
+?? .dockerignore
+?? .env.example
+?? tests/conftest.py
+?? tests/fakes.py
+?? tests/test_env_file.py
+?? tests/test_model_fallback.py
+no .env in repo
+A  .dockerignore
+A  .env.example
+M  README.md
+M  app/agent.py
+M  app/config.py
+M  app/main.py
+M  app/static/index.html
+M  config.yaml
+M  docs/DESIGN.md
+M  evals/run.py
+M  requirements.txt
+M  scripts/export_transcript.py
+A  tests/conftest.py
+A  tests/fakes.py
+M  tests/test_agent_loop.py
+A  tests/test_env_file.py
+A  tests/test_model_fallback.py
+5cf2da7 Sonnet 5.5 by default, one-time Haiku 5.5 fallback, API key from .env
+5cf2da7d3f09d8da69151403217d63a4fbfa56a8
+5cf2da7d3f09d8da69151403217d63a4fbfa56a8
+```
+</details>
+
+### 🤖 Claude
+
+I've committed and pushed this as `5cf2da7` on `claude/lucid-thompson-42z611`: the Sonnet 5.5 default with the one-time Haiku 5.5 fallback, and the key read from `.env`. The working tree is clean and no `.env` was committed. All 60 tests pass, 45 of them new.
+
+The simulated outage behaves as you asked:
+- **Sonnet down, Haiku up:** Haiku is tried exactly once and answers, and the result says `answered_by=claude-haiku-5-5` with the fallback reason. I tested this with a scripted client and through the real SDK request path, where Sonnet gets its normal retry and Haiku a single attempt.
+- **Sonnet's outage simulated against the real API with a dummy key:** Haiku was really called, and its actual error came back: `/chat` returned 502 with `AuthenticationError 401 authentication_error: invalid x-api-key`, alongside Sonnet's simulated 529. A permissions or key problem can't be mistaken for an outage, which gets a 503.
+- **`.env` loading:** a UTF-16 `.env` (what PowerShell 5.1's `>` writes) was read from a temporary copy of the repo, and the Anthropic API received the key from it. The `.env` tests all use temporary folders.
+
+Things that behave differently from before:
+- **Refusals are no longer retried on another model.** The old automatic refusal fallback is gone, as you asked. A refusal now gets the "I can't help with that request" answer.
+- **Rate limits (429) on Sonnet now go to Haiku**, as you chose.
+- **Refused or cut-off replies are no longer saved to the chat history.** Saving them would have broken every later message in that conversation.
+
+Nothing has been answered by Sonnet or Haiku yet, because there's no real key here. To try a live run on Windows with your `.env`:
+
+```bash
+.\.venv\Scripts\python.exe -m pip install -r requirements.txt
+```
+`requirements.txt` now includes `python-dotenv`, so this reinstall is needed.
+
+```bash
+.\.venv\Scripts\python.exe -m evals.run --case follow_up_detroit
+```
+
+To see the fallback live, which uses Haiku tokens only:
+
+```bash
+$env:WRIA_SIMULATE_OUTAGE = "claude-sonnet-5-5"
+```
+
+```bash
+.\.venv\Scripts\python.exe -m evals.run --case denver_snow_last_year
+```
+
+```bash
+Remove-Item Env:WRIA_SIMULATE_OUTAGE
+```
+
+Three independent reviewers are still checking this commit. I'll push any fixes they confirm as a follow-up commit, then update the PR description and session transcript, which I haven't done yet.
+
+---
+
+## 🧑 User
+
+<task-notification>
+<task-id>w4ba9ox85</task-id>
+<tool-use-id>toolu_01DVqAnoqFrXGmhoBVP1qjDh</tool-use-id>
+<output-file>/tmp/claude-0/-home-user-weather-risk-intelligence-agent/054feb9f-992e-53ec-86ec-b86ccf98458a/tasks/w4ba9ox85.output</output-file>
+<status>completed</status>
+<summary>Dynamic workflow "Review the Sonnet-&gt;Haiku fallback and .env changes for real bugs, then adversarially verify each finding" completed</summary>
+<result>{"confirmed":[{"title":"A 120 s per-call timeout with max_tokens 16000 makes a slow but healthy Sonnet look unavailable","file_line":"app/agent.py:165 (_create: client.with_options(..., timeout=cfg['request_timeout_s'])), config.yaml llm.request_timeout_s: 120 / max_tokens: 16000","problem":"Requests are non-streaming, and the per-call timeout is now 120 s instead of the SDK default. For a non-streaming request with max_tokens=16000, anthropic 2.11 itself estimates up to 450 s (`_calculate_nonstreaming_timeout`: 3600 * 16000 / 128000), which is why it normally uses 600 s. When a healthy Sonnet takes more than 120 s to generate (long adaptive thinking plus the JSON answer), it raises APITimeoutError. `is_unavailable()` treats that as an outage.","failure_scenario":"A final-answer call on Sonnet needs about 150 s. The httpx read timeout fires at 120 s and the SDK retries (max_retries=1), which regenerates and times out again. The turn then switches to Haiku. The result reports `fallback: claude-sonnet-5-5 unavailable (APITimeoutError ...)` and answered_by=claude-haiku-5-5 even though Sonnet was up. The user waits more than 4 minutes and pays for two discarded Sonnet generations. If Haiku also exceeds 120 s, /chat returns 503 'unavailable'.","fix":"Make request_timeout_s consistent with max_tokens. Either keep the SDK's computed non-streaming timeout (about 450-600 s for 16000 tokens) or use streaming (`messages.stream(...).get_final_message()`) with a short connect or idle timeout, so only a real hang triggers the fallback. Lowering max_tokens to fit a 120 s budget also works.","severity":"minor","lens":"fallback-logic","verdict":{"real":true,"reasoning":"I tried to refute the claim and could not. It holds as a minor issue.\n\nWhat I checked:\n1. The cap is new in this change. Commit 5cf2da7 adds `llm.request_timeout_s: 120` to config.yaml, and app/agent.py:158 sends every call through `client.with_options(max_retries=..., timeout=cfg[\"request_timeout_s\"]).messages.create(...)`. The calls are non-streaming. Before this change the SDK default applied.\n2. The SDK does not apply its own timeout here. In anthropic 2.11.0, `resources/messages/messages.py:1255` computes a non-streaming timeout only when no timeout was given. Since one is given, the 120 s is used instead of `_calculate_nonstreaming_timeout`. That function (`_base_client.py:864`) estimates 3600*16000/128000 = 450 s for max_tokens=16000 and returns `Timeout(600, connect=5)`.\n3. The timeout counts the whole generation. A non-streaming response sends nothing until it is finished, so the read timeout limits total generation time. On `httpx2.TimeoutException` the SDK retries (`_base_client.py:1457`).\n4. I ran it end to end with a real `anthropic.Anthropic` client, a local socket server and the real `agent.chat` (script: /tmp/claude-0/review-scratch/slow_sonnet.py). The timing was scaled down: `request_timeout_s` = 1 s, and Sonnet returned a valid `end_turn` answer after 1.5 s. Result:\n   - Sonnet was called twice (at 0.01 s and 1.45 s), both timed out, then Haiku answered at 2.46 s.\n   - `models.answered_by` = claude-haiku-5-5.\n   - The fallback reason was \"APITimeoutError: Request timed out or interrupted...\" and `simulated` was False.\n   So a healthy but slow Sonnet is reported as unavailable, and the SDK retry repeats the slow generation for nothing. At full scale the user waits about 2 x 120 s plus backoff plus the Haiku call before getting any answer.\n5. If Haiku also takes longer than 120 s, `FallbackFailedError.fallback_unavailable` treats the `APITimeoutError` as unavailable, so /chat returns 503.\n\nWhat limits the finding:\n- I could not measure real Sonnet latency without the API.\n- The user did list \"timeout\" as a fallback trigger, and 120 s is a deliberate cap on hung calls.\n- Answers are capped at about 200 words at medium effort, so most calls fit well within 120 s.\n\nStill, the config allows outputs up to 16000 tokens, including adaptive thinking (on by default for Sonnet 5.5), and the SDK's own model budgets up to 450 s for that. Any healthy call slower than 120 s, whether from a long thinking or JSON output or a slow time to first token, is wrongly labelled an outage. That works against the requirement to fall back only when Sonnet is temporarily unavailable and to report the actual reason.\n\nTwo parts of the claim are overstated:\n- \"Pays for two discarded Sonnet generations\": I could not confirm whether the server bills for a generation the client abandoned.\n- The 150 s call in the scenario is hypothetical.\n\nSeverity: minor.","corrected_fix":"Make the timeout catch only hung calls, not long healthy ones. Choose one of:\n\n(a) Preferred: switch `_create` to streaming:\n\n```python\nwith client.with_options(max_retries=..., timeout=httpx2.Timeout(connect=5, read=&lt;idle s&gt;, write=30, pool=30)).messages.stream(...) as s:\n    return s.get_final_message()\n```\n\nThe read timeout then applies to gaps between streamed events, not to the whole generation, so only a stall triggers the fallback. Keep the idle value generous, because events can be sparse while thinking is omitted. tests/fakes.FakeClient and the MockTransport tests need updating to match.\n\n(b) Make `request_timeout_s` consistent with `max_tokens`. Either remove the override for the primary so the SDK's computed 600 s applies, or derive it from max_tokens, for example `max(120, 3600 * max_tokens / 128000)`.\n\n(c) Lower `llm.max_tokens` to a value that fits 120 s at Sonnet's realistic output speed. The answers are at most about 200 words, so something like 6000 is enough. A truncated answer then shows up through the existing `max_tokens` stop-reason handling instead of as a false outage.\n\nOptional, with any of these: do not let the SDK retry `APITimeoutError` on the primary, because a slow generation will usually be slow again."}},{"title":"describe_error drops the real cause for connection errors and non-JSON error bodies","file_line":"app/agent.py:96-118 (describe_error), used by FallbackFailedError.describe and the main.chat 502/503 details","problem":"For APIConnectionError and APITimeoutError there is no status or body. The function appends only `str(err)` ('Connection error.'), and the actual cause, which is in `err.__cause__` (SSL verification failure, DNS failure, proxy refusal), is dropped. For an APIStatusError whose body is not JSON (a corporate proxy's 403 or 502 HTML/text page), `api_msg` is None and `status` is set, so the `elif not status` branch never appends `err.message`. The exception objects are kept, but every text the user sees (the /chat detail, the eval report, models.fallback.reason) loses the information needed to tell a configuration problem from a real outage.","failure_scenario":"Verified with MockTransport raising `httpx2.ConnectError('[SSL: CERTIFICATE_VERIFY_FAILED] ... self-signed certificate in certificate chain')`, a typical TLS-intercepting corporate proxy. `FallbackFailedError.describe()` returned `claude-sonnet-5-5 unavailable (APIConnectionError: Connection error.); claude-haiku-5-5 fallback failed: APIConnectionError: Connection error.` and fallback_unavailable=True, so /chat answers 503 as if Anthropic were down. A proxy's plain-text 403 'blocked by policy' shows only as `PermissionDeniedError 403` with no text.","fix":"In describe_error, when there is no api_msg, append the cause: for APIConnectionError use `err.__cause__` (`type(cause).__name__: cause`); for a status error with a string body, append `err.message` or a truncated body (pass it through _ascii for eval output).","severity":"minor","lens":"fallback-logic","verdict":{"real":true,"reasoning":"I ran it and the claim holds. In anthropic 2.11.0, APIConnectionError and APITimeoutError have str(err) equal to 'Connection error.' (or the timeout text) and no body. The real httpx2 error is only in err.__cause__. A status response whose body is not JSON (plain text or HTML from a proxy or gateway)
+... (truncated 29433 chars, full result in /tmp/claude-0/-home-user-weather-risk-intelligence-agent/054feb9f-992e-53ec-86ec-b86ccf98458a/tasks/w4ba9ox85.output)</result>
+<diagnostics>Per-agent results: /root/.claude/projects/-home-user-weather-risk-intelligence-agent/054feb9f-992e-53ec-86ec-b86ccf98458a/subagents/workflows/wf_03a4d4e3-ef4/journal.jsonl — one {"type":"result",...} line per completed agent with its full return value.
+If the result above is empty or unexpected, Read this file BEFORE diagnosing — do not assume agents returned non-empty results.
+To re-run with edited post-processing: Workflow({scriptPath: '/root/.claude/projects/-home-user-weather-risk-intelligence-agent/054feb9f-992e-53ec-86ec-b86ccf98458a/workflows/scripts/fallback-diff-review-wf_03a4d4e3-ef4.js', resumeFromRunId: 'wf_03a4d4e3-ef4', args: {"repo":"/home/user/weather-risk-intelligence-agent"}}) — agent() calls replay from cache up to the first one that failed or no longer matches (edited, added, removed, or in a different call order); that call and every later one run again. A call a usage limit refused usually runs again without ending reuse: finished calls after it still come from cache.</diagnostics>
+<usage><agent_count>17</agent_count><agents_done>17</agents_done><agents_error>0</agents_error><agents_skipped>0</agents_skipped><agents_empty_result>0</agents_empty_result><subagent_tokens>1731299</subagent_tokens><tool_uses>181</tool_uses><duration_ms>982370</duration_ms></usage>
+</task-notification>
+
+**Tool call:** `Bash`
+
+```json
+{
+ "command": "cd /tmp/claude-0/-home-user-weather-risk-intelligence-agent/054feb9f-992e-53ec-86ec-b86ccf98458a/tasks && python3 -c \"\nimport json\nobj=json.load(open('w4ba9ox85.output',encoding='utf-8'))['result']\nprint('CONFIRMED', len(obj['confirmed']))\nfor f in obj['confirmed']:\n    print('\\n=====', f['severity'], '|', f['lens'], '|', f['title']); print('WHERE:', f['file_line']); print('SCENARIO:', f['failure_scenario'][:600]); print('VERDICT:', f['verdict']['reasoning'][:700]); print('FIX:', f['verdict']['corrected_fix'][:1200])\nprint('\\nREJECTED', len(obj['rejected']))\nfor r in obj['rejected']: print('-', r['title'], '::', (r['why'] or '')[:250])\n\"",
+ "description": "Print confirmed and rejected review findings"
+}
+```
+
+<details><summary>Tool result</summary>
+
+```
+CONFIRMED 8
+
+===== minor | fallback-logic | A 120 s per-call timeout with max_tokens 16000 makes a slow but healthy Sonnet look unavailable
+WHERE: app/agent.py:165 (_create: client.with_options(..., timeout=cfg['request_timeout_s'])), config.yaml llm.request_timeout_s: 120 / max_tokens: 16000
+SCENARIO: A final-answer call on Sonnet needs about 150 s. The httpx read timeout fires at 120 s and the SDK retries (max_retries=1), which regenerates and times out again. The turn then switches to Haiku. The result reports `fallback: claude-sonnet-5-5 unavailable (APITimeoutError ...)` and answered_by=claude-haiku-5-5 even though Sonnet was up. The user waits more than 4 minutes and pays for two discarded Sonnet generations. If Haiku also exceeds 120 s, /chat returns 503 'unavailable'.
+VERDICT: I tried to refute the claim and could not. It holds as a minor issue.
+
+What I checked:
+1. The cap is new in this change. Commit 5cf2da7 adds `llm.request_timeout_s: 120` to config.yaml, and app/agent.py:158 sends every call through `client.with_options(max_retries=..., timeout=cfg["request_timeout_s"]).messages.create(...)`. The calls are non-streaming. Before this change the SDK default applied.
+2. The SDK does not apply its own timeout here. In anthropic 2.11.0, `resources/messages/messages.py:1255` computes a non-streaming timeout only when no timeout was given. Since one is given, the 120 s is used instead of `_calculate_nonstreaming_timeout`. That function (`_base_client.py:864`) estima
+FIX
+… [truncated, 17851 more chars]
+```
+</details>
+
+**Tool call:** `Bash`
+
+```json
+{
+ "command": "python3 - <<'EOF'\nimport inspect, anthropic, json, httpx2\nfrom anthropic.resources.messages import Messages\nsig = inspect.signature(Messages.stream); print([p for p in sig.parameters if p in (\"cache_control\",\"output_config\",\"thinking\",\"tools\",\"system\",\"timeout\")])\ndef sse(events):\n    return \"\".join(f\"event: {e['type']}\\ndata: {json.dumps(e)}\\n\\n\" for e in events).encode()\ndef handler(req):\n    body = json.loads(req.content); assert body.get(\"stream\") is True\n    ev = [\n      {\"type\":\"message_start\",\"message\":{\"id\":\"m\",\"type\":\"message\",\"role\":\"assistant\",\"model\":body[\"model\"],\"content\":[],\"stop_reason\":None,\"stop_sequence\":None,\"usage\":{\"input_tokens\":5,\"output_tokens\":1}}},\n      {\"type\":\"content_block_start\",\"index\":0,\"content_block\":{\"type\":\"text\",\"text\":\"\"}},\n      {\"type\":\"ping\"},\n      {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"text_delta\",\"text\":\"hel\"}},\n      {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"text_delta\",\"text\":\"lo\"}},\n      {\"type\":\"content_block_stop\",\"index\":0},\n      {\"type\":\"message_delta\
+… [truncated, 1623 more chars]
+```
+
+<details><summary>Tool result</summary>
+
+```
+['cache_control', 'output_config', 'system', 'thinking', 'tools', 'timeout']
+claude-haiku-5-5 end_turn ['text'] hello 3
+stream() returned MessageStreamManager (no request yet)
+raised on enter: OverloadedError 529
+```
+</details>
+
+**Tool call:** `Bash`
+
+```json
+{
+ "command": "python3 - <<'EOF'\nimport pathlib\np = pathlib.Path(\"app/agent.py\"); s = p.read_text(encoding=\"utf-8\")\nold_describe_tail = '''    if api_type:\n        parts.append(str(api_type))\n    text = \" \".join(parts)\n    if api_msg:\n        text += f\": {api_msg}\"\n    elif not status:\n        text += f\": {err}\"\n    if getattr(err, \"simulated\", False):'''\nnew_describe_tail = '''    if api_type:\n        parts.append(str(api_type))\n    text = \" \".join(parts)\n    if api_msg:\n        text += f\": {api_msg}\"\n    elif isinstance(err, anthropic.APIStatusError):\n        # Non-JSON body, e.g. a proxy's or gateway's text/HTML page: keep its text.\n        raw = body if isinstance(body, str) else getattr(err, \"message\", \"\")\n        raw = \" \".join(str(raw or \"\").split())\n        if raw and not raw.startswith(\"Error code:\"):\n            text += f\": {raw[:200]}\"\n    elif not status:\n        text += f\": {err}\"\n        # Connection errors hide the real reason (SSL verification, DNS, proxy) in the cause.\n        cause = err.__cause__ or err.__context__\n        if cause is not None and str(cause):\n            text += f\" ({type(cause).__name__}:
+… [truncated, 2646 more chars]
+```
+
+<details><summary>Tool result</summary>
+
+```
+config.yaml:13:  stream_idle_timeout_s: 90 # calls are streamed; a call with no data for this long counts as
+app/agent.py:170:    timeout = httpx2.Timeout(connect=10.0, read=float(cfg["stream_idle_timeout_s"]),
+docs/DESIGN.md:79:  `llm.request_timeout_s`). "Temporarily unavailable" means 529 or another 5xx except 501, 429,
+.gitignore:5:.env	.env
+.gitignore:6:.env.*	.env.txt
+.gitignore:6:.env.*	.env.local
+.gitignore:7:!.env.example	.env.example
+---
+.env.example
+```
+</details>
+
+### 🤖 Claude
+
+Now the `.env` hardening (NUL bytes, never blocking startup) and the DESIGN.md wording:
+
+**Tool call:** `Bash`
+
+```json
+{
+ "command": "python3 - <<'EOF'\nimport pathlib\np = pathlib.Path(\"app/config.py\"); s = p.read_text(encoding=\"utf-8\")\nold = '''    if raw.startswith(codecs.BOM_UTF8):\n        return raw.decode(\"utf-8-sig\")\n    try:\n        return raw.decode(\"utf-8\")\n    except UnicodeDecodeError:\n        return raw.decode(\"cp1252\", errors=\"replace\")\n'''\nnew = '''    if raw.startswith(codecs.BOM_UTF8):\n        return raw.decode(\"utf-8-sig\")\n    if b\"\\\\x00\" in raw:\n        # BOM-less UTF-16, or UTF-16 appended to a UTF-8 file (PowerShell 5.1's `>>`):\n        # keys and API keys are ASCII, so dropping the NULs recovers them.\n        return raw.decode(\"utf-8\", errors=\"replace\").replace(\"\\\\x00\", \"\")\n    try:\n        return raw.decode(\"utf-8\")\n    except UnicodeDecodeError:\n        return raw.decode(\"cp1252\", errors=\"replace\")\n'''\nassert old in s; s = s.replace(old, new)\nold2 = '''    if env_path.exists():\n        text = _decode_env_bytes(env_path.read_bytes())\n        for key, value in dotenv_values(stream=io.StringIO(text), interpolate=False).items():\n            if not value or os.environ.get(key):\n                continue\n            os.envi
+… [truncated, 1763 more chars]
+```
+
+<details><summary>Tool result</summary>
+
+```
+docs/DESIGN.md:79:  only a stall longer than `llm.stream_idle_timeout_s` counts as a timeout, not a slow but healthy
+ok
+```
+</details>
+
+### 🤖 Claude
+
+Now the tests. The fake client moves to the streaming interface, and the new tests cover every confirmed gap:
+
+**Tool call:** `Bash`
+
+```json
+{
+ "command": "python3 - <<'EOF'\nimport pathlib\np = pathlib.Path(\"tests/conftest.py\"); s = p.read_text(encoding=\"utf-8\")\ns = s.replace('''A leftover WRIA_SIMULATE_OUTAGE, ANTHROPIC_BASE_URL or ANTHROPIC_API_KEY in the shell (or values\na test loads from a temporary .env) must not leak into other tests, so the whole os.environ is\nsnapshotted and restored around each test.''', '''Every ANTHROPIC_* variable the SDK reads (API key, auth token, base URL, custom headers, ...)\nand every WRIA_* switch (e.g. a leftover WRIA_SIMULATE_OUTAGE) is removed for each test, and\nthe whole os.environ is snapshotted and restored afterwards, so values a test loads from a\ntemporary .env cannot leak into other tests.''')\ns = s.replace('''ISOLATED = [\"WRIA_SIMULATE_OUTAGE\", \"ANTHROPIC_BASE_URL\", \"ANTHROPIC_API_KEY\",\n            \"ANTHROPIC_AUTH_TOKEN\"]\n''', '''ISOLATED_PREFIXES = (\"ANTHROPIC_\", \"WRIA_\")\n''')\ns = s.replace('''    for key in ISOLATED:\n        os.environ.pop(key, None)''', '''    for key in [k for k in os.environ if k.startswith(ISOLATED_PREFIXES)]:\n        del os.environ[key]''')\np.write_text(s, encoding=\"utf-8\")\n\np = pathlib.Path(\"tests/fakes.py\"); s = p
+… [truncated, 4755 more chars]
+```
+
+<details><summary>Tool result</summary>
+
+```
+............................................................             [100%]
+60 passed in 2.19s
+```
+</details>
+
+### 🤖 Claude
+
+All 60 pass on the streaming interface. Adding the new tests:
+
+**Tool call:** `Bash`
+
+```json
+{
+ "command": "cat >> tests/test_model_fallback.py <<'EOF'\n\n\n# ---------- review follow-ups ----------\n\ndef test_fallback_turn_history_is_replayed_unchanged_next_turn():\n    \"\"\"Thinking blocks (with signatures) from a fallback turn are stored and replayed exactly:\n    the next request starts with the previous request as an exact prefix (append-only).\"\"\"\n    from anthropic.types import ThinkingBlock\n    s = sid()\n    f1 = FakeClient([\n        overloaded(),\n        msg([ThinkingBlock(type=\"thinking\", thinking=\"\", signature=\"sig-abc\"),\n             tool_use(\"rank_hubs\", {\"hazard\": \"overall\", \"region\": None})], \"tool_use\"),\n        msg([ThinkingBlock(type=\"thinking\", thinking=\"x\", signature=\"sig2\"),\n             text(answer_json())], \"end_turn\"),\n    ])\n    agent.chat(\"first\", s, client=f1)\n    prev = f1.requests[-1][\"messages\"]\n    f2 = FakeClient([final()])\n    agent.chat(\"and Detroit?\", s, client=f2)\n    sent = f2.requests[0][\"messages\"]\n    assert f2.models == [SONNET]\n    assert sent[:len(prev)] == prev\n    assert sent[1][\"content\"][0] == {\"type\": \"thinking\", \"thinking\": \"\", \"signature\": \"sig-abc\"}\n    as
+… [truncated, 6482 more chars]
+```
+
+<details><summary>Tool result</summary>
+
+```
+.......................................................................  [100%]
+71 passed in 3.09s
+```
+</details>
+
+### 🤖 Claude
+
+71 tests pass. Before committing, I'll repeat the live check against the real API in a temporary copy, since calls now go through the streaming path:
+
+**Tool call:** `Bash`
+
+```json
+{
+ "command": "python3 - <<'EOF'\nimport pathlib\np = pathlib.Path(\"README.md\"); s = p.read_text(encoding=\"utf-8\")\ns = s.replace(\"(529), another 5xx except 501, a rate limit (429), a 408, a timeout or a connection error.\",\n              \"(529), another 5xx except 501, a rate limit (429), a 408, a stalled stream (no data for\\n  `llm.stream_idle_timeout_s`; a slow but healthy answer doesn't count) or a connection error.\")\np.write_text(s, encoding=\"utf-8\")\nEOF\ngrep -n \"stalled stream\" README.md; S=/tmp/claude-0/-home-user-weather-risk-intelligence-agent/054feb9f-992e-53ec-86ec-b86ccf98458a/scratchpad; rm -rf $S/envcheck.*; T=$(mktemp -d $S/envcheck.XXXX); git ls-files -co --exclude-standard | tar -cf - -T - | tar -xf - -C $T; printf 'ANTHROPIC_API_KEY=' > $T/.env; python3 -c \"import sys; open(sys.argv[1]+'/.env','ab').write('[api key redacted]\\r\\n'.encode('utf-16-le'))\" $T; cd $T && for case in \"\" \"claude-sonnet-5-5\"; do (env -u ANTHROPIC_API_KEY WRIA_SIMULATE_OUTAGE=$case python3 -m uvicorn app.main:app --port 8793 > uv.log 2>&1 &); sleep 4; echo \"simulate=[$case] key=$(curl -s localhost:8793/health | python3 -c 'import json,sys; print(json.load(sys.stdin)[
+… [truncated, 366 more chars]
+```
+
+<details><summary>Tool result</summary>
+
+```
+110:  (529), another 5xx except 501, a rate limit (429), a 408, a stalled stream (no data for
+simulate=[] key=.env
+HTTP 503 {"detail":"Anthropic credentials missing or invalid: check ANTHROPIC_API_KEY (AuthenticationError 401 authentication_error: invalid x-api-key)."}
+simulate=[claude-sonnet-5-5] key=.env
+HTTP 502 {"detail":"claude-sonnet-5-5 unavailable (OverloadedError 529 overloaded_error: Simulated outage for claude-sonnet-5-5 (WRIA_SIMULATE_OUTAGE) [simulated]); claude-haiku-5-5 fallback failed: AuthenticationError 401 authentication_error: invalid x-api-key"}
+Shell cwd was reset to /home/user/weather-risk-intelligence-agent
+```
+</details>
+
+**Tool call:** `Bash`
+
+```json
+{
+ "command": "python3 -m pytest -q -p no:warnings 2>&1 | tail -1 && python3 -m scripts.export_transcript --plan /root/.claude/plans/root-claude-uploads-054feb9f-992e-53ec-fuzzy-deer.md && echo \"emails: $(grep -cE '[A-Za-z0-9._%+-]+@gmail\\.com' docs/session-transcript.md) keys: $(grep -cE 'sk-ant-[A-Za-z0-9_-]{20,}' docs/session-transcript.md)\"; test ! -e .env && echo \"no .env in repo\"; git add -A && git status --short && git commit -q -m \"Review fixes: stream calls, keep error causes, robust .env, ignore .env.*\n\n- Calls are streamed with an idle (read) timeout, so a slow but healthy\n  Sonnet answer is no longer mistaken for an outage; only a stall falls back.\n- describe_error keeps the real cause of connection errors (e.g. SSL\n  CERTIFICATE_VERIFY_FAILED) and the text of non-JSON error pages (proxies).\n- .env: NUL bytes from BOM-less/appended UTF-16 (PowerShell 5.1 '>>') no\n  longer crash startup; any unreadable .env only warns.\n- .gitignore: ignore .env.* (e.g. Notepad's .env.txt), keep .env.example.\n- Tests (71): thinking blocks replayed unchanged after a fallback turn, ASCII\n  output with non-ASCII input, real \\${VAR} interpolation check, stalled\n  stream fall
+… [truncated, 552 more chars]
+```
+
 
 ---
 
 # Appendix: approved plan
 
-# Weather Risk Intelligence Agent: one-day build plan
+# Plan: load the key from `.env`, use Sonnet 5.5 by default, fall back to Haiku 5.5 once
 
 ## Context
-This is a take-home assignment. It asks for an AI agent that helps logistics analysts decide which US distribution hubs to prioritise for weather-resilience investment. Requirements:
-- public weather and hazard data
-- deterministic scoring and ranking
-- a chat UI backed by an API
-- JSON-schema-enforced LLM output
-- an evaluation set
-- clearly stated assumptions
+The user has a git-ignored `.env` file on Windows and wants the app and the evals to read
+`ANTHROPIC_API_KEY` from it. Changes requested:
+- **Default model:** Claude Sonnet 5.5 (`claude-sonnet-5-5`).
+- **Fallback:** if Sonnet is temporarily unavailable, try Claude Haiku 5.5 (`claude-haiku-5-5`) once.
+- **Remove:** the server-side *refusal* fallback (`fallbacks: "default"` plus a beta header). The Haiku fallback replaces it.
+- **Eval reporting:** results must show which model actually answered.
+- **Testing:** prove the switch with a simulated outage.
+- **Delivery:** push to `claude/lucid-thompson-42z611`, which feeds draft PR #1.
 
-Deliverables are the code, run instructions, a short DESIGN.md and this session transcript. The repo is empty. Guiding rule: narrow and well-reasoned beats broad.
+Today:
+- `app/agent.py` calls `client.beta.messages.create` (Opus 5.5 plus `fallbacks="default"`).
+- `chat()` reports only the last `resp.model`.
+- `evals/run.py` never prints the model.
 
-## Confirmed choices
-- **Hubs (7):** Chicago (Cook 17031), Minneapolis (Hennepin 27053), Detroit (Wayne 26163), Denver (08031), Dallas (48113), Miami (Miami-Dade 12086), Houston (Harris 48201). Stored in `data/hubs.json` with lat/lon, region and county FIPS.
-- **LLM:** Anthropic Claude via the `anthropic` SDK. It uses tool use, and the final answer is a forced `submit_answer` tool whose `input_schema` is the `AgentAnswer` schema, validated by Pydantic with one retry. The model ID is in `config.yaml` and the key comes from `ANTHROPIC_API_KEY`.
-- **UI:** a single HTML/JS page served by FastAPI.
-- **Deferred:** voice and score-change alerts. Mention them as next steps in DESIGN.md.
-- **Network:** this session now runs on the personal environment `weather-risk-intelligence-agent`, which allows `archive-api.open-meteo.com`, `services.arcgis.com` and `hazards.fema.gov`. `api.anthropic.com` still needs to be allowed or given a key before the agent runs.
+**Decisions:**
+- *User:* HTTP 429 counts as "temporarily unavailable".
+- *Interpretation, to be stated in the PR:* refusals are no longer retried on another model. Haiku runs the same classifiers, so a refusal still ends with the existing "I can't help with that request" answer.
 
-## Data sources (verified live)
-| Source | Used for |
-|---|---|
-| Open-Meteo Historical API (ERA5 reanalysis) | Daily snowfall, precip, Tmin/Tmax, gusts per hub, 2020–2025 |
-| FEMA National Risk Index, counties (ArcGIS FeatureServer, **NRI_VER "December 2025"**) | Per-hazard annual frequency (`*_AFREQ`) and risk ratings for HRCN (hurricane), CFLD (coastal flood), **IFLD** (inland flood, which replaced RFLD in this version), WNTW, ISTM, CWAV, TRND, SWND, HWAV |
+## Verified facts (skill docs, installed SDK 2.11.0, plan review)
+- **Both models accept the current request shape:**
+  - `strict` tools, `output_config.format` json_schema, `output_config.effort`
+  - adaptive thinking (omit `thinking`), `tool_choice` auto
+- **Don't send:** forced `tool_choice` to Sonnet 5.5; `fallbacks` to Haiku 5.5.
+- **Non-beta call:** `client.messages.create` accepts `cache_control`, `output_config` and `thinking`. `client.with_options(max_retries=…, timeout=…)` exists.
+- **Effort `medium` for both:** Sonnet 5.5's starting point for multistep tool use, and Haiku 5.5's default.
+  - Keep thinking on for Haiku with JSON output plus tools; otherwise it may skip tool calls.
+- **Thinking blocks across models:** Haiku can't read Sonnet 5.5's blocks, and the API drops them silently. Keep passing blocks back unchanged and keep history append-only.
+  - `_system_prompt()` and `tools` must stay model-independent. A model name or fallback notice there would invalidate replayed thinking blocks.
+- **Building an SDK error:** `anthropic.OverloadedError(msg, response=httpx2.Response(529, request=httpx2.Request(...)), body={...})` works, but needs `request=`.
+  - Build reasons from `type(e).__name__` and `status_code`, not `e.message`, which is a JSON dump.
 
-Both are cached in SQLite by `scripts/refresh_data.py`.
+## Changes
 
-### Findings from the real data that shape the design
-1. **Denver snow days, 2025** (ERA5 grid cell 39.75, −105.02):
-   - any snowfall > 0 cm: 43/365 = **11.8%**
-   - ≥ 0.1 cm: 10.1%
-   - ≥ 1 cm: 4.7%
-   - 2020–2024 ranged 13–17% of days, so 2025 was the lowest year.
-   - ERA5 totals (58–110 cm/yr) are well below Denver's station climatology, so reanalysis under-counts Front Range snow.
-   - **Decision:** the default snow day is **any snowfall > 0 cm**, which gives Denver 2025 = 43/365 = 11.8%. `weather_stat` takes an optional `threshold_cm` for higher cutoffs. Every answer states the threshold, the denominator and the grid-vs-station caveat.
-2. **FEMA NRI percentile scores saturate.** Both counties score about 100 on hurricane risk (Miami 99.96, Harris 100) and inland flood (99.7 vs 99.97). With these 7 hubs, `*_RISKS` cannot separate them. The useful differences sit elsewhere:
-   - Hurricane annual frequency: Miami **0.30/yr** (124 recorded events) vs Houston **0.18/yr** (75).
-   - Coastal flood frequency (`CFLD_AFREQ`): Houston **3.76/yr** vs Miami 2.25/yr. The risk score points the other way (Miami 99.6 vs Harris 83.2). `CFLD_EVNTS` is null, so this frequency is FEMA's modelled estimate, not a count of recorded events. DESIGN.md will flag that.
-   - Inland flood frequency: Houston **5.1/yr** vs Miami 4.0/yr.
-   - **Decision:** rank on **hazard frequency (`AFREQ`)**. NRI risk scores and ratings are shown as context only and never feed the ranking. The same goes for expected annual loss, social vulnerability and community resilience (`EAL`/`SOVI`/`RESL`).
+### 1. `.env` loading: `app/config.py: load_env_file()`
+- **New dependency:** `python-dotenv>=1.0` in `requirements.txt`. It is installed here only as a transitive dependency of another package.
+- **Fixed path:** always read `ROOT/.env`, never the current directory.
+- **Windows-safe decoding:** pick the encoding from the BOM:
+  - UTF-16 LE/BE (what PowerShell 5.1's `>` / `Out-File` writes)
+  - UTF-8 with BOM
+  - else UTF-8, falling back to cp1252 (PowerShell 5.1's `Set-Content` writes ANSI)
+- **Parsing:** `dotenv_values(stream=StringIO(text), interpolate=False)`.
+  - Skip `None` and empty values. An untouched copy of `.env.example` must not set an empty key.
+  - Don't override a variable already set to a non-empty value.
+- **Diagnostics:** record only `ANTHROPIC_API_KEY`'s source, as `"environment" | ".env" | "missing"`. Warn if `.env.txt` exists, which Notepad creates.
+- **Who calls it:**
+  - The startup hook in `app/main.py`, so importing `app.main` in tests doesn't load a real `.env`.
+  - The start of `evals/run.py main()`.
+- **`/health`:** `api_key_source` replaces `anthropic_api_key_env_set`. Never return the value.
+- **New `.env.example`:** only `ANTHROPIC_API_KEY=`. No outage-simulation line, so it can't silently send every eval to Haiku.
+- **New `.dockerignore`:** `.env`, `.venv`, `__pycache__`, `data/weather_risk.db`, `evals/results`. Today `COPY . .` would bake the key into the image.
 
-## Ranking logic (deterministic, `app/scoring.py`)
-- **Per-hazard sub-score (0–100)** = mean of the available normalised components. Normalisation is piecewise-linear against **fixed absolute caps** in `config.yaml`, never min-max across hubs, so scores don't shift when hubs change. The components are:
-  - **Winter:** observed snow days/yr, observed hard-freeze days (Tmin ≤ −12 °C), and NRI frequency for winter weather, ice storm and cold wave.
-  - **Flood:** observed heavy-rain days (≥ 25 mm), plus NRI frequency for inland flood and coastal flood.
-  - **Hurricane:** NRI hurricane frequency only (5 years of weather is too short a sample).
-  - **Wind/tornado:** observed gust days (≥ 60 km/h), plus NRI frequency for tornado and strong wind.
-  - **Heat:** observed days with Tmax ≥ 38 °C, plus NRI heat-wave frequency.
-- **Overall** = weighted sum: winter .25, flood .25, hurricane .20, wind .15, heat .15. **Tiers:** Low <35, Moderate 35–55, High 55–75, Severe >75.
-- **`ScoreBreakdown`** lists, for each hazard, the raw inputs, normalised value, weight and contribution, plus a confidence flag and caveats. It powers the "why is Dallas high?" explanations.
-- **Rules are fixed before looking at the hub results.** Each cap in `config.yaml` is written down with its rationale (e.g. a physical or operational reference point) and doesn't depend on any particular hub's numbers. The ranking is reported as an output of the model and never tuned toward an expected order. Unit tests check the normalisation and weighting maths on synthetic inputs, not on hub outcomes.
+### 2. Models and fallback: `config.yaml`, `app/agent.py`, `app/main.py`
+- **`config.yaml` `llm:` block:**
+  ```yaml
+  model: claude-sonnet-5-5          # primary
+  fallback_model: claude-haiku-5-5  # tried once when the primary is temporarily unavailable
+  effort: medium                    # chosen, not the default (Sonnet 5.5 defaults to high)
+  max_tokens: 16000
+  max_tool_rounds: 8
+  request_timeout_s: 120            # per API call; bounds how long a hung call delays the fallback
+  primary_max_retries: 1            # SDK retries on the primary before falling back
+  ```
+  `refusal_fallback` is removed.
+- **"Temporarily unavailable"**, defined as an explicit tuple:
+  - `APIConnectionError` (includes `APITimeoutError`)
+  - `RateLimitError` (429)
+  - `RequestTimeoutError` (408)
+  - `InternalServerError` (500/503/504/529) **except 501**
+  - Anything else, such as 400, 401, 403, 404 or 501, raises as it does now.
+- **`agent.py`:**
+  - Switch to non-beta `client.messages.create`. Remove `FALLBACK_BETA`, `betas` and `fallbacks`.
+  - **`_call(client, messages, turn)`:**
+    1. The turn starts on the primary, with `primary_max_retries` and `request_timeout_s`.
+    2. On an unavailable error, record `fallback = {from, to, reason, at_call}` and retry the same messages on Haiku **once** (`max_retries=0`).
+    3. Any failure of that attempt raises `FallbackFailedError`. **It keeps both actual errors** (user request), so a permissions problem can be told apart from an outage:
+       - attributes: `primary_error` and `fallback_error`, both the original SDK exceptions, plus `__cause__ = fallback_error`
+       - a `describe()` that gives the class, HTTP status, and the API's own `error.type` and `message` from the response body, e.g. `Haiku fallback failed: PermissionDeniedError 403 permission_error: "…"`
+    4. After a successful switch, the rest of the turn stays on Haiku, with normal retries.
+    5. The next user turn starts on Sonnet again.
+  - **Refusals and cut-offs:** on `refusal` and `max_tokens`, **don't append** that assistant message to history. Its content can be empty, or end in a `tool_use` with no result, and either would make every later request in the session fail with a 400. Dropping the last message is still append-only.
+  - **Simulated outage:** `WRIA_SIMULATE_OUTAGE=<model ids>`, read on every call. An empty value means off.
+    - A listed model raises a real `OverloadedError` (529) before any network call.
+    - The reason is labelled "simulated", and `/health` shows that the simulation is active.
+  - **`chat()` returns** `models: {requested, answered_by: <resp.model of final call>, calls: [<resp.model per call>], fallback: null | {...}}` in place of `model`.
+- **`main.py`:** map `FallbackFailedError` to an HTTP status that depends on Haiku's actual error:
+  - Haiku also unavailable → 503.
+  - Anything else (401, 403, 404, 400) → 502.
+  - The detail always names both errors.
+- **`index.html`:** the meta line shows "Answered by …" plus the fallback reason when it was used.
 
-## Architecture
-```
-index.html chat ──POST /chat {session_id,message}──▶ FastAPI (/chat, /hubs, /rankings, /hubs/{id}/score)
-                                                        │
-                                          agent.py: Claude tool-use loop
-     tools: list_hubs · rank_hubs(hazard?,region?) · compare_hubs(ids,hazards?)
-            get_score_breakdown(id) · weather_stat(id, metric, year, threshold?)
-                                                        │ deterministic Python
-                              scoring.py ◀── store.py (SQLite) ◀── open_meteo.py / fema_nri.py
-     final: forced submit_answer → AgentAnswer {answer, hubs[{id,score,tier}], reasoning_steps,
-            data_sources, assumptions, confidence, follow_ups}
-```
-- Chat history is kept per `session_id` in SQLite, which supports follow-ups.
-- **Storage is SQLite:** zero ops, relational, portable, and easy to swap for Postgres.
-- All numbers in an answer come from tools. The system prompt forbids inventing figures, and the evals check this.
+### 3. Eval reporting: `evals/run.py`
+- **`run_case`:** records `models` per turn.
+- **Printing:** split into `format_case_line(r)` and `summary_line(results)` so tests can check it.
+  - Use plain ASCII, because a Windows console redirected to a file is cp1252.
+  - Case line example: `PASS  denver_snow_last_year  12.3s  answered_by=claude-haiku-5-5 [fallback from claude-sonnet-5-5: OverloadedError 529]`
+  - Summary example: `Answered by: claude-sonnet-5-5 x9, claude-haiku-5-5 x1 (fallback: denver_snow_last_year)`
+- **`latest.json`:** includes `models` per case and per turn.
+- **If the fallback also fails:** catch `FallbackFailedError` and mark the case failed with both actual errors (class, status, API message). Then continue.
+- **Dry run:** prints the primary and fallback models.
 
-## Repository structure
-```
-app/ main.py agent.py tools.py schemas.py scoring.py
-     data/ open_meteo.py fema_nri.py store.py
-     static/index.html
-data/hubs.json  config.yaml  scripts/refresh_data.py
-evals/cases.yaml evals/run.py   tests/test_scoring.py
-docs/DESIGN.md  docs/session-transcript.md  README.md  Dockerfile  requirements.txt
-```
+### 4. Tests (simulated outages)
+- **`tests/conftest.py`:** an autouse fixture removes `WRIA_SIMULATE_OUTAGE`, `ANTHROPIC_BASE_URL` and `ANTHROPIC_API_KEY`.
+- **`tests/test_agent_loop.py`:**
+  - `FakeClient` provides `messages.create`, `with_options()` (records retries and timeout) and non-beta block types.
+  - It records each request's `model`.
+  - It asserts that `system` and `tools` are identical across models.
+- **`tests/test_model_fallback.py`, FakeClient tests:**
+  - 529 on Sonnet → exactly one Haiku call; `answered_by` is haiku; reason recorded; retries are `primary_max_retries` then 0
+  - outage mid-turn after a Sonnet `tool_use` → Haiku finishes; `calls=[sonnet, haiku]`; it stays on Haiku with normal retries
+  - both down → `FallbackFailedError`; one Haiku attempt; nothing stored for the turn
+  - Haiku 403 after a Sonnet 529 → `fallback_error` is a `PermissionDeniedError` (status 403); the message shows it; `/chat` returns 502, not 503
+  - 429 and 503 → fallback; 400, 401, 404 and 501 → no fallback, raised unchanged
+  - the next turn starts on Sonnet
+  - the outage-simulation env var → fallback with a "simulated" reason
+  - a refusal and a `max_tokens` stop are not stored, so the following turn's request is valid
+  - eval printing: `format_case_line` and `summary_line` show `answered_by` and the fallback. `run_case` uses a monkeypatched `agent._client` and never writes `latest.json`.
+- **Real SDK HTTP path:** `anthropic.Anthropic(api_key="test", base_url="http://stub.invalid", http_client=DefaultHttpxClient(transport=httpx2.MockTransport(handler)))`.
+  - The handler returns 529 overloaded JSON with `retry-after-ms: 1` for Sonnet, and a 200 Message for Haiku.
+  - Assert Sonnet attempts = `primary_max_retries + 1` and Haiku attempts = 1.
+  - Plus a both-down variant.
+  - No sockets, no proxy dependency.
+- **`.env` loader tests:** `load_env_file(path)` takes the path as a parameter, and every test writes its file in pytest's `tmp_path` (user request). No test reads or writes the repo's real `.env`.
+  - UTF-8, UTF-8 BOM, UTF-16 LE and cp1252 files
+  - an empty value is skipped; a non-empty env var wins
+  - a missing file is a no-op
+  - `anthropic.Anthropic().api_key` equals the value from a UTF-16 `.env`, which proves the SDK picks it up
 
-## Evaluation
-About 10 cases in `evals/cases.yaml`:
-- the 4 assignment questions
-- a follow-up ("and Detroit?")
-- a threshold variant ("≥1 cm")
-- an unknown hub
-- an out-of-scope hazard (wildfire)
-- a ranking with a region filter
-
-Checks:
-- schema-valid output
-- the expected tool was called
-- the expected hubs appear, in order where relevant (matching `scoring.py`)
-- numeric answers fall within ±0.5 pp of the deterministic value (e.g. Denver 2025 = 11.8% at > 0 cm)
-- assumptions are non-empty
-
-Run with `python -m evals.run`. Also `pytest tests/` for scoring and normalisation unit tests.
-
-## Schedule (about 7 h)
-1. (1 h) hubs.json, clients, SQLite cache, refresh script
-2. (1.5 h) scoring, breakdown, calibration on 7 hubs, tests
-3. (2 h) agent loop, tools, schema enforcement, `/chat`
-4. (1 h) HTML chat UI
-5. (1 h) evals
-6. (0.5 h) DESIGN.md, README, Dockerfile; export transcript to `docs/`
+### 5. Docs, PR, transcript
+- **`README.md`:**
+  - `.env` setup (`notepad .env`; any encoding works).
+  - Windows steps without the per-window key line; `Read-Host` stays as an alternative.
+  - The `/chat` response shape now shows `models`.
+  - `docker run --env-file .env`. The file must be UTF-8 with no quotes, and it is excluded from the image.
+  - A live simulated-outage check: `$env:WRIA_SIMULATE_OUTAGE="claude-sonnet-5-5"`, then `--case denver_snow_last_year`, then `Remove-Item Env:WRIA_SIMULATE_OUTAGE`.
+  - A note that old chat sessions can be cleared with "Start a new conversation".
+- **`docs/DESIGN.md`:** update §2 and §3 (models, fallback policy, refusal handling, model reporting).
+- **`scripts/export_transcript.py`:** also redact `sk-ant-[A-Za-z0-9_-]{20,}`, then re-export `docs/session-transcript.md`.
+- **PR #1:** update the description, stating the refusal interpretation.
+- **Git:** commit and push to the same branch.
 
 ## Verification
-- `python scripts/refresh_data.py` runs, and the cache reproduces Denver 2025 = 43/365 (> 0 cm) and the Miami/Harris `AFREQ` values above.
-- `pytest` passes.
-- Run `uvicorn app.main:app`. Ask the 4 questions plus a follow-up and confirm the answers match `/rankings` and `/hubs/{id}/score`.
-- `python -m evals.run` reports all cases passing.
+1. `python -m pytest -q`: the 15 existing tests plus the new fallback, `.env` and eval-printing tests all pass.
+2. Run the MockTransport outage test by hand and show its output. Also run one eval case against a FakeClient with the outage forced, and show the printed `answered_by=claude-haiku-5-5 [fallback from claude-sonnet-5-5: …]` line.
+3. Clone the pushed branch into a temporary directory. Give that clone a UTF-16 `.env` with a dummy key and start the server from it. `/health` should report `api_key_source: ".env"`. The working repo's `.env` path is never touched.
+4. `python -m evals.run --dry-run` shows the models.
+5. No live Claude call is possible here (no key). The user's first live checks are `--case follow_up_detroit`, then the simulated-outage case.

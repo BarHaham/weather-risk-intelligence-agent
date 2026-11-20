@@ -30,6 +30,10 @@ def _decode_env_bytes(raw: bytes) -> str:
         return raw.decode("utf-16")
     if raw.startswith(codecs.BOM_UTF8):
         return raw.decode("utf-8-sig")
+    if b"\x00" in raw:
+        # BOM-less UTF-16, or UTF-16 appended to a UTF-8 file (PowerShell 5.1's `>>`):
+        # keys and API keys are ASCII, so dropping the NULs recovers them.
+        return raw.decode("utf-8", errors="replace").replace("\x00", "")
     try:
         return raw.decode("utf-8")
     except UnicodeDecodeError:
@@ -45,11 +49,21 @@ def load_env_file(env_path: Path | str = ENV_FILE) -> dict[str, str]:
     env_path = Path(env_path)
     loaded: dict[str, str] = {}
     if env_path.exists():
-        text = _decode_env_bytes(env_path.read_bytes())
-        for key, value in dotenv_values(stream=io.StringIO(text), interpolate=False).items():
-            if not value or os.environ.get(key):
+        # A broken .env must never stop the app or the evals from starting: warn and go on.
+        try:
+            text = _decode_env_bytes(env_path.read_bytes())
+            values = dotenv_values(stream=io.StringIO(text), interpolate=False)
+        except (OSError, UnicodeError, ValueError) as e:
+            warnings.warn(f"Could not read {env_path}: {e}", stacklevel=2)
+            values = {}
+        for key, value in values.items():
+            if not key or not value or os.environ.get(key):
                 continue
-            os.environ[key] = value
+            try:
+                os.environ[key] = value
+            except ValueError as e:  # e.g. an embedded NUL that survived decoding
+                warnings.warn(f"Skipping {key!r} from {env_path.name}: {e}", stacklevel=2)
+                continue
             loaded[key] = value
     elif env_path.with_name(env_path.name + ".txt").exists():
         warnings.warn(f"Found {env_path.name}.txt but no {env_path.name}: Notepad may have added "

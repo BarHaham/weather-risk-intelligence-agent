@@ -107,7 +107,8 @@ Haiku.
 
 - **Every turn starts on `llm.model`** (`claude-sonnet-5-5`), with `llm.max_retries` SDK retries.
 - **What triggers the fallback:** the primary is temporarily unavailable. That means overloaded
-  (529), another 5xx except 501, a rate limit (429), a 408, a timeout or a connection error.
+  (529), another 5xx except 501, a rate limit (429), a 408, a stalled stream (no data for
+  `llm.stream_idle_timeout_s`; a slow but healthy answer doesn't count) or a connection error.
 - **The fallback attempt:** the same request is sent **once** to `llm.fallback_model`
   (`claude-haiku-5-5`), as a single attempt with no retries. The rest of that turn stays on Haiku.
   The next turn starts on Sonnet again.

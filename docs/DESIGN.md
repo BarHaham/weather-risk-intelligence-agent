@@ -75,8 +75,9 @@ explains the results. It never produces scores itself.
 - **Primary:** `claude-sonnet-5-5` at effort `medium`, Sonnet 5.5's recommended start for multistep
   tool use. Thinking stays adaptive (on); it isn't disabled.
 - **Fallback:** `claude-haiku-5-5`. It is tried **once** (a single attempt) when the primary is
-  temporarily unavailable after the SDK's own retries (`llm.max_retries`, each call bounded by
-  `llm.request_timeout_s`). "Temporarily unavailable" means 529 or another 5xx except 501, 429,
+  temporarily unavailable after the SDK's own retries (`llm.max_retries`). Calls are streamed, so
+  only a stall longer than `llm.stream_idle_timeout_s` counts as a timeout, not a slow but healthy
+  answer. "Temporarily unavailable" means 529 or another 5xx except 501, 429,
   408, a timeout or a connection error. 400, 401, 403, 404 and 501 are raised as they are.
 - **Once switched:** the rest of that turn stays on Haiku. The next turn starts on Sonnet again.
 - **If Haiku fails too:** `FallbackFailedError` keeps both original SDK exceptions. `/chat` returns

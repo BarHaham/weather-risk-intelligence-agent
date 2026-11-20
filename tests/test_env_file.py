@@ -54,9 +54,12 @@ def test_empty_environment_variable_does_not_block_env_file(tmp_path, monkeypatc
     assert os.environ["ANTHROPIC_API_KEY"] == KEY and config.api_key_source == ".env"
 
 
-def test_values_are_not_interpolated(tmp_path):
-    config.load_env_file(write(tmp_path, "ANTHROPIC_API_KEY=abc$HOME\n", "utf-8"))
-    assert os.environ["ANTHROPIC_API_KEY"] == "abc$HOME"
+def test_values_are_not_interpolated(tmp_path, monkeypatch):
+    # python-dotenv expands ${VAR} (not bare $VAR) when interpolation is on
+    monkeypatch.setenv("WRIA_INTERP_PROBE", "expanded")
+    config.load_env_file(write(tmp_path, "ANTHROPIC_API_KEY=abc${WRIA_INTERP_PROBE}$HOME\n",
+                               "utf-8"))
+    assert os.environ["ANTHROPIC_API_KEY"] == "abc${WRIA_INTERP_PROBE}$HOME"
 
 
 def test_missing_file_is_a_no_op(tmp_path):
@@ -76,3 +79,24 @@ def test_warns_about_notepad_txt_extension(tmp_path):
 def test_sdk_client_picks_up_the_key_from_a_utf16_env_file(tmp_path):
     config.load_env_file(write(tmp_path, f"ANTHROPIC_API_KEY={KEY}\n", "utf-16"))
     assert anthropic.Anthropic().api_key == KEY
+
+
+@pytest.mark.parametrize("layout", ["utf16le-no-bom", "utf8-then-appended-utf16le"])
+def test_nul_bytes_from_powershell_append_do_not_crash(tmp_path, layout):
+    line = f"ANTHROPIC_API_KEY={KEY}\r\n".encode("utf-16-le")
+    if layout == "utf16le-no-bom":
+        raw = line
+    else:  # Copy-Item .env.example .env, then "ANTHROPIC_API_KEY=..." >> .env in PowerShell 5.1
+        raw = b"# Copy to .env (git-ignored) and fill in.\nANTHROPIC_API_KEY=\n" + line
+    p = tmp_path / ".env"
+    p.write_bytes(raw)
+    config.load_env_file(p)
+    assert os.environ["ANTHROPIC_API_KEY"] == KEY and config.api_key_source == ".env"
+
+
+def test_unreadable_env_file_warns_instead_of_failing(tmp_path):
+    (tmp_path / ".env").mkdir()  # a directory where the file should be
+    with warnings.catch_warnings(record=True) as w:
+        warnings.simplefilter("always")
+        assert config.load_env_file(tmp_path / ".env") == {}
+    assert any("Could not read" in str(x.message) for x in w)

@@ -51,6 +51,8 @@ def test_overloaded_sonnet_falls_back_to_haiku_once():
     out = agent.chat("q", sid(), client=fake)
     assert fake.models == [SONNET, HAIKU]
     assert [r["max_retries"] for r in fake.requests] == [RETRIES, 0]  # Haiku: a single attempt
+    idle = settings()["llm"]["stream_idle_timeout_s"]
+    assert all(r["timeout"].read == idle for r in fake.requests)  # idle gap, not total time
     m = out["models"]
     assert m["requested"] == SONNET and m["answered_by"] == HAIKU and m["calls"] == [HAIKU]
     assert m["fallback"]["from"] == SONNET and m["fallback"]["to"] == HAIKU
@@ -214,10 +216,24 @@ def sdk_client(handler):
                                    transport=httpx2.MockTransport(handler)))
 
 
-def message_json(model, content, stop="end_turn"):
-    return {"id": "msg_test", "type": "message", "role": "assistant", "model": model,
-            "content": content, "stop_reason": stop, "stop_sequence": None,
-            "usage": {"input_tokens": 12, "output_tokens": 7}}
+def sse_response(model, text, stop="end_turn"):
+    """A streamed (SSE) Messages response, as the real API sends it."""
+    events = [
+        {"type": "message_start", "message": {
+            "id": "msg_test", "type": "message", "role": "assistant", "model": model,
+            "content": [], "stop_reason": None, "stop_sequence": None,
+            "usage": {"input_tokens": 12, "output_tokens": 1}}},
+        {"type": "content_block_start", "index": 0, "content_block": {"type": "text", "text": ""}},
+        {"type": "ping"},
+        {"type": "content_block_delta", "index": 0, "delta": {"type": "text_delta", "text": text}},
+        {"type": "content_block_stop", "index": 0},
+        {"type": "message_delta", "delta": {"stop_reason": stop, "stop_sequence": None},
+         "usage": {"output_tokens": 7}},
+        {"type": "message_stop"},
+    ]
+    body = "".join(f"event: {e['type']}\ndata: {json.dumps(e)}\n\n" for e in events)
+    return httpx2.Response(200, headers={"content-type": "text/event-stream"},
+                           content=body.encode())
 
 
 def overloaded_response():
@@ -231,13 +247,14 @@ def test_sdk_http_outage_retries_sonnet_then_tries_haiku_once():
 
     def handler(request):
         body = json.loads(request.content)
+        assert body["stream"] is True  # calls are streamed
         # SDK 2.x sends the API key as a bearer token
         assert request.headers.get("authorization") == "Bearer test-key"
         assert "fallbacks" not in body and "anthropic-beta" not in request.headers
         hits[body["model"]] += 1
         if body["model"] == SONNET:
             return overloaded_response()
-        return httpx2.Response(200, json=message_json(HAIKU, [{"type": "text", "text": answer_json()}]))
+        return sse_response(HAIKU, answer_json())
 
     out = agent.chat("q", sid(), client=sdk_client(handler))
     assert hits == {SONNET: RETRIES + 1, HAIKU: 1}  # SDK retried Sonnet, then one Haiku attempt
@@ -308,3 +325,111 @@ def test_failed_case_keeps_both_errors_in_the_report():
     line = eval_run.format_check_lines(r)[0]
     assert "PermissionDeniedError 403 permission_error: no access" in line
     assert "OverloadedError 529" in line
+
+
+# ---------- review follow-ups ----------
+
+def test_fallback_turn_history_is_replayed_unchanged_next_turn():
+    """Thinking blocks (with signatures) from a fallback turn are stored and replayed exactly:
+    the next request starts with the previous request as an exact prefix (append-only)."""
+    from anthropic.types import ThinkingBlock
+    s = sid()
+    f1 = FakeClient([
+        overloaded(),
+        msg([ThinkingBlock(type="thinking", thinking="", signature="sig-abc"),
+             tool_use("rank_hubs", {"hazard": "overall", "region": None})], "tool_use"),
+        msg([ThinkingBlock(type="thinking", thinking="x", signature="sig2"),
+             text(answer_json())], "end_turn"),
+    ])
+    agent.chat("first", s, client=f1)
+    prev = f1.requests[-1]["messages"]
+    f2 = FakeClient([final()])
+    agent.chat("and Detroit?", s, client=f2)
+    sent = f2.requests[0]["messages"]
+    assert f2.models == [SONNET]
+    assert sent[:len(prev)] == prev
+    assert sent[1]["content"][0] == {"type": "thinking", "thinking": "", "signature": "sig-abc"}
+    assert sent[3]["content"][0]["signature"] == "sig2"
+
+
+def test_no_fallback_model_configured_raises_the_original_error(monkeypatch):
+    llm = dict(settings()["llm"], fallback_model=None)
+    monkeypatch.setitem(settings(), "llm", llm)
+    fake = FakeClient([overloaded()])
+    with pytest.raises(anthropic.OverloadedError):
+        agent.chat("q", sid(), client=fake)
+    assert fake.models == [SONNET]
+
+
+def test_connection_error_reports_its_real_cause():
+    """An SSL failure behind a corporate proxy must not read as a bare 'Connection error.'."""
+    def handler(request):
+        raise httpx2.ConnectError("[SSL: CERTIFICATE_VERIFY_FAILED] self-signed certificate "
+                                  "in certificate chain", request=request)
+    with pytest.raises(agent.FallbackFailedError) as exc:
+        agent.chat("q", sid(), client=sdk_client(handler))
+    assert "CERTIFICATE_VERIFY_FAILED" in exc.value.describe()
+    assert "ConnectError" in exc.value.describe()
+
+
+def test_proxy_text_error_page_is_kept():
+    resp = httpx2.Response(403, request=REQUEST, headers={"content-type": "text/plain"},
+                           content=b"Blocked by corporate policy")
+    err = anthropic.PermissionDeniedError("Blocked by corporate policy", response=resp,
+                                          body="Blocked by corporate policy")
+    assert agent.describe_error(err) == "PermissionDeniedError 403: Blocked by corporate policy"
+
+
+def test_stalled_sonnet_stream_falls_back_with_timeout_reason():
+    hits = {SONNET: 0, HAIKU: 0}
+
+    def handler(request):
+        model = json.loads(request.content)["model"]
+        hits[model] += 1
+        if model == SONNET:
+            raise httpx2.ReadTimeout("no data received", request=request)
+        return sse_response(HAIKU, answer_json())
+
+    out = agent.chat("q", sid(), client=sdk_client(handler))
+    assert hits == {SONNET: RETRIES + 1, HAIKU: 1}
+    assert out["models"]["fallback"]["reason"].startswith("APITimeoutError: ")
+    assert "ReadTimeout" in out["models"]["fallback"]["reason"]
+
+
+def test_eval_output_lines_are_ascii_even_with_non_ascii_errors():
+    reason = "OverloadedError 529 — “busy” 中"
+    r = {"id": "case_é", "passed": False, "seconds": 0, "answered_by": HAIKU,
+         "models": [{"fallback": {"from": SONNET, "reason": reason}}],
+         "checks": [("api call", False, "err — 中"), ("figure", None, "≈ 11.8%")]}
+    line = eval_run.format_case_line(r)
+    assert line.isascii() and "fallback from claude-sonnet-5-5" in line
+    assert all(x.isascii() for x in eval_run.format_check_lines(r))
+    assert eval_run.summary_line([r]).isascii()
+
+
+def test_eval_main_reports_both_errors_and_keeps_going(monkeypatch, tmp_path, capsys):
+    fake = FakeClient([overloaded(), api_error(anthropic.PermissionDeniedError, 403,
+                                               "permission_error", "no access to haiku")])
+    monkeypatch.setattr(agent, "_client", lambda: fake)
+    monkeypatch.setattr(eval_run.config, "load_env_file", lambda *a, **k: {})  # never the real .env
+    monkeypatch.setattr(eval_run, "HERE", tmp_path)
+    (tmp_path / "cases.yaml").write_text(json.dumps([DENVER_CASE]), encoding="utf-8")
+    monkeypatch.setattr("sys.argv", ["evals.run"])
+    eval_run.main()
+    out = capsys.readouterr().out
+    assert "FAIL  denver_snow_last_year" in out
+    assert "PermissionDeniedError 403 permission_error: no access to haiku" in out
+    assert "Answered by: no answer x1 (fallback: denver_snow_last_year)" in out
+    saved = json.loads((tmp_path / "results" / "latest.json").read_text(encoding="utf-8"))
+    fb = saved[0]["models"][0]["fallback"]
+    assert fb["fallback_error"].startswith("PermissionDeniedError 403")
+
+
+def test_health_reports_models_simulation_and_key_source_but_not_the_key(monkeypatch):
+    monkeypatch.setenv(agent.SIMULATE_ENV, SONNET)
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-secret-value-000000000000000")
+    monkeypatch.setattr(main.config, "api_key_source", "environment")
+    h = main.health()
+    assert h["llm"] == {"model": SONNET, "fallback_model": HAIKU, "simulated_outage": [SONNET]}
+    assert h["api_key_source"] == "environment"
+    assert "sk-ant-secret" not in json.dumps(h)

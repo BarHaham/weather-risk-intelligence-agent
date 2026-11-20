@@ -36,21 +36,43 @@ def overloaded(message="Overloaded"):
     return api_error(anthropic.OverloadedError, 529, "overloaded_error", message)
 
 
+class _Stream:
+    """Mimics MessageStreamManager: the request (and any error) happens on __enter__."""
+
+    def __init__(self, client, kwargs):
+        self.client, self.kwargs = client, kwargs
+
+    def __enter__(self):
+        return self.client._send(self.kwargs)
+
+    def __exit__(self, *exc):
+        return False
+
+
+class _Final:
+    def __init__(self, message):
+        self.message = message
+
+    def get_final_message(self):
+        return self.message
+
+
 class FakeClient:
-    """Scripted stand-in for anthropic.Anthropic. Each script item is a response or an
-    exception to raise. Records every request (model, retries, messages, system, tools)."""
+    """Scripted stand-in for anthropic.Anthropic (streaming interface). Each script item is a
+    response or an exception to raise. Records every request (model, retries, timeout,
+    messages, system, tools)."""
 
     def __init__(self, script):
         self.script = list(script)
         self.requests: list[dict] = []
         self._options: dict = {}
-        self.messages = SimpleNamespace(create=self._create)
+        self.messages = SimpleNamespace(stream=lambda **kw: _Stream(self, kw))
 
     def with_options(self, **kwargs):
         self._options = kwargs
         return self
 
-    def _create(self, **kwargs):
+    def _send(self, kwargs):
         assert kwargs["output_config"]["format"]["type"] == "json_schema"
         assert all(t["strict"] for t in kwargs["tools"])
         assert "fallbacks" not in kwargs and "betas" not in kwargs
@@ -64,7 +86,7 @@ class FakeClient:
             raise item
         if item.model is None:
             item = SimpleNamespace(**{**vars(item), "model": kwargs["model"]})
-        return item
+        return _Final(item)
 
     @property
     def models(self) -> list[str]:

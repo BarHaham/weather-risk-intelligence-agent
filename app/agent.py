@@ -105,8 +105,18 @@ def describe_error(err: BaseException) -> str:
     text = " ".join(parts)
     if api_msg:
         text += f": {api_msg}"
+    elif isinstance(err, anthropic.APIStatusError):
+        # Non-JSON body, e.g. a proxy's or gateway's text/HTML page: keep its text.
+        raw = body if isinstance(body, str) else getattr(err, "message", "")
+        raw = " ".join(str(raw or "").split())
+        if raw and not raw.startswith("Error code:"):
+            text += f": {raw[:200]}"
     elif not status:
         text += f": {err}"
+        # Connection errors hide the real reason (SSL verification, DNS, proxy) in the cause.
+        cause = err.__cause__ or err.__context__
+        if cause is not None and str(cause):
+            text += f" ({type(cause).__name__}: {' '.join(str(cause).split())[:200]})"
     if getattr(err, "simulated", False):
         text += " [simulated]"
     return text
@@ -153,10 +163,15 @@ def _create(client, messages: list[dict], model: str, max_retries: int):
     if model in simulated_outage_models():
         raise _simulated_overload(model)
     cfg = settings()["llm"]
+    # Streamed, so the read timeout limits the gap between events, not the whole generation:
+    # a slow but healthy answer is not mistaken for an outage, while a stalled call still
+    # fails over. (eager_input_streaming is left off on purpose: tool inputs are tiny and
+    # strict: true keeps the server-side schema validation of tool arguments.)
+    timeout = httpx2.Timeout(connect=10.0, read=float(cfg["stream_idle_timeout_s"]),
+                             write=30.0, pool=30.0)
     # system and tools are identical for every model: changing them would invalidate the
     # thinking blocks replayed from earlier turns.
-    return client.with_options(max_retries=max_retries, timeout=cfg["request_timeout_s"]) \
-        .messages.create(
+    with client.with_options(max_retries=max_retries, timeout=timeout).messages.stream(
             model=model,
             max_tokens=cfg["max_tokens"],
             system=_system_prompt(),
@@ -165,7 +180,8 @@ def _create(client, messages: list[dict], model: str, max_retries: int):
             cache_control={"type": "ephemeral"},
             output_config={"effort": cfg["effort"],
                            "format": {"type": "json_schema", "schema": answer_json_schema()}},
-        )
+    ) as stream:
+        return stream.get_final_message()
 
 
 class _Turn:

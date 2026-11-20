@@ -10,7 +10,8 @@ llm:
                             # recommended start for multistep tool use, Haiku 5.5's default
   max_tokens: 16000
   max_tool_rounds: 8        # safety stop for the agent loop
-  request_timeout_s: 120    # per API call; bounds how long a hung call delays the fallback
+  stream_idle_timeout_s: 90 # calls are streamed; a call with no data for this long counts as
+                            # unavailable (a slow but healthy answer does not)
   max_retries: 1            # SDK retries per call (with backoff); on the primary these happen
                             # before falling back
 
