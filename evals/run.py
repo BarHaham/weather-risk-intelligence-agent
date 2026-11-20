@@ -208,8 +208,11 @@ def run_case(case: dict) -> dict:
         try:
             result = agent.chat(turn, sid)
         except Exception as e:
-            e.turn_models = turn_models  # models and status of the turns that did complete
-            e.turn_infos = turns
+            progress = getattr(e, "turn_progress", None)  # rounds/calls of the failed turn
+            if progress:
+                turns.append(turn_info(progress))
+            e.turn_models = turn_models  # models of the turns that did complete
+            e.turn_infos = turns         # status of every turn, the failed one included
             raise
         turn_models.append(result["models"])
         turns.append(turn_info(result))
@@ -226,11 +229,11 @@ def run_case(case: dict) -> dict:
 
 def failed_case(case: dict, reason: str, models: list | None = None,
                 turns: list | None = None) -> dict:
-    turns = turns or []  # turns that completed before the API error
+    # turns: per-turn status of the turns that ran, the failed one last (status api_error).
+    # The top-level status stays None: there is no answer.
     return {"id": case["id"], "passed": False, "skipped": False, "seconds": 0,
             "checks": [("api call", False, reason)], "answered_by": None,
-            "models": models or [], "status": turns[-1]["status"] if turns else None,
-            "tool_rounds": turns[-1]["tool_rounds"] if turns else 0, "turns": turns,
+            "models": models or [], "status": None, "tool_rounds": 0, "turns": turns or [],
             "case_turns": len(case.get("turns", [])), "answer": None, "tool_calls": [],
             "usage": {"input_tokens": 0, "output_tokens": 0}}
 
@@ -244,13 +247,13 @@ def format_case_line(r: dict) -> str:
     status = "PASS" if r["passed"] else "FAIL"
     line = f"{status}  {r['id']:24} {r['seconds']:>5}s  answered_by={r['answered_by'] or 'none'}"
     turns = r.get("models") or []
+    infos = r.get("turns") or []
+    multi = r.get("case_turns", max(len(turns), len(infos))) > 1
     for i, m in enumerate(turns, 1):
         fb = m.get("fallback")
         if fb:
-            where = f" (turn {i})" if len(turns) > 1 else ""
+            where = f" (turn {i})" if multi else ""
             line += f" [fallback from {fb['from']}{where}: {fb['reason']}]"
-    infos = r.get("turns") or []
-    multi = r.get("case_turns", len(infos)) > 1
     for i, t in enumerate(infos, 1):
         where = f"turn {i}: " if multi else ""
         repeats = (f", {t['repeated_calls']} repeated call{'s' if t['repeated_calls'] != 1 else ''}"

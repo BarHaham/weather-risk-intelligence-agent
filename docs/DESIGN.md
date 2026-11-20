@@ -98,10 +98,14 @@ explains the results. It never produces scores itself.
   - **Prompt:** tool results are deterministic and complete, so a call isn't repeated.
     Assumptions come from the conditions and caveats already returned. For "why is X high", call
     `get_score_breakdown` once per hub, and if the premise doesn't match the model, say so and
-    give the actual score and tier. `get_methodology` is for questions about the method, and for
-    weights, thresholds or sources that the turn's other results don't state (`rank_hubs`
-    doesn't; `weather_stat` and `get_score_breakdown` include their own). Its description says
-    one call per turn is enough.
+    give the actual score and tier. Assumptions are the conditions or thresholds and caveats
+    behind the cited numbers, plus the weights only when scores are cited, taken from results
+    already in the conversation. `get_methodology` is for questions about the method, and for
+    weights, thresholds or tiers a score answer needs that the results don't state (`rank_hubs`
+    states none; `get_score_breakdown` has weights, sources and caveats but not the day
+    thresholds). It is not needed for day counts: `weather_stat` returns its condition, source
+    and caveat. Its description says one call is enough and an earlier turn's result still
+    applies.
     Nothing tells the model to use fewer tools: Sonnet 5.5 follows such wording literally and
     may then skip a needed call.
   - **Repeated identical calls:** within one turn, a call with the same tool and the same input
@@ -126,10 +130,11 @@ explains the results. It never produces scores itself.
 
     The early stops carry a short message with `in_scope: null` (not judged), so the UI and the
     evals no longer report them as out-of-scope questions. Eval lines show any status other than
-    `answered` and the number of repeated calls, and the summary lists every case whose turn
-    used all 8 rounds, whatever happened next. `latest.json` keeps each turn's status, rounds and
-    tool calls (`turns`), also for a case whose later turn failed. The eval checks themselves are
-    unchanged.
+    `answered` and the number of repeated calls, and the summary lists every case with a turn
+    that used all 8 rounds, whatever the final reply was. `latest.json` keeps each turn's
+    status, rounds and tool calls (`turns`). A turn that failed with an API error is recorded
+    too, as `api_error` with the rounds and calls it made (the exception carries them). The
+    eval checks themselves are unchanged.
 
 ### Models and availability fallback
 - **Primary:** `claude-sonnet-5-5` at effort `medium`, Sonnet 5.5's recommended start for multistep

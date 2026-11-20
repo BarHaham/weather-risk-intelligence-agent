@@ -136,14 +136,16 @@ A turn may use up to `llm.max_tool_rounds` (8) rounds of tool calls.
 - **Repeated calls:** a call that repeats an earlier one in the same turn (same tool, same input)
   isn't run again. Its result points to the earlier one.
 - **After the 8th round:** Claude gets one more request with tools turned off and is told to
-  answer from the data it has already gathered.
+  answer from the data it has already gathered. If that reply's JSON is invalid, one repair
+  request follows, also with tools off.
 - **What you see:** such an answer shows "Reached the 8-round tool limit …". If even that reply
   isn't a valid answer, the chat says so: it stopped at the limit, or the reply was cut off or
   refused. None of these is labelled "out of scope".
 - **In the evals:** a case line adds the status when a turn didn't end with a normal answer
   (e.g. `status=answered_at_tool_limit (8 of 8 tool rounds, 6 repeated calls)`), and the number
-  of repeated calls when there were any. The summary lists the cases that reached the limit.
-  `evals/results/latest.json` has each turn's status, rounds and tool calls under `turns`.
+  of repeated calls when there were any. The summary lists the cases that used all 8 rounds.
+  `evals/results/latest.json` has each turn's status, rounds and tool calls under `turns`,
+  including a turn that failed with an API error (`status: api_error`).
 
 **Light/dark mode:** use the **Dark mode** switch in the header. The choice is remembered in
 this browser; until you choose, the page follows your system setting.

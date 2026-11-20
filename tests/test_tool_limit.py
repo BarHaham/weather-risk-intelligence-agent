@@ -11,12 +11,13 @@ import uuid
 
 import anthropic
 import httpx2
+import pytest
 from anthropic.types import TextBlock, ToolUseBlock
 
 from app import agent, store, tools
 from app.config import settings
 from evals import run as eval_run
-from tests.fakes import HAIKU, SONNET, FakeClient, answer_json, msg, overloaded
+from tests.fakes import HAIKU, SONNET, FakeClient, answer_json, api_error, msg, overloaded
 
 MAX = settings()["llm"]["max_tool_rounds"]
 BREAKDOWN = {"hub_id": "dallas"}
@@ -410,19 +411,77 @@ def test_multi_turn_eval_line_shows_each_turn_and_keeps_every_turns_calls(monkey
     json.dumps(r, default=str)  # latest.json stays serialisable
 
 
-def test_failed_later_turn_keeps_the_status_of_the_turns_that_completed(monkeypatch, tmp_path):
-    fake = FakeClient([breakdown_round(i) for i in range(MAX)] + [final(hubs=HUB)]
-                      + [overloaded(), overloaded()])  # turn 2: Sonnet and Haiku both down
-    monkeypatch.setattr(agent, "_client", lambda: fake)
+def run_main(monkeypatch, tmp_path, capsys, make_client, case):
+    """evals.run main() on one case; make_client() gives the client for every turn.
+    Returns (stdout, the case's saved result)."""
+    monkeypatch.setattr(agent, "_client", make_client)
+    monkeypatch.setattr(eval_run.config, "load_env_file", lambda *a, **k: {})  # never the real .env
     monkeypatch.setattr(eval_run, "HERE", tmp_path)
-    try:
-        eval_run.run_case(TWO_TURNS)
-        raise AssertionError("turn 2 should have failed")
-    except agent.FallbackFailedError as e:
-        r = eval_run.failed_case(TWO_TURNS, e.describe(), e.turn_models, e.turn_infos)
-    assert r["status"] == "answered_at_tool_limit" and r["tool_rounds"] == MAX
-    assert len(r["turns"]) == 1 and len(r["models"]) == 1
-    assert "reached the tool-round limit: follow_up_detroit" in eval_run.summary_line([r])
-    assert "[turn 1: status=answered_at_tool_limit" in eval_run.format_case_line(r)
-    plain = eval_run.failed_case(TWO_TURNS, "boom")
-    assert plain["status"] is None and plain["turns"] == [] and "status=" not in eval_run.format_case_line(plain)
+    (tmp_path / "cases.yaml").write_text(json.dumps([case]), encoding="utf-8")
+    monkeypatch.setattr("sys.argv", ["evals.run"])
+    eval_run.main()
+    saved = json.loads((tmp_path / "results" / "latest.json").read_text(encoding="utf-8"))
+    return capsys.readouterr().out, saved[0]
+
+
+@pytest.mark.parametrize("error", [
+    "both_down",   # FallbackFailedError branch of main()
+    "bad_request",  # plain APIError branch of main()
+])
+def test_main_keeps_completed_turns_when_a_later_turn_fails(monkeypatch, tmp_path, capsys, error):
+    turn2 = ([overloaded(), overloaded()] if error == "both_down" else
+             [api_error(anthropic.BadRequestError, 400, "invalid_request_error", "bad")])
+    fake = FakeClient([breakdown_round(i) for i in range(MAX)] + [final(hubs=HUB)] + turn2)
+    out, r = run_main(monkeypatch, tmp_path, capsys, lambda: fake, TWO_TURNS)
+    assert r["passed"] is False and r["status"] is None and r["answer"] is None  # no answer
+    assert [t["status"] for t in r["turns"]] == ["answered_at_tool_limit", "api_error"]
+    assert r["turns"][0]["tool_rounds"] == MAX and len(r["turns"][0]["tool_calls"]) == MAX
+    assert r["turns"][1]["tool_rounds"] == 0
+    assert f"[turn 1: status=answered_at_tool_limit ({MAX} of {MAX} tool rounds" in out
+    assert "[turn 2: status=api_error (0 of 8 tool rounds)]" in out
+    assert "reached the tool-round limit: follow_up_detroit" in out
+    if error == "both_down":
+        assert "(turn 2):" in out  # the fallback is labelled with its turn
+        assert len(r["models"]) == 2
+
+
+def test_a_failed_final_request_after_the_limit_is_still_recorded(monkeypatch, tmp_path, capsys):
+    fake = FakeClient([breakdown_round(i) for i in range(MAX)] + [overloaded(), overloaded()])
+    out, r = run_main(monkeypatch, tmp_path, capsys, lambda: fake, DALLAS)
+    assert fake.requests[-1]["tool_choice"] == {"type": "none"}  # it did reach the final reply
+    assert r["turns"] == [{"status": "api_error", "tool_rounds": MAX, "max_tool_rounds": MAX,
+                           "repeated_calls": MAX - 1, "tool_calls": r["turns"][0]["tool_calls"]}]
+    assert f"status=api_error ({MAX} of {MAX} tool rounds, {MAX - 1} repeated calls)" in out
+    assert "reached the tool-round limit: dallas_why" in out
+
+
+def test_cut_off_before_the_limit_keeps_the_plain_message():
+    out = agent.chat("q", sid(), client=FakeClient([msg([text('{"in_')], "max_tokens")]))
+    assert out["answer"]["answer"] == ("The answer was cut off (max_tokens). Please narrow the "
+                                       "question.")
+
+
+def test_methodology_description_matches_what_the_other_tools_return():
+    store.build_from_cache()
+    desc = next(t["description"] for t in tools.TOOL_DEFS if t["name"] == "get_methodology")
+    assert "already include their own conditions, sources and caveats" not in desc
+    ranked = json.loads(tools.execute("rank_hubs", {"hazard": "overall", "region": None})[0])
+    assert "rank_hubs results state none" in desc and not {"sources", "caveats"} & set(ranked)
+    stat = json.loads(tools.execute("weather_stat", {"hub_id": "denver", "metric": "snowfall",
+                                                     "year": 2025, "threshold": None})[0])
+    assert "Not needed for day counts" in desc and {"condition", "source", "caveat"} <= set(stat)
+    assert "a result from an earlier turn still applies" in desc
+
+
+def test_prompt_takes_assumptions_from_the_whole_conversation_and_weights_only_for_scores():
+    p = agent._system_prompt()
+    assert "plus the weights when you cite scores" in p
+    assert "tool results you already have in this conversation" in p
+
+
+def test_fallback_in_turn_1_keeps_its_turn_label_when_turn_2_fails(monkeypatch, tmp_path, capsys):
+    fake = FakeClient([overloaded(), final(hubs=HUB),  # turn 1 answered by Haiku
+                       api_error(anthropic.BadRequestError, 400, "invalid_request_error", "bad")])
+    out, r = run_main(monkeypatch, tmp_path, capsys, lambda: fake, TWO_TURNS)
+    assert len(r["models"]) == 1  # only the completed turn has a model report
+    assert "[fallback from claude-sonnet-5-5 (turn 1):" in out

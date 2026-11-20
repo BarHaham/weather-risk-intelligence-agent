@@ -74,9 +74,10 @@ answer text; they belong in figures as "detail" and would otherwise appear twice
 - figures: each other number with its source tool. role "headline" for the 1-3 numbers the \
 answer text states; role "detail" for breakdown rows (e.g. one per month).
 - reasoning_steps: short steps you took, e.g. which tools and why.
-- data_sources, assumptions (thresholds, weights, data caveats), confidence. Take the \
-assumptions from the tool results in this turn (conditions, thresholds, caveats); call \
-get_methodology for them only when those results don't state what you need.
+- data_sources, assumptions, confidence. Assumptions are the conditions or thresholds and \
+the data caveats behind the numbers you cite, plus the weights when you cite scores. Take \
+them from the tool results you already have in this conversation; call get_methodology for \
+them only when those results don't state what you need.
 - follow_up_suggestions: up to 3 useful next questions."""
 
 
@@ -274,6 +275,9 @@ TOOL_LIMIT = "tool_limit"            # limit reached and the final reply was not
 CUT_OFF = "cut_off"                  # stop_reason max_tokens
 REFUSED = "refused"                  # stop_reason refusal (not retried on another model)
 INVALID_ANSWER = "invalid_answer"    # final JSON failed validation twice
+# Not returned by chat(): set on the exception's turn_progress when a request in the turn fails
+# (e.g. both models unavailable), so the evals can still record the rounds and calls made.
+API_ERROR = "api_error"
 
 NO_TOOLS = {"type": "none"}
 
@@ -338,8 +342,13 @@ def chat(message: str, session_id: str | None = None, client=None) -> dict:
         if final and not notice_sent:
             new.append(_limit_notice(max_rounds))
             notice_sent = True
-        resp = turn.call(history + new, NO_TOOLS if final else None)  # raises on failure:
-        for k in usage:                                               # nothing is stored
+        try:
+            resp = turn.call(history + new, NO_TOOLS if final else None)
+        except Exception as e:  # raised to the caller; nothing of this turn is stored
+            e.turn_progress = {"status": API_ERROR, "tool_rounds": rounds,
+                               "max_tool_rounds": max_rounds, "tool_calls": trace}
+            raise
+        for k in usage:
             usage[k] += getattr(resp.usage, k, 0) or 0
 
         # A refusal can have empty content and a max_tokens cut-off can end in a tool_use with

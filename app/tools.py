@@ -85,11 +85,13 @@ TOOL_DEFS: list[dict] = [
         "description": "The scoring method: data sources, hazard components, weights, "
                        "normalisation caps, thresholds, tiers and what the score leaves out. "
                        "Use for questions about how the score is calculated or what it does "
-                       "not cover, and when an answer needs weights, thresholds or sources "
-                       "that the other results in this turn don't state (rank_hubs results "
-                       "don't; weather_stat and get_score_breakdown results include their own "
-                       "conditions, sources and caveats). Its result never changes, so one "
-                       "call per turn is enough.",
+                       "not cover, and when an answer that cites scores needs weights, "
+                       "thresholds or tiers that the results you have don't state (rank_hubs "
+                       "results state none; get_score_breakdown results include weights, "
+                       "component sources and caveats but not the day thresholds). Not needed "
+                       "for day counts: a weather_stat result's condition, source and caveat "
+                       "are its assumptions. Its result never changes, so one call is enough; "
+                       "a result from an earlier turn still applies.",
         "input_schema": _obj({}),
     },
 ]
