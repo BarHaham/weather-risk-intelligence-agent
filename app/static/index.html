@@ -100,6 +100,16 @@
   input[type=text]::placeholder, input[type=password]::placeholder { color:var(--muted); opacity:1; }
   input[type=text]:focus, input[type=password]:focus { outline:2px solid var(--accent); outline-offset:1px; border-color:transparent; }
   .send { padding:11px 18px; border-radius:10px; border:0; background:var(--ink); color:var(--panel); font-weight:600; cursor:pointer; }
+  /* voice input: shown only where the browser has speech recognition */
+  .mic { flex:none; width:44px; padding:0; border-radius:10px; border:1px solid var(--muted); background:var(--bg); color:var(--ink);
+         cursor:pointer; display:grid; place-items:center; }
+  .mic svg { width:20px; height:20px; }
+  .mic:hover { border-color:var(--accent); color:var(--accent); }
+  .mic[aria-pressed="true"] { background:var(--accent); border-color:var(--accent); color:var(--panel); animation:micpulse 1.4s ease-in-out infinite; }
+  @keyframes micpulse { 50% { box-shadow:0 0 0 5px var(--hl); } }
+  @media (prefers-reduced-motion: reduce) { .mic[aria-pressed="true"] { animation:none; } }
+  .voice-hint { margin:6px 0 0; }
+  .askbar + .voice-hint { margin:-6px 18px 10px; }
   button:disabled { opacity:.5; cursor:wait; }
   .msg { margin:0 0 14px; padding:10px 14px; border-radius:12px; max-width:95%; overflow-wrap:anywhere; }
   .user { background:var(--user); margin-left:auto; width:fit-content; }
@@ -235,7 +245,7 @@ const EXAMPLES = [
 const TIERS = ["Low", "Moderate", "High", "Severe"];
 const SVG = "http://www.w3.org/2000/svg";
 // Every control that sends a question; all are disabled while a request is running.
-const ASK_SEL = "#send, #f0 button, #hubask button, #hubcard .suggest button, .follow button, #examples button, .access-form button";
+const ASK_SEL = "#send, #f0 .send, #hubask .send, #hubcard .suggest button, .follow button, #examples button, .access-form button";
 let sessionId = null, expired = false, HUBS = [], busy = false, convGen = 0, inflight = null, labelUnits = 26;
 try { sessionId = localStorage.getItem("wr_session"); } catch (e) {}
 // Reviewer access code (when the server needs one): kept for this tab only, or in memory if
@@ -344,6 +354,7 @@ function errorText(res, body) {
 
 async function ask(text, opts = {}) {
   if (busy || !text.trim()) return false;
+  stopVoice(true);
   // After an "expired conversation" notice the old thread can't be continued: whichever way the
   // next question is asked, it starts a new conversation on a clean log (old notice included).
   if (expired) { expired = false; convGen++; log.innerHTML = ""; }
@@ -409,6 +420,7 @@ function selectHub(id, opts = {}) {
   document.querySelectorAll(".rank-row").forEach(b => b.setAttribute("aria-pressed", b.dataset.id === id ? "true" : "false"));
   const question = `What drives ${h.city}'s ${h.tier.toLowerCase()} risk score?`;
   const card = $("hubcard");
+  if (voice && card.contains(voice.input)) stopVoice(true);  // the card's box is about to be replaced
   card.innerHTML = `
     <h3 id="hub-name">${esc(fullName(h))}</h3>
     <div class="meta">${esc(h.county)} County · ${esc(h.region)} region</div>
@@ -423,7 +435,8 @@ function selectHub(id, opts = {}) {
   card.querySelector("#hubask").onsubmit = e => {
     e.preventDefault(); const inp = e.target.querySelector("input");
     if (askAbout(h, inp.value, true)) inp.value = ""; };     // keep the text if a request is running
-  if (busy) card.querySelectorAll("button").forEach(b => b.disabled = true);
+  attachMic(card.querySelector("#hubask"), card.querySelector("#hubask input"));
+  if (busy) card.querySelectorAll(".send, .suggest button").forEach(b => b.disabled = true);
   if (stacked()) card.scrollIntoView({ behavior: "smooth", block: "nearest" });
   if (opts.keyboard) suggestion.focus({ preventScroll: true });  // keyboard users land on the question
 }
@@ -542,10 +555,95 @@ Promise.all([getJSON("/static/us-states.json"), getJSON("/map/hubs")])
   .then(([atlas, hubsOnMap]) => { HUBS = hubsOnMap; drawMap(atlas); drawRanking(); })
   .catch(e => { console.warn(e); mapUnavailable(); });
 
+// ---------- voice input (the browser's own speech recognition) ----------
+// Click the mic, speak (English), and the words appear in the box as you talk. Nothing is sent:
+// the text stays editable until you press Ask. Shown only where the browser supports it
+// (Chrome, Edge, Safari); elsewhere the box works as before. The audio goes to the browser's
+// speech service, never to this app's server, which only receives the text you send.
+const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
+let voice = null;  // the one running dictation: {rec, input, button, hint, base, final, error}
+const MIC_SVG = `<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path fill="currentColor"
+  d="M12 14a3 3 0 0 0 3-3V5a3 3 0 0 0-6 0v6a3 3 0 0 0 3 3zm5-3a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.92V21h2v-3.08A7 7 0 0 0 19 11h-2z"/></svg>`;
+const VOICE_ERRORS = {
+  "not-allowed": "Microphone access is blocked. Allow it for this site in the browser's settings, then try again.",
+  "service-not-allowed": "This browser doesn't allow speech recognition here. You can still type your question.",
+  "audio-capture": "No microphone was found. You can still type your question.",
+  "network": "Speech recognition needs a network connection. You can still type your question.",
+  "no-speech": "Didn't catch that. Click the mic and try again.",
+  "language-not-supported": "English speech recognition isn't available in this browser.",
+};
+
+function setMicState(btn, on) {
+  const label = on ? "Stop listening" : "Speak your question (English)";
+  btn.setAttribute("aria-pressed", on ? "true" : "false");
+  btn.setAttribute("aria-label", label); btn.title = label;
+}
+
+function attachMic(form, input) {
+  if (!SpeechRec || !form || !input || form.querySelector(".mic")) return;
+  const btn = document.createElement("button");
+  btn.type = "button"; btn.className = "mic"; btn.innerHTML = MIC_SVG;
+  setMicState(btn, false);
+  const hint = document.createElement("p");
+  hint.className = "meta voice-hint"; hint.setAttribute("role", "status"); hint.hidden = true;
+  form.insertBefore(btn, form.querySelector(".send"));
+  form.after(hint);
+  btn.onclick = () => (voice && voice.button === btn) ? stopVoice() : startVoice(input, btn, hint);
+  // Typing takes over from dictation; sending stops it (capture: before the form's own handler).
+  input.addEventListener("input", () => { if (voice && voice.input === input) stopVoice(true); });
+  form.addEventListener("submit", () => { if (voice && voice.input === input) stopVoice(true); }, true);
+}
+
+function startVoice(input, btn, hint) {
+  stopVoice(true);                                    // one microphone at a time
+  let rec;
+  try { rec = new SpeechRec(); } catch (e) { rec = null; }
+  if (!rec) { hint.textContent = "Speech recognition isn't available here. You can still type your question."; hint.hidden = false; return; }
+  rec.lang = "en-US"; rec.interimResults = true; rec.continuous = false; rec.maxAlternatives = 1;
+  const v = voice = { rec, input, button: btn, hint, base: input.value.trim(), final: "", error: null };
+  hint.hidden = true;
+  rec.onresult = ev => {
+    if (voice !== v) return;                          // stopped or replaced meanwhile
+    let interim = "";
+    for (let i = ev.resultIndex; i < ev.results.length; i++) {
+      const r = ev.results[i];
+      if (r.isFinal) v.final += r[0].transcript; else interim += r[0].transcript;
+    }
+    const spoken = (v.final + interim).replace(/\s+/g, " ").trim();
+    const max = input.maxLength > 0 ? input.maxLength : 2000;
+    input.value = [v.base, spoken].filter(Boolean).join(" ").slice(0, max);  // added to what was typed
+    const n = input.value.length; try { input.setSelectionRange(n, n); } catch (e) {}  // keep typing at the end
+  };
+  rec.onerror = ev => { if (voice === v) v.error = ev.error; };
+  rec.onend = () => {
+    if (voice !== v) return;
+    voice = null; setMicState(btn, false);
+    if (v.error && v.error !== "aborted") {
+      hint.textContent = VOICE_ERRORS[v.error] || "Speech recognition stopped. You can still type your question.";
+      hint.hidden = false;
+    }
+    input.focus({ preventScroll: true });             // ready to edit before pressing Ask
+    const n = input.value.length; try { input.setSelectionRange(n, n); } catch (e) {}
+  };
+  try { rec.start(); }
+  catch (e) { voice = null; hint.textContent = "Speech recognition couldn't start. You can still type your question."; hint.hidden = false; return; }
+  setMicState(btn, true);
+}
+
+// stop(): finish and keep what was heard (the mic button). abort: drop pending audio at once
+// (typing, sending, a new conversation, another mic); the text already in the box stays.
+function stopVoice(abort = false) {
+  if (!voice) return;
+  const v = voice;
+  if (abort) { voice = null; setMicState(v.button, false); try { v.rec.abort(); } catch (e) {} }
+  else { try { v.rec.stop(); } catch (e) {} }
+}
+
 // ---------- chat controls ----------
 const ex = $("examples");
 EXAMPLES.forEach(t => { const b = document.createElement("button"); b.type = "button"; b.textContent = t; b.onclick = () => ask(t); ex.appendChild(b); });
 for (const [formId, inputId] of [["f0", "q0"], ["f", "q"]]) {
+  attachMic($(formId), $(inputId));
   $(formId).onsubmit = e => {
     e.preventDefault(); const q = $(inputId);
     if (busy || !q.value.trim()) return;                    // keep the text if a request is running
@@ -558,6 +656,7 @@ function forgetSession() {
 }
 
 function resetConversation(prefill = "") {  // back to the opening screen, optionally with a question ready
+  stopVoice(true);
   expired = false;
   convGen++;                                                // late answers of the old conversation are dropped
   if (inflight) inflight.abort();

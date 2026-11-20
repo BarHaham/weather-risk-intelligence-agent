@@ -11,8 +11,10 @@ explains the results. It never produces scores itself.
 - **Hazards:** 5 (winter, flood, hurricane, wind/tornado, heat).
 - **Data sources:** 2 public sources.
 - **Out of scope:** wildfire, earthquake, drought, hail, live forecasts and alerts, other cities.
-- **Deferred:** voice input. Score changes on `main` open a GitHub issue (see "Score-change
-  monitoring"); alerts beyond that are a next step (§9).
+- **Voice input:** the browser's built-in speech recognition (Web Speech API, English) fills the
+  question box; the user edits and sends it (see "Chat UI and hub map").
+- **Score changes** on `main` open a GitHub issue (see "Score-change monitoring"); alerts beyond
+  that are a next step (§9).
 
 ## 2. System architecture
 
@@ -180,6 +182,23 @@ explains the results. It never produces scores itself.
   cp1252 files are all decoded. `/health` reports `api_key_source`, never the key.
 
 ### Chat UI and hub map
+- **Voice input** (`index.html`, no server change).
+  - **How it works:** each question box (opening screen, follow-up bar, hub card) gets a mic
+    button when the browser has `SpeechRecognition` / `webkitSpeechRecognition`. That covers
+    Chrome, Edge and Safari; elsewhere there is no button.
+  - **Recognition:** `lang = "en-US"`, interim results on, one utterance per click.
+  - **The text:** words go into the box as they are recognised, added after any typed text,
+    within the box's 2000-character limit. Nothing is submitted, so the analyst edits and presses
+    Ask.
+  - **Stopping:** the mic button stops and keeps what was heard. Typing, sending, a new
+    conversation, picking another hub or starting another mic abort at once, and late results
+    are ignored. Only one mic runs at a time.
+  - **While a question is running,** the mic stays usable: only the Ask buttons are disabled.
+  - **Errors** (microphone blocked, no microphone, no speech, network, start failure) show a
+    short `role="status"` note under the box.
+  - **Privacy:** the browser handles the audio; Chrome uses Google's speech service. The app's
+    server only ever receives the text that is sent. It needs a secure context (HTTPS or
+    localhost).
 - **Main result first.** Each answer shows its text first. Every number then sits in one
   collapsed **Breakdown** section: headline figures first, then the detail rows.
   - The answer schema makes the model mark each figure `headline` (a number the answer text
@@ -406,5 +425,4 @@ Always checked:
   - Live NWS alerts as a separate overlay.
   - Station data (NOAA GHCN-Daily), to measure where the gridded estimates can differ from
     station records.
-  - Voice through the browser Web Speech API.
   - Hub-specific vulnerability and cost data, to turn exposure into expected disruption cost.

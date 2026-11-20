@@ -15,6 +15,17 @@ desktop, and on mobile the chat comes first.
     only in the Breakdown.
   - Ask for a monthly breakdown ("break that down by month") and the months appear in the
     answer too.
+- **Voice input:** click the mic next to any question box (opening screen, follow-ups, hub card)
+  and ask in English.
+  - The words appear in the box as you speak. Nothing is sent until you press **Ask**, so you can
+    edit the text first.
+  - Click the mic again, or start typing, to stop.
+  - It uses the browser's built-in speech recognition, in Chrome, Edge and Safari. Where the
+    browser has none (e.g. Firefox), there is no mic and typing works as before.
+  - The browser handles the audio (Chrome sends it to Google's speech service). This app's
+    server only receives the text you send.
+  - It needs HTTPS or `localhost`: Render and `http://127.0.0.1:8000` both work. If microphone
+    access is blocked, a short note explains how to allow it.
 - **Ranking and map:** hovering a city in the ranking highlights it on the map. Selecting it
   shows the full name ("Houston, Texas"), its score and tier, and a question you can ask
   about that hub.
