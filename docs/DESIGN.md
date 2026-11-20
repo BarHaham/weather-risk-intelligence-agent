@@ -1,0 +1,196 @@
+# Design: Weather Risk Intelligence Agent
+
+## 1. What it does, and what it doesn't
+Analysts ask questions in a chat UI, for example "Which Midwest hubs are most exposed to
+winter disruption?" or "Why is Dallas high?". The numbers in every answer come from a
+**deterministic Python risk model**. Claude decides which model functions to call, then
+explains the results. It never produces scores itself.
+
+**Scope (deliberately narrow):**
+- **Hubs:** 7 (Chicago, Minneapolis, Detroit, Denver, Dallas, Miami, Houston).
+- **Hazards:** 5 (winter, flood, hurricane, wind/tornado, heat).
+- **Data sources:** 2 public sources.
+- **Out of scope:** wildfire, earthquake, drought, hail, live forecasts and alerts, other cities.
+- **Deferred:** voice input, and alerts when a score changes (see §9).
+
+## 2. System architecture
+
+```
+ Browser (app/static/index.html)
+   │  POST /chat {message, session_id}          GET /rankings, /hubs/{id}/score, ...
+   ▼                                              ▲
+ FastAPI (app/main.py) ───────────────────────────┘
+   │
+   ▼
+ Agent loop (app/agent.py)  ── Claude Messages API (claude-opus-5-5)
+   │   • sends: system prompt, 6 strict tools, history, output_config.format = AgentAnswer JSON schema
+   │   • loop: model asks for tools → run them → send results → … → final JSON answer
+   │   • validates the final JSON with Pydantic (one repair retry), stores history append-only
+   ▼
+ Tools (app/tools.py) ── thin wrappers, no logic of their own
+   ├─ rank_hubs / compare_hubs / get_score_breakdown ──▶ app/scoring.py  (risk model)
+   ├─ weather_stat                                     ──▶ app/metrics.py  (day counts)
+   └─ list_hubs / get_methodology                      ──▶ config.yaml, data/hubs.json
+   ▼
+ SQLite (app/store.py, data/weather_risk.db)  ◀── built from ──  data/cache/*.json (raw API responses)
+                                                                     ▲
+ scripts/refresh_data.py ── app/sources/open_meteo.py (ERA5 daily weather, 2020-2025)
+                         └─ app/sources/fema_nri.py   (FEMA National Risk Index, counties)
+```
+
+**How the components talk**
+1. The UI only talks to FastAPI, over JSON/HTTP. The ranking side panel calls `/rankings`
+   directly, so the deterministic numbers are visible without any LLM call.
+2. `/chat` calls `agent.chat()`. Each user turn is one Claude tool-use loop, which usually makes
+   2–4 API calls.
+3. Tools return JSON produced by `scoring.py` and `metrics.py`. Those modules read SQLite only.
+   Nothing reaches the network while the app is answering a question.
+4. The public APIs are called only by `scripts/refresh_data.py`. It writes raw responses to
+   `data/cache/` and rebuilds SQLite from them.
+
+## 3. The LLM contract (structured output)
+- **Tool inputs:** every tool has `strict: true`, `additionalProperties: false`, all fields required,
+  and optional values written as nullable. Hub IDs, hazards, regions and metrics are enums, so the
+  model can't request an unknown hub. A tool error comes back as `is_error` and the model explains it.
+- **Final answer:** enforced with `output_config.format` (JSON schema `AgentAnswer` in
+  `app/schemas.py`), then re-validated with Pydantic. Fields:
+  - `in_scope`, `answer` (markdown)
+  - `hubs[{hub_id, hazard, score}]`, `figures[{label, value, unit, source_tool}]`
+  - `reasoning_steps`, `data_sources`, `assumptions`, `confidence`, `follow_up_suggestions`
+- **Change from the plan:** the plan used a forced `submit_answer` tool. Claude Opus 5.5 rejects
+  forced `tool_choice`, so the schema is enforced through structured outputs instead. The intent
+  is unchanged: a JSON schema between the LLM and the code.
+- **Grounding:** the system prompt says every number must come from a tool result. The evals
+  check that every `hubs[].score` equals the model's score (±0.1).
+- **Follow-ups:** history is stored per `session_id` in SQLite and replayed in full, including
+  thinking and tool blocks. It is append-only, which the model's thinking blocks require.
+- **Refusals:** server-side fallback (`fallbacks: "default"`, beta) is enabled in config, and
+  `stop_reason` is checked for refusal, `max_tokens` and `pause_turn`.
+
+## 4. Data sources
+| Source | What we use | Why |
+|---|---|---|
+| Open-Meteo Historical Weather API (ERA5 reanalysis) | Daily snowfall, precipitation, Tmin, Tmax, max gust per hub, 2020-01-01 to 2025-12-31 | Free, no key, consistent across hubs. Answers "% of days with snowfall" directly |
+| FEMA National Risk Index, county level (Dec 2025 release) | Annual event frequency (`*_AFREQ`) for 9 hazards per hub county, plus the national distribution of each | An authoritative long-record view of rare hazards (hurricanes) that 6 years of weather can't give |
+
+**Findings that shaped the design**
+- **FEMA risk scores saturate.** Miami-Dade and Harris both score about 100 on hurricane risk
+  and inland flood risk, so those scores can't separate the hubs.
+- **FEMA risk and loss figures measure the county, not our hub.** They scale with the dollar
+  value of everything exposed in the county. For example, Harris's hurricane building exposure
+  is $839B against Miami-Dade's $359B.
+- **Decision:** the model uses **frequencies** only. Ratings appear as context.
+- **Coastal flooding:** the risk score and the frequency disagree. Houston has the higher
+  frequency (3.76/yr vs 2.25/yr), but Miami has the higher risk score (99.6 vs 83.2). FEMA's
+  coastal-flood event count is empty, so this frequency is a modelled estimate.
+- **Inland flooding:** FEMA renamed riverine flooding (`RFLD`) to inland flooding (`IFLD`) in
+  this release, and the code uses the new name.
+- **ERA5 undercounts snow.** Denver's ERA5 snowfall (58–110 cm/yr) is well below station records.
+- **Snow-day threshold:** the default is any snowfall above 0 cm, which gives Denver 2025 =
+  43 of 365 days (11.8%). The agent always states the condition and the denominator, and
+  `weather_stat` accepts other thresholds (above 1 cm gives 17 days).
+
+## 5. Risk model (`app/scoring.py`, `config.yaml`)
+- **Components per hazard:**
+  - Winter: snow days, hard-freeze days, and FEMA frequencies for winter weather, ice storm
+    and cold wave.
+  - Flood: heavy-rain days, and FEMA frequencies for inland and coastal flooding.
+  - Hurricane: FEMA hurricane frequency only.
+  - Wind: high-gust days, and FEMA frequencies for tornado and strong wind.
+  - Heat: extreme-heat days, and FEMA heat-wave frequency.
+- **Normalisation:** each component is scaled linearly to 0–100 against a fixed cap, set by rule
+  before looking at any hub's result:
+  - Observed day counts: the cap is 36.5 days a year (10% of days).
+  - FEMA frequencies: the cap is the **99th percentile of that field across all 3,232 US
+    counties**, computed from FEMA's national table, never from our hubs.
+- **Why not min-max across hubs:** min-max would let adding or removing a hub change everyone
+  else's score, and would make any future "score changed" alerts meaningless.
+- **Scores:**
+  - Hazard score = mean of its available components.
+  - Overall = weighted sum: winter .25, flood .25, hurricane .20, wind .15, heat .15.
+  - Tiers: Low <35, Moderate 35–55, High 55–75, Severe ≥75.
+- **Explainability:** `ScoreBreakdown` lists every component's raw value, cap and normalised
+  value, plus each hazard's weight and its contribution in points. "Why is X high" answers name
+  the largest contributors.
+- **Confidence:** `high` with both sources, `medium` if the observed weather is missing,
+  `low` if the FEMA record is missing.
+- **No tuning toward expected results:** nothing was adjusted to produce a particular ranking.
+  The unit tests use synthetic inputs, and the eval expectations are computed from the model at
+  run time.
+
+## 6. Data storage choice: SQLite plus a committed raw JSON cache
+- **The data is small and relational.** It is about 15k daily rows, 7 FEMA records, 9 caps and
+  the chat history. SQLite handles it with zero operations work, ships as a single file, needs no
+  server for the interview demo, and supports SQL for any future analysis.
+- **The raw responses are the source of truth.** They live in `data/cache/` and are committed, and
+  the DB is rebuilt from them. This makes results reproducible and auditable (you can diff the raw
+  data), and it decouples the demo from API quotas. During the build, Open-Meteo's per-IP daily
+  quota on the shared sandbox IP blocked fetches several times.
+- **Chat history uses the same DB**, keyed by `session_id`.
+- **When to move to Postgres:** once several app instances or many concurrent users share one
+  database. The only module that touches storage is `store.py`.
+
+## 7. Repository structure
+```
+app/
+  main.py          FastAPI routes; serves the UI
+  agent.py         Claude tool-use loop, structured output, history
+  tools.py         tool schemas (strict) + dispatch to deterministic code
+  scoring.py       risk model (pure compute_breakdown + DB-backed wrappers)
+  metrics.py       observed weather day counts / percentages
+  schemas.py       Pydantic models + the AgentAnswer JSON schema
+  store.py         SQLite schema, cache → DB build, reads, chat history
+  config.py        loads config.yaml and data/hubs.json
+  sources/         open_meteo.py, fema_nri.py (API clients → data/cache)
+  static/index.html  chat UI (no build step)
+data/hubs.json, data/cache/*.json, config.yaml
+scripts/refresh_data.py, scripts/export_transcript.py
+evals/cases.yaml, evals/run.py
+tests/test_scoring.py, tests/test_agent_loop.py
+docs/DESIGN.md, docs/session-transcript.md
+```
+
+## 8. Evaluation
+`evals/cases.yaml` has 10 cases:
+- the 4 assignment questions
+- a two-turn follow-up
+- a different snow threshold
+- the full ranking
+- a methodology question
+- an unknown hub (Seattle)
+- an out-of-scope hazard (wildfire)
+
+Per-case checks:
+- the required tools were called
+- `in_scope` is correct
+- the expected hubs are mentioned
+- the ranking order matches the model's
+- cited figures are within tolerance of `metrics.weather_stat`
+
+Always checked:
+- the answer validates against the schema
+- every cited score matches the model
+- in-scope answers list assumptions
+
+`python -m evals.run --dry-run` shows the expected values without calling the LLM.
+`pytest` covers the scoring maths and the agent loop (with a fake client).
+
+## 9. Assumptions, uncertainty, and next steps
+- **Assumptions:**
+  - The hazard weights are an operational judgement, and they are configurable.
+  - The 10%-of-days cap and the national 99th-percentile cap are rules, not fitted values.
+  - A null FEMA frequency means the hazard doesn't apply (scored as 0).
+  - US Census regions are used for "Midwest", "South" and "West".
+- **Uncertainty:**
+  - ERA5 is a ~10 km grid, not station data.
+  - FEMA data describes the whole county.
+  - Six years of observed weather is a short climate sample.
+  - Exposure is not the same as vulnerability: building condition, backup power and the
+    hub's own network role are not modelled.
+- **Next steps:**
+  - Alerts: a daily job recomputes the scores, diffs them against the last snapshot in SQLite,
+    and posts to a webhook when a tier changes. Fixed caps make the diffs meaningful.
+  - Live NWS alerts as a separate overlay.
+  - Station data (NOAA GHCN-Daily) to cross-check ERA5.
+  - Voice through the browser Web Speech API.
+  - Hub-specific vulnerability and cost data, to turn exposure into expected disruption cost.

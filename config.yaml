@@ -1,0 +1,67 @@
+# Weather Risk Intelligence Agent: configuration.
+# Every number that affects a score lives here, with the reason it was chosen.
+# None of these values were tuned to make any particular hub rank higher or lower.
+
+llm:
+  model: claude-opus-5-5
+  effort: medium            # Opus 5.5 default; chat-style tool use does not need more
+  max_tokens: 16000
+  max_tool_rounds: 8        # safety stop for the agent loop
+  refusal_fallback: true    # server-side fallback on a policy decline (beta)
+
+data:
+  hubs_file: data/hubs.json
+  cache_dir: data/cache
+  db_path: data/weather_risk.db
+  history_start: "2020-01-01"
+  history_end: "2025-12-31"   # last full calendar year at time of build
+
+# Daily thresholds that turn a day into a "hazard day" (observed, Open-Meteo ERA5).
+thresholds:
+  snow_day_cm: 0.0          # any snowfall > 0 cm (user-confirmed default)
+  hard_freeze_c: -12.0      # Tmin <= -12 C (~10 F): diesel gelling, dock/yard ops slow
+  heavy_rain_mm: 25.0       # >= 25 mm/day (~1 in): common flash-flood guidance level
+  high_gust_kmh: 60.0       # >= 60 km/h (~37 mph): high-profile vehicle advisories
+  extreme_heat_c: 38.0      # Tmax >= 38 C (~100 F): heat-safety work restrictions
+
+# Normalisation rules (0-100). Fixed rules, never min-max across our hubs, so adding or
+# removing a hub cannot change another hub's score.
+normalisation:
+  # Observed day counts: linear from 0 to a cap of 10% of the year (36.5 days/yr).
+  # Rationale: a condition present on 1 day in 10 is treated as "routine" for operations.
+  observed_days_cap: 36.5
+  # FEMA NRI annual frequencies: linear from 0 to the 99th percentile of that field across
+  # ALL US counties (computed from the national NRI table, not from our hubs).
+  nri_cap_percentile: 99
+
+# Which inputs feed which hazard. Sub-score = mean of the available normalised components.
+hazards:
+  winter:
+    observed: [snow_days, hard_freeze_days]
+    nri: [WNTW, ISTM, CWAV]       # winter weather, ice storm, cold wave
+  flood:
+    observed: [heavy_rain_days]
+    nri: [IFLD, CFLD]             # inland flooding, coastal flooding
+  hurricane:
+    observed: []                  # 6 years of weather is too short a sample for hurricanes
+    nri: [HRCN]
+  wind:
+    observed: [high_gust_days]
+    nri: [TRND, SWND]             # tornado, strong wind
+  heat:
+    observed: [extreme_heat_days]
+    nri: [HWAV]                   # heat wave
+
+# Operational-impact weights (sum to 1.0). Judgement call, stated as an assumption.
+weights:
+  winter: 0.25
+  flood: 0.25
+  hurricane: 0.20
+  wind: 0.15
+  heat: 0.15
+
+tiers:            # lower bound inclusive
+  - {name: Low, min: 0}
+  - {name: Moderate, min: 35}
+  - {name: High, min: 55}
+  - {name: Severe, min: 75}
