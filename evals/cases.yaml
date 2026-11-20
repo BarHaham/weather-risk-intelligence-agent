@@ -9,6 +9,9 @@
 #                   model's top_n hubs in the model's order
 #   figure:         {hub_id, metric, year, threshold, field, tol} -> some answer.figures value
 #                   must be within tol of metrics.weather_stat(...)[field]
+#   tool_input:     {tool, <field>: <value>, ...} -> there is at least one call of that tool and
+#                   EVERY call of it used exactly these input values (e.g. a turn that tries both
+#                   threshold 1 and 0.99 fails, even if the reported count is right)
 # Always checked: schema-valid answer; every score in answer.hubs matches the model (±0.1);
 # in-scope answers list at least one assumption.
 
@@ -45,8 +48,9 @@
   hubs_mentioned: [detroit]
 
 - id: denver_snow_threshold
-  turns: ["In 2025, on how many days did Denver get more than 1 cm of snow?"]
+  turns: ["In 2025, on how many days did Denver get at least 1 cm of snow?"]
   tools: [weather_stat]
+  tool_input: {tool: weather_stat, threshold: 1.0}
   in_scope: true
   figure: {hub_id: denver, metric: snowfall, year: 2025, threshold: 1.0, field: days_meeting_condition, tol: 0}
 

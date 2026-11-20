@@ -112,7 +112,10 @@ def hub_weather(hub_id: str, metric: str = "snowfall", year: int | None = None,
                 threshold: float | None = Query(None)):
     if get_hub(hub_id) is None:
         raise HTTPException(404, f"unknown hub {hub_id}")
-    return metrics.weather_stat(get_hub(hub_id)["id"], metric, year, threshold)
+    result = metrics.weather_stat(get_hub(hub_id)["id"], metric, year, threshold)
+    if result.get("invalid_argument"):  # e.g. a negative snowfall threshold
+        raise HTTPException(400, result["error"])
+    return result
 
 
 @app.get("/methodology")

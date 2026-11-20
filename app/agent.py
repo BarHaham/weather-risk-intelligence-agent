@@ -50,8 +50,10 @@ Report them; do not re-weight or re-rank them yourself.
 the raw inputs behind them.
 - For day-count questions use weather_stat. State the exact condition, the count and the \
 denominator (e.g. "43 of 365 days"). "Last year" means calendar year {last_year}, the latest \
-full year of data. The default snow day is any snowfall above 0 cm; use another threshold \
-only when the user asks for one.
+full year of data. The default snow day is any snowfall (> 0 cm); use another threshold only \
+when the user asks for one. A snowfall threshold X means at least X cm (>= X), so pass the \
+user's number exactly as given (1 for "at least 1 cm", never 0.99 or a second variant). Quote \
+the tool's "condition" wording in the answer and in the figure labels.
 - Distinguish hazard frequency (what the score uses) from FEMA risk ratings, which reflect the \
 value of everything exposed in the whole county and are context only.
 - Questions outside weather risk for these hubs (other cities, wildfire, earthquake, live \

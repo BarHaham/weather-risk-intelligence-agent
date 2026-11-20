@@ -433,3 +433,63 @@ def test_health_reports_models_simulation_and_key_source_but_not_the_key(monkeyp
     assert h["llm"] == {"model": SONNET, "fallback_model": HAIKU, "simulated_outage": [SONNET]}
     assert h["api_key_source"] == "environment"
     assert "sk-ant-secret" not in json.dumps(h)
+
+
+# ---------- snowfall threshold: exact tool input, API rule, wording ----------
+
+TOOL_SPEC = {"tool": "weather_stat", "threshold": 1.0}  # as in evals/cases.yaml
+
+
+def call(threshold):
+    return {"tool": "weather_stat", "is_error": False,
+            "input": {"hub_id": "denver", "metric": "snowfall", "year": 2025,
+                      "threshold": threshold}}
+
+
+@pytest.mark.parametrize("thresholds,ok", [
+    ([1], True), ([1.0], True), ([1, 1.0], True),
+    ([0.99], False),
+    ([1, 0.99], False),   # the browser-test case: tried both, even if the count is right
+    ([0.99, 1], False),
+    ([], False),          # no call at all
+])
+def test_tool_input_check_requires_every_call_to_use_exactly_1(thresholds, ok):
+    name, passed, detail = eval_run.check_tool_input(TOOL_SPEC, [call(t) for t in thresholds])
+    assert passed is ok
+    if thresholds:
+        assert all(str(t) in detail for t in thresholds)
+
+
+def test_threshold_case_fails_when_agent_tries_0_99_even_with_the_right_count():
+    case = {"id": "denver_snow_threshold", "turns": ["q"], "tools": ["weather_stat"],
+            "in_scope": True, "tool_input": TOOL_SPEC,
+            "figure": {"hub_id": "denver", "metric": "snowfall", "year": 2025, "threshold": 1.0,
+                       "field": "days_meeting_condition", "tol": 0}}
+    want = eval_run.expected_figure(case["figure"])[0]
+    result = {"tool_calls": [call(1), call(0.99)],
+              "answer": json.loads(answer_json(figures=[{
+                  "label": "daily snowfall >= 1 cm (at least 1 cm)", "value": want,
+                  "unit": "days", "source_tool": "weather_stat"}]))}
+    checks = {name: ok for name, ok, _ in eval_run.check_case(case, result)}
+    assert checks["figure value"] is True            # the count itself is right...
+    assert checks[next(n for n in checks if n.startswith("weather_stat input"))] is False
+
+
+def test_weather_endpoint_rejects_negative_snowfall_threshold_with_400():
+    with pytest.raises(HTTPException) as exc:
+        main.hub_weather("denver", metric="snowfall", year=2025, threshold=-1)
+    assert exc.value.status_code == 400 and "0 or more" in exc.value.detail
+    ok = main.hub_weather("denver", metric="hard_freeze", year=2025, threshold=-12)
+    assert ok["condition"] == "daily minimum temperature <= -12 °C"
+    at_least = main.hub_weather("denver", metric="snowfall", year=2025, threshold=1)
+    assert at_least["condition"] == "daily snowfall >= 1 cm (at least 1 cm)"
+
+
+def test_tool_text_states_the_rule_and_no_era5_claim():
+    from app import tools
+    desc = next(t for t in tools.TOOL_DEFS if t["name"] == "weather_stat")["description"]
+    assert "at least threshold cm (>= threshold)" in desc and "any snowfall (> 0 cm)" in desc
+    assert "negative snowfall threshold is rejected" in desc
+    everything = json.dumps(tools.TOOL_DEFS) + json.dumps(tools.get_methodology()) + agent._system_prompt()
+    assert "ERA5" not in everything and "10 km" not in everything
+    assert "never 0.99" in agent._system_prompt()

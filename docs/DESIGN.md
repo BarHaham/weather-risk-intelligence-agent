@@ -35,7 +35,7 @@ explains the results. It never produces scores itself.
    ▼
  SQLite (app/store.py, data/weather_risk.db)  ◀── built from ──  data/cache/*.json (raw API responses)
                                                                      ▲
- scripts/refresh_data.py ── app/sources/open_meteo.py (ERA5 daily weather, 2020-2025)
+ scripts/refresh_data.py ── app/sources/open_meteo.py (Open-Meteo daily gridded estimates, 2020-2025)
                          └─ app/sources/fema_nri.py   (FEMA National Risk Index, counties)
 ```
 
@@ -99,7 +99,7 @@ explains the results. It never produces scores itself.
 ## 4. Data sources
 | Source | What we use | Why |
 |---|---|---|
-| Open-Meteo Historical Weather API (ERA5 reanalysis) | Daily snowfall, precipitation, Tmin, Tmax, max gust per hub, 2020-01-01 to 2025-12-31 | Free, no key, consistent across hubs. Answers "% of days with snowfall" directly |
+| Open-Meteo Historical Weather API (default Best Match model selection: gridded estimates for the area around each hub) | Daily snowfall, precipitation, Tmin, Tmax, max gust per hub, 2020-01-01 to 2025-12-31 | Free, no key, consistent across hubs. Answers "% of days with snowfall" directly |
 | FEMA National Risk Index, county level (Dec 2025 release) | Annual event frequency (`*_AFREQ`) for 9 hazards per hub county, plus the national distribution of each | An authoritative long-record view of rare hazards (hurricanes) that 6 years of weather can't give |
 
 **Findings that shaped the design**
@@ -114,10 +114,19 @@ explains the results. It never produces scores itself.
   coastal-flood event count is empty, so this frequency is a modelled estimate.
 - **Inland flooding:** FEMA renamed riverine flooding (`RFLD`) to inland flooding (`IFLD`) in
   this release, and the code uses the new name.
-- **ERA5 undercounts snow.** Denver's ERA5 snowfall (58–110 cm/yr) is well below station records.
-- **Snow-day threshold:** the default is any snowfall above 0 cm, which gives Denver 2025 =
-  43 of 365 days (11.8%). The agent always states the condition and the denominator, and
-  `weather_stat` accepts other thresholds (above 1 cm gives 17 days).
+- **Gridded estimates can differ from station records.** Open-Meteo's Denver snowfall estimates are
+  58–110 cm/yr for 2020–2025. The request sends no `models` parameter, so Open-Meteo picks its
+  default Best Match model selection, and no specific model or grid resolution is claimed.
+- **Snowfall rule:**
+  - The default is any snowfall: **> 0 cm**. That gives Denver 2025 = 43 of 365 days (11.8%).
+  - A positive threshold X means **at least X cm (>= X)**, so a day with exactly X cm counts.
+    At least 1 cm gives 17 days.
+  - A **negative snowfall threshold is rejected**: `weather_stat` returns an error and counts
+    nothing, and `GET /hubs/{id}/weather` answers 400.
+  - Other metrics keep their own comparisons (`hard_freeze` is <= and accepts −12 °C).
+  - The agent quotes the tool's `condition` text (e.g. "daily snowfall >= 1 cm (at least 1 cm)")
+    in the answer and the figure labels, and passes the user's threshold exactly. The
+    `denver_snow_threshold` eval fails if any call used another value, such as 0.99.
 
 ## 5. Risk model (`app/scoring.py`, `config.yaml`)
 - **Components per hazard:**
@@ -211,7 +220,8 @@ Always checked:
   - A null FEMA frequency means the hazard doesn't apply (scored as 0).
   - US Census regions are used for "Midwest", "South" and "West".
 - **Uncertainty:**
-  - ERA5 is a ~10 km grid, not station data.
+  - Open-Meteo values are gridded estimates for the area around each hub, and can differ from
+    station records.
   - FEMA data describes the whole county.
   - Six years of observed weather is a short climate sample.
   - Exposure is not the same as vulnerability: building condition, backup power and the
@@ -220,6 +230,7 @@ Always checked:
   - Alerts: a daily job recomputes the scores, diffs them against the last snapshot in SQLite,
     and posts to a webhook when a tier changes. Fixed caps make the diffs meaningful.
   - Live NWS alerts as a separate overlay.
-  - Station data (NOAA GHCN-Daily) to cross-check ERA5.
+  - Station data (NOAA GHCN-Daily), to measure where the gridded estimates can differ from
+    station records.
   - Voice through the browser Web Speech API.
   - Hub-specific vulnerability and cost data, to turn exposure into expected disruption cost.

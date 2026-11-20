@@ -53,7 +53,7 @@ def compute_breakdown(hub: dict, observed: dict, nri_record: dict | None,
             raw = observed.get(name)
             missing_obs |= raw is None
             comps.append(Component(name=name, label=OBS_LABELS[name],
-                                   source="Open-Meteo ERA5 (observed)", raw_value=raw,
+                                   source="Open-Meteo (observed, gridded estimate)", raw_value=raw,
                                    unit="days/yr", cap=obs_cap, normalised=normalise(raw, obs_cap)))
         for prefix in spec["nri"]:
             field = f"{prefix}_AFREQ"
@@ -80,7 +80,7 @@ def compute_breakdown(hub: dict, observed: dict, nri_record: dict | None,
         caveats.append("Observed weather history is not available for this hub yet; hazard "
                        "scores use FEMA NRI frequencies only.")
     else:
-        caveats.append(metrics.ERA5_CAVEAT)
+        caveats.append(metrics.GRID_CAVEAT)
     if missing_nri:
         caveats.append("FEMA NRI record missing for this county; scores use observed weather only.")
     caveats.append("FEMA NRI frequencies describe the whole county, not the hub's exact site.")

@@ -1,4 +1,7 @@
-"""Open-Meteo Historical Weather API (ERA5 reanalysis), daily values per hub.
+"""Open-Meteo Historical Weather API, daily values per hub.
+
+No `models` parameter is sent, so Open-Meteo uses its default Best Match model selection: the
+values are gridded estimates for the area around each hub, not weather-station measurements.
 
 Raw responses are cached as data/cache/open_meteo_<hub>.json so the app and the evals run
 offline and never depend on Open-Meteo's free-tier quota (which is per IP and shared).

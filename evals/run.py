@@ -43,6 +43,25 @@ def model_score(hub_id: str, hazard: str) -> float:
     return next(h.score for h in b.hazards if h.hazard == hazard)
 
 
+def check_tool_input(spec: dict, tool_calls: list[dict]) -> tuple[str, bool, str]:
+    """At least one call of spec['tool'], and every such call used exactly the given inputs."""
+    want = {k: v for k, v in spec.items() if k != "tool"}
+    used = [t["input"] for t in tool_calls if t["tool"] == spec["tool"]]
+
+    def matches(inp: dict) -> bool:
+        for k, v in want.items():
+            got = inp.get(k)
+            if isinstance(v, (int, float)) and isinstance(got, (int, float)):
+                if float(got) != float(v):  # 1 and 1.0 are the same value; 0.99 is not
+                    return False
+            elif got != v:
+                return False
+        return True
+
+    ok = bool(used) and all(matches(u) for u in used)
+    return (f"{spec['tool']} input exactly {want}", ok, f"used={used}")
+
+
 def check_case(case: dict, result: dict) -> list[tuple[str, bool, str]]:
     a = result["answer"]
     calls = [t["tool"] for t in result["tool_calls"]]
@@ -60,6 +79,8 @@ def check_case(case: dict, result: dict) -> list[tuple[str, bool, str]]:
         want = expected_ranking(spec)
         got = [h["hub_id"] for h in a["hubs"] if h["hazard"] == spec["hazard"]]
         checks.append(("ranking order", got[: len(want)] == want, f"want={want} got={got}"))
+    if "tool_input" in case:
+        checks.append(check_tool_input(case["tool_input"], result["tool_calls"]))
     if "figure" in case:
         want, stat = expected_figure(case["figure"])
         if want is None:

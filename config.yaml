@@ -22,9 +22,10 @@ data:
   history_start: "2020-01-01"
   history_end: "2025-12-31"   # last full calendar year at time of build
 
-# Daily thresholds that turn a day into a "hazard day" (observed, Open-Meteo ERA5).
+# Daily thresholds that turn a day into a "hazard day" (observed, Open-Meteo gridded estimates).
 thresholds:
-  snow_day_cm: 0.0          # any snowfall > 0 cm (user-confirmed default)
+  snow_day_cm: 0.0          # 0 = any snowfall (> 0 cm), user-confirmed default; a positive
+                            # threshold X means at least X cm (>= X); negative is rejected
   hard_freeze_c: -12.0      # Tmin <= -12 C (~10 F): diesel gelling, dock/yard ops slow
   heavy_rain_mm: 25.0       # >= 25 mm/day (~1 in): common flash-flood guidance level
   high_gust_kmh: 60.0       # >= 60 km/h (~37 mph): high-profile vehicle advisories

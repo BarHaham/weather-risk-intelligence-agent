@@ -94,12 +94,59 @@ def test_percentile_linear_interpolation():
     assert percentile([3.0], 99) == 3.0
 
 
-def test_snowfall_threshold_is_strictly_greater():
-    rows = [{"date": "2025-01-01", "snowfall_cm": 0.0},
-            {"date": "2025-01-02", "snowfall_cm": 0.07},
-            {"date": "2025-01-03", "snowfall_cm": 1.0},
-            {"date": "2025-01-04", "snowfall_cm": None}]
-    hit, valid, _ = metrics._count(rows, "snowfall", 0.0)
-    assert (hit, valid) == (2, 3)          # 0.0 is not a snow day; None is excluded
-    hit, _, _ = metrics._count(rows, "snowfall", 1.0)
-    assert hit == 0                        # "> 1 cm" excludes exactly 1.0
+SNOW_ROWS = [{"date": "2025-01-01", "snowfall_cm": 0.0},
+             {"date": "2025-01-02", "snowfall_cm": 0.07},
+             {"date": "2025-01-03", "snowfall_cm": 0.99},
+             {"date": "2025-01-04", "snowfall_cm": 1.0},   # exactly 1 cm
+             {"date": "2025-01-05", "snowfall_cm": 1.5},
+             {"date": "2025-01-06", "snowfall_cm": None}]
+
+
+def test_snowfall_rule_any_snowfall_is_strictly_above_zero():
+    hit, valid, _ = metrics._count(SNOW_ROWS, "snowfall", 0.0)
+    assert (hit, valid) == (4, 5)          # 0.0 is not a snow day; None is excluded
+
+
+def test_snowfall_threshold_counts_a_day_with_exactly_that_amount():
+    hit, _, _ = metrics._count(SNOW_ROWS, "snowfall", 1.0)
+    assert hit == 2                        # 1.0 (exactly 1 cm) and 1.5; not 0.99
+    hit, _, _ = metrics._count(SNOW_ROWS, "snowfall", 1.5)
+    assert hit == 1
+
+
+def test_snowfall_comparison_and_condition_wording():
+    assert metrics.comparison("snowfall", 0) == ">"
+    assert metrics.comparison("snowfall", 1) == ">="
+    assert metrics.condition_text("snowfall", 0) == "daily snowfall > 0 cm (any snowfall)"
+    assert metrics.condition_text("snowfall", 1) == "daily snowfall >= 1 cm (at least 1 cm)"
+    assert metrics.condition_text("snowfall", 2.5) == "daily snowfall >= 2.5 cm (at least 2.5 cm)"
+    with pytest.raises(ValueError, match="0 or more"):
+        metrics.comparison("snowfall", -1)
+    # other metrics are unchanged, and negative thresholds stay valid where they make sense
+    assert metrics.comparison("hard_freeze", -12) == "<="
+    assert metrics.comparison("heavy_rain", 25) == ">="
+
+
+def test_weather_stat_uses_the_rule_and_the_gridded_caveat(monkeypatch):
+    monkeypatch.setattr(metrics.store, "daily", lambda hub_id, year=None: SNOW_ROWS)
+    monkeypatch.setattr(metrics.store, "grid_point", lambda hub_id: None)
+    at_least = metrics.weather_stat("denver", "snowfall", 2025, 1)
+    assert at_least["condition"] == "daily snowfall >= 1 cm (at least 1 cm)"
+    assert (at_least["days_meeting_condition"], at_least["days_with_data"]) == (2, 5)
+    assert at_least["by_month"] == {"2025-01": 2}
+    default = metrics.weather_stat("denver", "snowfall", 2025, None)
+    assert default["condition"] == "daily snowfall > 0 cm (any snowfall)"
+    assert default["days_meeting_condition"] == 4
+    for text in (at_least["caveat"], at_least["source"]):
+        assert "ERA5" not in text and "10 km" not in text
+    assert "gridded estimates for the area" in at_least["caveat"]
+    assert "can differ from station records" in at_least["caveat"]
+
+
+def test_negative_snowfall_threshold_is_rejected(monkeypatch):
+    called = []
+    monkeypatch.setattr(metrics.store, "daily", lambda *a, **k: called.append(1) or SNOW_ROWS)
+    r = metrics.weather_stat("denver", "snowfall", 2025, -1)
+    assert r["error"] == "snowfall threshold must be 0 or more (got -1)"
+    assert r["invalid_argument"] == "threshold" and "days_meeting_condition" not in r
+    assert not called                      # rejected before any data is read or counted

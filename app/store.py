@@ -1,8 +1,8 @@
 """SQLite storage. Built from the raw JSON cache (data/cache/), so it can always be rebuilt.
 
 Tables
-  daily_weather  one row per hub per local calendar day (Open-Meteo ERA5)
-  grid_points    the ERA5 grid cell actually used for each hub
+  daily_weather  one row per hub per local calendar day (Open-Meteo gridded estimates)
+  grid_points    the grid cell Open-Meteo returned for each hub
   nri_county     the FEMA NRI record for each hub county (JSON)
   nri_caps       national 99th-percentile cap per NRI frequency field
   messages       chat history per session (Anthropic message blocks as JSON)

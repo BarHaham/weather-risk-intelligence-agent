@@ -144,7 +144,7 @@ python -m evals.run                       # 10 cases against the live agent (use
 | POST | `/chat` | `{message, session_id?}` → `{session_id, answer (AgentAnswer), tool_calls, models, usage}`. `models` = `{requested, answered_by, calls, fallback}` |
 | GET | `/rankings?hazard=&region=` | Deterministic ranking (overall or one hazard) |
 | GET | `/hubs/{id}/score` | Full score breakdown for one hub |
-| GET | `/hubs/{id}/weather?metric=&year=&threshold=` | Day counts from observed weather |
+| GET | `/hubs/{id}/weather?metric=&year=&threshold=` | Day counts from Open-Meteo's gridded estimates. Snowfall: no threshold or 0 = any snowfall (> 0 cm); a positive threshold X = at least X cm (>= X); a negative snowfall threshold is rejected with 400 |
 | GET | `/methodology` | Weights, caps, thresholds, sources |
 | GET | `/hubs`, `/health` | Hub list; data, models, simulated outage and `api_key_source` (`.env` / `environment` / `missing`, never the key) |
 

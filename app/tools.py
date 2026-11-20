@@ -63,12 +63,16 @@ TOOL_DEFS: list[dict] = [
     },
     {
         "name": "weather_stat",
-        "description": "Count days in a hub's observed daily weather (Open-Meteo ERA5) that meet a "
-                       "condition, for one calendar year or the full history (year=null). Metrics: "
-                       "snowfall (> threshold cm, default 0 = any snowfall), heavy_rain (>= mm, "
-                       "default 25), hard_freeze (min temp <= C, default -12), high_gust (>= km/h, "
-                       "default 60), extreme_heat (max temp >= C, default 38). threshold=null uses "
-                       "the default.",
+        "description": "Count days in a hub's observed daily weather (Open-Meteo gridded "
+                       "estimates for the area) that meet a condition, for one calendar year or the "
+                       "full history (year=null). Metrics: snowfall = days with at least threshold "
+                       "cm (>= threshold); threshold 0 or null = any snowfall (> 0 cm); a negative "
+                       "snowfall threshold is rejected with an error. heavy_rain (>= mm, default "
+                       "25), hard_freeze (min temp <= C, default -12), high_gust (>= km/h, default "
+                       "60), extreme_heat (max temp >= C, default 38); threshold=null uses the "
+                       "default. Pass the user's number exactly as given (e.g. 1 for 'at least 1 "
+                       "cm'); never adjust it. The result's 'condition' is the exact wording to "
+                       "quote.",
         "input_schema": _obj({
             "hub_id": {"type": "string", "enum": HUB_IDS},
             "metric": {"type": "string", "enum": list(metrics.METRICS)},
@@ -133,8 +137,10 @@ def get_methodology() -> dict:
     cfg = settings()
     return {
         "sources": {
-            "observed": "Open-Meteo Historical Weather API (ERA5 reanalysis, ~10 km grid), "
-                        f"{cfg['data']['history_start']} to {cfg['data']['history_end']}",
+            "observed": "Open-Meteo Historical Weather API, default Best Match model selection: "
+                        "gridded estimates for the area around each hub, not station "
+                        f"measurements, {cfg['data']['history_start']} to "
+                        f"{cfg['data']['history_end']}",
             "hazard_frequency": "FEMA National Risk Index (county level), annual event "
                                 "frequency fields (*_AFREQ)",
         },

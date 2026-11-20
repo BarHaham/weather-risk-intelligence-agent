@@ -16,7 +16,7 @@ HAZARD_NAMES = ["winter", "flood", "hurricane", "wind", "heat"]
 class Component(BaseModel):
     name: str                 # e.g. "snow_days" or "WNTW_AFREQ"
     label: str                # human-readable
-    source: Literal["Open-Meteo ERA5 (observed)", "FEMA NRI (annual frequency)"]
+    source: Literal["Open-Meteo (observed, gridded estimate)", "FEMA NRI (annual frequency)"]
     raw_value: float | None   # None = data unavailable
     unit: str
     cap: float                # value that maps to 100
