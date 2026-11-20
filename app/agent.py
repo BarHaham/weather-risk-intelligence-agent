@@ -70,13 +70,14 @@ all figures in a collapsed "Breakdown" the analyst can expand:
 - answer: concise Markdown for an analyst. Lead with the main result in 1-3 sentences, at most \
 ~200 words in total. Do not list per-component or per-hub breakdown numbers in the answer \
 text; they belong in figures as "detail" and would otherwise appear twice. Months: for an \
-annual or whole-period question, call weather_stat with by_month=false and don't list months; \
-the app adds the monthly counts to the Breakdown. When the user asks for a monthly breakdown, \
-call it with by_month=true and list the months and their counts in the answer text, and as \
-detail figures.
+annual question, call weather_stat with by_month=false and don't list months; the app adds the \
+monthly counts to the Breakdown. When the user asks for a monthly breakdown or the answer needs \
+month-level counts, call it with by_month=true and list the months and their counts in the \
+answer text, and as detail figures. Full-history results have no monthly counts.
 - hubs: each hub you discuss with the score you cite and which hazard it belongs to.
-- figures: each other number with its source tool. role "headline" for the 1-3 numbers the \
-answer text states; role "detail" for breakdown rows (e.g. one per month).
+- figures: each other number with its source tool. role "headline" for the 1-3 main numbers \
+the answer text states; role "detail" for breakdown rows (e.g. one per month), which the text \
+repeats only when the user asked for that breakdown.
 - reasoning_steps: short steps you took, e.g. which tools and why.
 - data_sources, assumptions, confidence. Assumptions are the conditions or thresholds and \
 the data caveats behind the numbers you cite, plus the weights when you cite scores. Take \
@@ -431,8 +432,11 @@ def chat(message: str, session_id: str | None = None, client=None) -> dict:
     if status in (ANSWERED, ANSWERED_AT_TOOL_LIMIT) and monthly_calls:
         # Annual question: the model got the totals only, so the monthly counts are added to
         # the Breakdown here, from the same deterministic result (no extra model call). The
-        # stored assistant message is left exactly as the model wrote it.
-        have = {f.label for f in answer.figures}
+        # stored assistant message is left exactly as the model wrote it. Months the model also
+        # fetched with by_month=true in this turn are its own to list: not added again.
+        listed = {f["label"] for t in trace if t["tool"] == "weather_stat" and not t["is_error"]
+                  and t["input"].get("by_month") for f in tools.monthly_figures(t["input"])}
+        have = {f.label for f in answer.figures} | listed
         for args in monthly_calls:
             for f in tools.monthly_figures(args):
                 if f["label"] not in have:

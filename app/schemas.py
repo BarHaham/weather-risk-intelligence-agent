@@ -105,10 +105,12 @@ def answer_json_schema() -> dict:
                 "properties": {"label": s(), "value": {"type": "number"}, "unit": s(),
                                "source_tool": s(),
                                "role": {"type": "string", "enum": ["headline", "detail"],
-                                        "description": "headline: a number the answer text "
-                                                       "states; detail: a breakdown row (per "
-                                                       "month, per component, ...) that the "
-                                                       "answer text does not repeat"}}}},
+                                        "description": "headline: one of the 1-3 main numbers "
+                                                       "the answer text states; detail: a "
+                                                       "breakdown row (per month, per "
+                                                       "component, ...). The text repeats "
+                                                       "detail rows only when the user asked "
+                                                       "for that breakdown (e.g. by month)."}}}},
             "reasoning_steps": {"type": "array", "items": s()},
             "data_sources": {"type": "array", "items": s()},
             "assumptions": {"type": "array", "items": s()},

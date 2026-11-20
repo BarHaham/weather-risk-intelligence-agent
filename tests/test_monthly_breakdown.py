@@ -57,7 +57,7 @@ def test_by_month_is_a_required_boolean_on_the_strict_tool():
     t = next(t for t in tools.TOOL_DEFS if t["name"] == "weather_stat")
     assert t["strict"] and "by_month" in t["input_schema"]["required"]
     assert t["input_schema"]["properties"]["by_month"] == {"type": "boolean"}
-    assert "true only when the user asks for a monthly breakdown" in t["description"]
+    assert "true when the user asks for a monthly breakdown" in t["description"]
 
 
 def test_annual_call_returns_totals_without_the_monthly_counts():
@@ -163,12 +163,46 @@ def test_monthly_follow_up_lists_the_months_in_the_answer():
     assert fake.requests[0]["messages"][:-1] == before  # turn 1 replayed unchanged
 
 
+def test_false_then_true_in_one_turn_does_not_add_the_months_twice():
+    months = denver_months()
+    monthly_figs = [{"label": f"Snow days in {k}", "value": n, "unit": "days",
+                     "source_tool": "weather_stat", "role": "detail"} for k, n in months.items()]
+    fake = FakeClient([call(ANNUAL, "a"), call(MONTHLY, "b"),
+                       final(answer="By month: ...", figures=monthly_figs)])
+    out = agent.chat("Break Denver's 2025 snow days down by month", sid(), client=fake)
+    assert out["answer"]["figures"] == monthly_figs  # only the model's own rows
+
+
+def test_annual_and_monthly_calls_for_different_years_keep_the_annual_rows():
+    other = {**MONTHLY, "year": 2024}
+    fake = FakeClient([call(ANNUAL, "a"), call(other, "b"), final(figures=[])])
+    out = agent.chat("q", sid(), client=fake)
+    labels = [f["label"] for f in out["answer"]["figures"]]
+    assert labels and all("2025" in x for x in labels)  # 2025 added; 2024 is the model's
+
+
+def test_omitted_note_says_how_to_get_the_months_without_promising_them_for_full_history():
+    assert "by_month=true returns them" in tools.BY_MONTH_OMITTED
+    desc = next(t for t in tools.TOOL_DEFS if t["name"] == "weather_stat")["description"]
+    assert "which month had the most snow" in desc and "year=null) have no per-month" in desc
+    full = json.loads(tools.execute("weather_stat", {**ANNUAL, "year": None})[0])
+    assert full["by_month"] is None
+
+
+def test_schema_role_text_allows_months_in_the_text_when_asked():
+    from app.schemas import answer_json_schema
+    role = answer_json_schema()["properties"]["figures"]["items"]["properties"]["role"]
+    assert "only when the user asked for that breakdown" in role["description"]
+    assert "repeats only when the user asked for that breakdown" in agent._system_prompt()
+
+
 # ---------- prompt, and the eval is untouched ----------
 
 def test_prompt_makes_the_month_rule_conditional():
     p = agent._system_prompt()
-    assert "call weather_stat with by_month=false and don't list months" in p
+    assert "annual question, call weather_stat with by_month=false and don't list months" in p
     assert "When the user asks for a monthly breakdown" in p and "by_month=true" in p
+    assert "Full-history results have no monthly counts" in p
 
 
 def test_eval_cases_and_checks_are_unchanged():

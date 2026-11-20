@@ -171,14 +171,16 @@ explains the results. It never produces scores itself.
   - **Monthly counts.** In one live run the Denver annual answer still listed seven months:
     `weather_stat` returned them next to the annual count, and a prompt rule alone didn't stop
     the model from writing them out. Now `weather_stat` takes `by_month`:
-    - **`false`, an annual or whole-period question:** the model gets the totals only, so it
+    - **`false`, an annual (one-year) question:** the model gets the totals only, so it
       can't list months. The app adds one `detail` row per month to the answer's Breakdown, e.g.
       "Denver, January 2025: daily snowfall > 0 cm (any snowfall)" = 11 days. The rows come from
       the same deterministic result, with no extra model call. The stored assistant message
       stays as the model wrote it.
-    - **`true`, the user asked for a monthly breakdown:** the model gets the monthly counts and
-      lists them in the answer text and as detail figures. The app adds nothing, so nothing
-      appears twice.
+    - **`true`, the user asked for a monthly breakdown** (or the answer needs month-level
+      counts, e.g. "which month had the most snow"): the model gets the monthly counts and lists
+      them in the answer text and as detail figures. The app adds nothing for those months,
+      even if the same turn also made a `false` call, so nothing appears twice.
+    - Full-history results (`year: null`) have no monthly counts either way.
   - Two eval checks enforce this: the main figure must be a headline, and the Denver answer may
     not list months. The monthly-request path is tested offline (scripted answers).
 - **Atlas layout.**

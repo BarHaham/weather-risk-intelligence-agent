@@ -72,11 +72,13 @@ TOOL_DEFS: list[dict] = [
                        "60), extreme_heat (max temp >= C, default 38); threshold=null uses the "
                        "default. Pass the user's number exactly as given (e.g. 1 for 'at least 1 "
                        "cm'); never adjust it. The result's 'condition' is the exact wording to "
-                       "quote. by_month: true only when the user asks for a monthly breakdown "
-                       "('by month', 'which months', 'each month', 'monthly'); the result then "
-                       "includes the per-month counts to list in the answer. Use false for annual "
-                       "or whole-period questions: the result then has the totals only, and the "
-                       "app adds the per-month counts to the answer's Breakdown itself.",
+                       "quote. by_month: true when the user asks for a monthly breakdown ('by "
+                       "month', 'which months', 'each month', 'monthly') or the answer needs "
+                       "month-level counts (e.g. 'which month had the most snow'); for one "
+                       "calendar year the result then includes the per-month counts. Use false "
+                       "for an annual question: the result has the totals only, and the app adds "
+                       "the per-month counts to the answer's Breakdown itself. Full-history "
+                       "results (year=null) have no per-month counts either way.",
         "input_schema": _obj({
             "hub_id": {"type": "string", "enum": HUB_IDS},
             "metric": {"type": "string", "enum": list(metrics.METRICS)},
@@ -140,8 +142,8 @@ def get_score_breakdown(hub_id: str) -> dict:
     return scoring.score_hub(hub_id).model_dump()
 
 
-BY_MONTH_OMITTED = ("not included (by_month=false); the app shows the per-month counts in the "
-                    "answer's Breakdown")
+BY_MONTH_OMITTED = ("not included (by_month=false; by_month=true returns them). The app shows "
+                    "the per-month counts in the answer's Breakdown.")
 
 
 def weather_stat(hub_id: str, metric: str, year: int | None = None,
