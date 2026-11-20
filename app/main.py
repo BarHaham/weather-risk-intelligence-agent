@@ -1,16 +1,17 @@
 """FastAPI app: the chat endpoint the UI uses, plus read-only data endpoints."""
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 
 import anthropic
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import Depends, FastAPI, Header, HTTPException, Query
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
-from app import agent, config, geo, metrics, scoring, store
+from app import access, agent, config, geo, metrics, scoring, store
 from app.config import hub as get_hub
 from app.config import hubs, settings
 from app.tools import get_methodology
@@ -43,6 +44,22 @@ def _startup() -> None:
     # tests that import this module never pick up a developer's real .env.
     config.load_env_file()
     store.build_from_cache()
+    log_chat_access()
+
+
+log = logging.getLogger("uvicorn.error")  # shown in the server log (Render's log view too)
+
+
+def log_chat_access() -> None:
+    """One line saying whether chat is open, needs the reviewer code, or is off. Never the code."""
+    m = access.mode()
+    if m == access.DISABLED:
+        log.warning("Chat is disabled: running on Render and %s is not set.", access.ACCESS_CODE_VAR)
+    elif m == access.CODE_REQUIRED:
+        log.info("Chat needs the reviewer access code (%s, sent in the %s header).",
+                 access.ACCESS_CODE_VAR, access.HEADER)
+    else:
+        log.info("Chat is open: %s is not set (local run).", access.ACCESS_CODE_VAR)
 
 
 class ChatRequest(BaseModel):
@@ -68,7 +85,8 @@ def health():
             "llm": {"model": settings()["llm"]["model"],
                     "fallback_model": settings()["llm"].get("fallback_model"),
                     "simulated_outage": sorted(agent.simulated_outage_models())},
-            "api_key_source": config.api_key_source}
+            "api_key_source": config.api_key_source,
+            "chat_access": access.mode()}  # open / code_required / disabled; never the code
 
 
 CONVERSATION_EXPIRED = {
@@ -78,7 +96,25 @@ CONVERSATION_EXPIRED = {
 }
 
 
-@app.post("/chat")
+ACCESS_REFUSED = {
+    access.CHAT_DISABLED: (503, "Chat is turned off on this server: no reviewer access code is "
+                                "configured."),
+    access.CODE_MISSING: (401, "This chat needs a reviewer access code. Send it in the "
+                               f"{access.HEADER} header."),
+    access.CODE_INVALID: (401, "That access code isn't valid."),
+}
+
+
+def require_chat_access(x_access_code: str | None = Header(default=None, alias=access.HEADER)):
+    """Runs before the /chat handler, for the UI and direct API calls alike: a refused request
+    never reaches agent.chat() and so never calls Claude."""
+    refused = access.check(x_access_code)
+    if refused:
+        status, message = ACCESS_REFUSED[refused]
+        raise HTTPException(status, {"code": refused, "message": message})
+
+
+@app.post("/chat", dependencies=[Depends(require_chat_access)])
 def chat(req: ChatRequest):
     try:
         return agent.chat(req.message, req.session_id)

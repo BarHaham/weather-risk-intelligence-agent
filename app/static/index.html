@@ -95,10 +95,10 @@
   }
   .askbox, .askbar { display:flex; gap:8px; }
   .askbar { padding:12px 18px; border-top:1px solid var(--line); }
-  input[type=text] { flex:1; min-width:0; padding:11px 13px; border-radius:10px; border:1px solid var(--line);
+  input[type=text], input[type=password] { flex:1; min-width:0; padding:11px 13px; border-radius:10px; border:1px solid var(--line);
                      background:var(--bg); color:var(--ink); font-size:15px; text-overflow:ellipsis; }
-  input[type=text]::placeholder { color:var(--muted); opacity:1; }
-  input[type=text]:focus { outline:2px solid var(--accent); outline-offset:1px; border-color:transparent; }
+  input[type=text]::placeholder, input[type=password]::placeholder { color:var(--muted); opacity:1; }
+  input[type=text]:focus, input[type=password]:focus { outline:2px solid var(--accent); outline-offset:1px; border-color:transparent; }
   .send { padding:11px 18px; border-radius:10px; border:0; background:var(--ink); color:var(--panel); font-weight:600; cursor:pointer; }
   button:disabled { opacity:.5; cursor:wait; }
   .msg { margin:0 0 14px; padding:10px 14px; border-radius:12px; max-width:95%; overflow-wrap:anywhere; }
@@ -116,6 +116,7 @@
                    border:1px solid var(--accent); background:transparent; color:var(--accent); cursor:pointer; text-align:left; }
   .follow button:active, .suggest button:active { background:var(--hl); }
   .err { color:var(--High-text); }
+  .access-form { margin-top:8px; }
   .status-note { margin:8px 0 4px; padding:6px 10px; border-left:3px solid var(--accent); background:var(--hl);
                  border-radius:4px; font-size:14px; }
   .bot .status-note p { margin:2px 0; }
@@ -234,9 +235,18 @@ const EXAMPLES = [
 const TIERS = ["Low", "Moderate", "High", "Severe"];
 const SVG = "http://www.w3.org/2000/svg";
 // Every control that sends a question; all are disabled while a request is running.
-const ASK_SEL = "#send, #f0 button, #hubask button, #hubcard .suggest button, .follow button, #examples button";
+const ASK_SEL = "#send, #f0 button, #hubask button, #hubcard .suggest button, .follow button, #examples button, .access-form button";
 let sessionId = null, expired = false, HUBS = [], busy = false, convGen = 0, inflight = null, labelUnits = 26;
 try { sessionId = localStorage.getItem("wr_session"); } catch (e) {}
+// Reviewer access code (when the server needs one): kept for this tab only, or in memory if
+// storage is blocked. The server checks it on every /chat request.
+const ACCESS_KEY = "wr_access_code";
+let accessCode = null;
+try { accessCode = sessionStorage.getItem(ACCESS_KEY); } catch (e) {}
+function saveAccessCode(code) {
+  accessCode = code || null;
+  try { code ? sessionStorage.setItem(ACCESS_KEY, code) : sessionStorage.removeItem(ACCESS_KEY); } catch (e) {}
+}
 const $ = id => document.getElementById(id);
 const log = $("log"), chat = $("chat");
 const esc = s => String(s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
@@ -341,16 +351,19 @@ async function ask(text, opts = {}) {
   inflight = controller;
   setBusy(true);
   startConversation(opts.fromTyping);
-  add(esc(text), "user");
+  const userEl = add(esc(text), "user");
   const pending = add("<span class='meta'>Thinking and running tools…</span>", "bot");
   try {
-    const res = await fetch("/chat", { method:"POST", headers:{"Content-Type":"application/json"}, signal: controller.signal,
+    const headers = { "Content-Type": "application/json" };
+    if (accessCode) headers["X-Access-Code"] = accessCode;
+    const res = await fetch("/chat", { method:"POST", headers, signal: controller.signal,
                                        body: JSON.stringify({ message:text, session_id:sessionId }) });
     const body = await res.json().catch(() => ({}));
     if (gen !== convGen) return true;            // the user started a new conversation meanwhile
     pending.remove();
     if (!res.ok) {
       if (body.detail && body.detail.code === "conversation_expired") { expiredNotice(text, body.detail.message); return true; }
+      if (body.detail && /^access_code_(required|invalid)$/.test(body.detail.code)) { accessNotice(text, userEl, body.detail.code); return true; }
       add(`<span class="err">${esc(errorText(res, body))}</span>`, "bot"); return true;
     }
     sessionId = body.session_id;
@@ -563,6 +576,32 @@ function expiredNotice(question, message) {
   const el = add(`<p>${esc(message || "This conversation can't be continued.")}</p>
     <button type="button" class="send restart">Start a new conversation</button>`, "bot notice");
   el.querySelector(".restart").onclick = () => resetConversation(question);
+}
+
+// The server needs a reviewer access code (missing or not accepted): ask for it here, keep the
+// question, and send it again once a code is entered.
+function accessNotice(question, userEl, reason) {
+  const invalid = reason === "access_code_invalid";
+  if (invalid) saveAccessCode(null);
+  const el = add(`<p>${invalid ? "That access code wasn't accepted. Check it and try again."
+                              : "This chat needs a reviewer access code."}</p>
+    <form class="askbox access-form">
+      <input type="password" autocomplete="off" maxlength="200" aria-label="Reviewer access code" placeholder="Reviewer access code">
+      <button type="submit" class="send">Continue</button>
+    </form><p class="meta access-hint" hidden></p>`, "bot notice");
+  const input = el.querySelector("input"), hint = el.querySelector(".access-hint");
+  el.querySelector("form").onsubmit = ev => {
+    ev.preventDefault();
+    const code = input.value.trim();
+    if (!code) { input.focus(); return; }
+    if (/[^\x20-\x7E]/.test(code)) {  // HTTP header values: printable ASCII only
+      hint.textContent = "Use the code exactly as given (letters, digits and symbols)."; hint.hidden = false; return;
+    }
+    saveAccessCode(code);
+    el.remove(); userEl.remove();      // ask() shows the question again
+    ask(question);
+  };
+  if (!window.matchMedia("(pointer: coarse)").matches) input.focus({ preventScroll: true });
 }
 
 // ---------- light / dark switch (remembered; follows the system until you choose) ----------

@@ -136,6 +136,23 @@ explains the results. It never produces scores itself.
     too, as `api_error` with the rounds and calls it made (the exception carries them). The
     eval checks themselves are unchanged.
 
+### Reviewer access code (public deploys)
+- **What is gated:** `POST /chat`, the only route that calls Claude (a test checks that no other
+  route calls the agent). The data endpoints are deterministic, cost nothing and stay open.
+- **How the check works:** `app/access.py`, run as a FastAPI dependency on `/chat`, so a
+  refused request never reaches `agent.chat()`.
+  - With `REVIEWER_ACCESS_CODE` set, the `X-Access-Code` header must match. Both values are
+    trimmed and compared in constant time (`hmac.compare_digest`).
+  - Missing or wrong code: 401, with `access_code_required` or `access_code_invalid`.
+  - Without a code on Render (detected from `RENDER=true` or `RENDER_SERVICE_ID`): 503
+    `chat_disabled`, so a deploy can't spend API credits before the code is set.
+  - Without a code anywhere else: open, so local runs and tests work as before.
+- **UI:** a 401 shows a password field. The question is kept and sent again once a code is
+  entered. The code lives in `sessionStorage` for that tab.
+- **What it doesn't do:** there is no per-user identity and no rate limiting of failed attempts,
+  so the code should be long and random. It is never logged or returned, and `/health` reports
+  only the mode.
+
 ### Models and availability fallback
 - **Primary:** `claude-sonnet-5-5` at effort `medium`, Sonnet 5.5's recommended start for multistep
   tool use. Thinking stays adaptive (on); it isn't disabled.

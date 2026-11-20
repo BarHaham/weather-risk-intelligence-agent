@@ -177,14 +177,14 @@ python -m evals.run                       # 10 cases against the live agent (use
 
 | Method | Path | Purpose |
 |---|---|---|
-| POST | `/chat` | `{message, session_id?}` → `{session_id, answer (AgentAnswer), status, tool_rounds, max_tool_rounds, tool_calls, models, usage}`. `models` = `{requested, answered_by, calls, fallback}`. `status` = `answered`, `answered_at_tool_limit`, `tool_limit`, `cut_off`, `refused` or `invalid_answer` |
+| POST | `/chat` | `{message, session_id?}` → `{session_id, answer (AgentAnswer), status, tool_rounds, max_tool_rounds, tool_calls, models, usage}`. `models` = `{requested, answered_by, calls, fallback}`. `status` = `answered`, `answered_at_tool_limit`, `tool_limit`, `cut_off`, `refused` or `invalid_answer`. When `REVIEWER_ACCESS_CODE` is set, send it in the `X-Access-Code` header: missing → 401 `access_code_required`, wrong → 401 `access_code_invalid`. On Render without a code: 503 `chat_disabled` (see [Deploying to Render](#deploying-to-render)) |
 | GET | `/rankings?hazard=&region=` | Deterministic ranking (overall or one hazard) |
 | GET | `/hubs/{id}/score` | Full score breakdown for one hub |
 | GET | `/hubs/{id}/weather?metric=&year=&threshold=` | Day counts from Open-Meteo's gridded estimates. Snowfall: no threshold or 0 = any snowfall (> 0 cm); a positive threshold X = at least X cm (>= X); a negative snowfall threshold is rejected with 400 |
 | GET | `/methodology` | Weights, caps, thresholds, sources |
 | GET | `/map/hubs` | Hubs with map position (x/y on the 975x610 map), overall score, tier and rank |
 | GET | `/static/us-states.json` | State outlines for the map |
-| GET | `/hubs`, `/health` | Hub list; data, models, simulated outage and `api_key_source` (`.env` / `environment` / `missing`, never the key) |
+| GET | `/hubs`, `/health` | Hub list; data, models, simulated outage, `api_key_source` (`.env` / `environment` / `missing`, never the key) and `chat_access` (`open` / `code_required` / `disabled`, never the code) |
 
 ## Docker
 
@@ -198,6 +198,47 @@ docker run -p 8000:8000 --env-file .env weather-risk
 
 `.env` is excluded from the image (`.dockerignore`). Docker's `--env-file` needs UTF-8 and
 `KEY=value` lines without quotes.
+
+## Deploying to Render
+
+`/chat` is the only endpoint that calls Claude. On a public URL it is protected by a
+**reviewer access code**, which the server checks before a request reaches Claude. That
+covers the browser UI and direct API calls alike.
+
+| Where | `REVIEWER_ACCESS_CODE` | `/chat` |
+|---|---|---|
+| Anywhere | set | needs the code in the `X-Access-Code` header (401 without it or with a wrong one) |
+| Render | not set | **off**: 503 `chat_disabled`, whatever is sent |
+| Locally | not set | open, as before |
+
+**Setting it up on Render:**
+1. **Create a web service** from this repo. The Docker runtime uses the `Dockerfile`, which
+   listens on `$PORT`.
+2. **Add environment variables:** `ANTHROPIC_API_KEY`, and `REVIEWER_ACCESS_CODE` set to a long
+   random value. One way to make one:
+
+   ```bash
+   python -c "import secrets; print(secrets.token_urlsafe(18))"
+   ```
+
+   Failed attempts aren't rate-limited, so don't use a short or guessable code.
+3. **Check the mode** at `https://<your-app>.onrender.com/health`: `"chat_access"` should be
+   `"code_required"`. Before the code is set, it says `"disabled"`, which also confirms the app
+   detected Render (from the `RENDER` / `RENDER_SERVICE_ID` variables Render sets). The server log
+   has a line saying which mode is active, never the code.
+
+**Using it:**
+- **Reviewers:** on the first question, the chat asks for the code once, then sends the question.
+  The code is kept for that browser tab only.
+- **Direct API calls:**
+
+  ```bash
+  curl -X POST https://<your-app>.onrender.com/chat -H "Content-Type: application/json" -H "X-Access-Code: <code>" -d '{"message": "Rank all of our hubs by overall weather disruption risk."}'
+  ```
+
+**Locally:** no code is needed. To try the check, add `REVIEWER_ACCESS_CODE=...` to `.env`
+and restart the server. The evals call the agent directly, not through `/chat`, so they never
+need the code.
 
 ## Map data
 
