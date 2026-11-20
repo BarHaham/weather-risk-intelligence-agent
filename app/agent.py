@@ -25,7 +25,7 @@ from pydantic import ValidationError
 
 from app import store, tools
 from app.config import hubs, settings
-from app.schemas import AgentAnswer, answer_json_schema
+from app.schemas import AgentAnswer, Figure, answer_json_schema
 
 SIMULATE_ENV = "WRIA_SIMULATE_OUTAGE"
 
@@ -68,8 +68,12 @@ forecasts, unrelated topics): set in_scope=false and explain what is covered.
 Final answer format (JSON, enforced by schema). The UI shows the answer text first and puts \
 all figures in a collapsed "Breakdown" the analyst can expand:
 - answer: concise Markdown for an analyst. Lead with the main result in 1-3 sentences, at most \
-~200 words in total. Do not list breakdown numbers (per month, per component, per hub) in the \
-answer text; they belong in figures as "detail" and would otherwise appear twice.
+~200 words in total. Do not list per-component or per-hub breakdown numbers in the answer \
+text; they belong in figures as "detail" and would otherwise appear twice. Months: for an \
+annual or whole-period question, call weather_stat with by_month=false and don't list months; \
+the app adds the monthly counts to the Breakdown. When the user asks for a monthly breakdown, \
+call it with by_month=true and list the months and their counts in the answer text, and as \
+detail figures.
 - hubs: each hub you discuss with the score you cite and which hazard it belongs to.
 - figures: each other number with its source tool. role "headline" for the 1-3 numbers the \
 answer text states; role "detail" for breakdown rows (e.g. one per month).
@@ -335,6 +339,7 @@ def chat(message: str, session_id: str | None = None, client=None) -> dict:
                   "again, or narrow the question.")
     rounds = 0           # tool rounds run this turn (pause_turn counts too, to stay bounded)
     seen: dict[str, tuple[int, bool]] = {}  # call key -> (1-based call number, is_error)
+    monthly_calls: list[dict] = []  # weather_stat calls whose monthly counts the app adds
     repaired = notice_sent = False
 
     while True:
@@ -388,6 +393,9 @@ def chat(message: str, session_id: str | None = None, client=None) -> dict:
                     output, is_error = tools.execute(block.name, args)
                     trace.append({"tool": block.name, "input": args, "is_error": is_error})
                     seen[key] = (len(trace), is_error)
+                    if (block.name == "weather_stat" and not is_error
+                            and not args.get("by_month") and args.get("year") is not None):
+                        monthly_calls.append(args)
                 results.append({"type": "tool_result", "tool_use_id": block.id,
                                 "content": output, "is_error": is_error})
             new.append({"role": "user", "content": results})  # all results in one message
@@ -419,6 +427,17 @@ def chat(message: str, session_id: str | None = None, client=None) -> dict:
             new.append({"role": "user", "content":
                         f"Your final answer did not validate against the schema: {e}. "
                         "Reply again with only the corrected JSON."})
+
+    if status in (ANSWERED, ANSWERED_AT_TOOL_LIMIT) and monthly_calls:
+        # Annual question: the model got the totals only, so the monthly counts are added to
+        # the Breakdown here, from the same deterministic result (no extra model call). The
+        # stored assistant message is left exactly as the model wrote it.
+        have = {f.label for f in answer.figures}
+        for args in monthly_calls:
+            for f in tools.monthly_figures(args):
+                if f["label"] not in have:
+                    answer.figures.append(Figure(**f))
+                    have.add(f["label"])
 
     # A system message must be followed by an assistant turn (or be last in the request).
     # If the reply after the limit notice was dropped (refusal, cut-off), drop the notice too

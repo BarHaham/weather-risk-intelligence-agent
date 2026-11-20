@@ -11,6 +11,10 @@ desktop, and on mobile the chat comes first.
   three example questions. After the first question it switches to the conversation layout.
 - **Answers:** each one shows its main result first, with the numbers in an expandable
   **Breakdown**.
+  - For an annual question ("what percentage of days last year…"), the monthly counts appear
+    only in the Breakdown.
+  - Ask for a monthly breakdown ("break that down by month") and the months appear in the
+    answer too.
 - **Ranking and map:** hovering a city in the ranking highlights it on the map. Selecting it
   shows the full name ("Houston, Texas"), its score and tier, and a question you can ask
   about that hub.

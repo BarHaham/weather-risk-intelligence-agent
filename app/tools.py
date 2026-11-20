@@ -72,12 +72,17 @@ TOOL_DEFS: list[dict] = [
                        "60), extreme_heat (max temp >= C, default 38); threshold=null uses the "
                        "default. Pass the user's number exactly as given (e.g. 1 for 'at least 1 "
                        "cm'); never adjust it. The result's 'condition' is the exact wording to "
-                       "quote.",
+                       "quote. by_month: true only when the user asks for a monthly breakdown "
+                       "('by month', 'which months', 'each month', 'monthly'); the result then "
+                       "includes the per-month counts to list in the answer. Use false for annual "
+                       "or whole-period questions: the result then has the totals only, and the "
+                       "app adds the per-month counts to the answer's Breakdown itself.",
         "input_schema": _obj({
             "hub_id": {"type": "string", "enum": HUB_IDS},
             "metric": {"type": "string", "enum": list(metrics.METRICS)},
             "year": _nullable({"type": "integer"}),
             "threshold": _nullable({"type": "number"}),
+            "by_month": {"type": "boolean"},
         }),
     },
     {
@@ -135,9 +140,39 @@ def get_score_breakdown(hub_id: str) -> dict:
     return scoring.score_hub(hub_id).model_dump()
 
 
+BY_MONTH_OMITTED = ("not included (by_month=false); the app shows the per-month counts in the "
+                    "answer's Breakdown")
+
+
 def weather_stat(hub_id: str, metric: str, year: int | None = None,
-                 threshold: float | None = None) -> dict:
-    return metrics.weather_stat(hub_id, metric, year, threshold)
+                 threshold: float | None = None, by_month: bool = False) -> dict:
+    """metrics.weather_stat, with the per-month counts left out unless a monthly breakdown was
+    asked for. For an annual question the model then can't list months in the answer text;
+    monthly_figures() adds them to the Breakdown from the same deterministic result."""
+    result = metrics.weather_stat(hub_id, metric, year, threshold)
+    if not by_month and isinstance(result.get("by_month"), dict):
+        result["by_month"] = BY_MONTH_OMITTED
+    return result
+
+
+MONTH_NAMES = ["January", "February", "March", "April", "May", "June", "July", "August",
+               "September", "October", "November", "December"]
+
+
+def monthly_figures(args: dict) -> list[dict]:
+    """Per-month 'detail' figures for a weather_stat call made with by_month=false: one row
+    per month with qualifying days, e.g. 'Denver, January 2025: daily snowfall > 0 cm (any
+    snowfall)' = 11 days. Empty for errors and full-history calls (no monthly data)."""
+    result = metrics.weather_stat(args["hub_id"], args["metric"], args.get("year"),
+                                  args.get("threshold"))
+    months = result.get("by_month")
+    if "error" in result or not isinstance(months, dict):
+        return []
+    city = (get_hub(args["hub_id"]) or {}).get("city", args["hub_id"])
+    return [{"label": f"{city}, {MONTH_NAMES[int(ym[5:7]) - 1]} {ym[:4]}: {result['condition']}",
+             "value": n, "unit": "day" if n == 1 else "days", "source_tool": "weather_stat",
+             "role": "detail"}
+            for ym, n in months.items()]
 
 
 def get_methodology() -> dict:
