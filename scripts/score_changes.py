@@ -59,17 +59,18 @@ def baseline(before: str, repo: Path, out: Path) -> tuple[str, str, str | None]:
     """Score the "before" commit in a temporary worktree.
 
     Returns (status, message, sha): "scored" (written to out), "skipped" (no earlier version to
-    compare: the branch was just created, or that commit has no app yet, like the empty main),
-    or "failed" (the commit is missing from the history, or its scores can't be calculated)."""
+    compare: the branch was just created, or that commit has no app/ at all, like the empty
+    main), or "failed" (the commit can't be found, or it has an app whose scores can't be
+    calculated)."""
     before = (before or "").strip()
+    out = Path(out).resolve()  # the snapshot runs inside the temporary worktree
     if not before or before == ZERO_SHA:
         return "skipped", "The push created the branch: there is no earlier version to compare.", None
-    r = _git(repo, "rev-parse", "--verify", "--quiet", f"{before}^{{commit}}")
-    if r.returncode:
+    sha = _resolve(repo, before)
+    if sha is None:
         return "failed", f"Commit `{before}` isn't in the repository history, so the earlier scores can't be calculated.", None
-    sha = r.stdout.strip()
-    if _git(repo, "cat-file", "-e", f"{sha}:app/scoring.py").returncode:
-        return ("skipped", f"Commit `{sha[:7]}` has no app (no `app/scoring.py`), so there are no "
+    if _git(repo, "cat-file", "-e", f"{sha}:app").returncode:
+        return ("skipped", f"Commit `{sha[:7]}` has no app (no `app/` directory), so there are no "
                            "earlier scores to compare (e.g. the first merge into an empty main).", sha)
     with tempfile.TemporaryDirectory(prefix="scores-before-") as tmp:
         tree = Path(tmp) / "tree"
@@ -83,10 +84,23 @@ def baseline(before: str, repo: Path, out: Path) -> tuple[str, str, str | None]:
                                text=True)
         finally:
             _git(repo, "worktree", "remove", "--force", str(tree))
-    if r.returncode:
+    if r.returncode or not out.exists():
         return "failed", (f"The scores of `{sha[:7]}` couldn't be calculated:\n\n```\n"
-                          f"{_tail(r.stderr or r.stdout)}\n```"), sha
+                          f"{_tail(r.stderr or r.stdout) or 'no output written'}\n```"), sha
     return "scored", f"Scored `{sha[:7]}`.", sha
+
+
+def _resolve(repo: Path, ref: str) -> str | None:
+    """A commit SHA for ref. Also tries origin/<ref> (a manual run's `before` can be a branch,
+    which a CI checkout has only as a remote-tracking ref), and fetches a SHA that isn't in the
+    clone yet (e.g. the old tip after a force push, which no branch reaches any more)."""
+    def rev(name):
+        r = _git(repo, "rev-parse", "--verify", "--quiet", f"{name}^{{commit}}")
+        return r.stdout.strip() if r.returncode == 0 else None
+    sha = rev(ref) or rev(f"refs/remotes/origin/{ref}")
+    if sha is None and _git(repo, "fetch", "--quiet", "--no-tags", "origin", ref).returncode == 0:
+        sha = rev(ref) or rev("FETCH_HEAD")
+    return sha
 
 
 def _tail(text: str, lines: int = 15) -> str:
@@ -235,8 +249,11 @@ def publish(mark: str, title: str, body: str, tier_changed: bool, gh=run_gh) -> 
         raise ValueError("the issue body must contain the comparison marker on its own line")
     for name, (color, desc) in LABELS.items():
         gh(["label", "create", name, "--color", color, "--description", desc, "--force"])
-    issues = json.loads(gh(["issue", "list", "--state", "all", "--label", LABEL,
-                            "--limit", "1000", "--json", "number,body,url"]) or "[]")
+    # No --label filter: gh would then use GitHub search, which can lag behind a just-opened
+    # issue, and an issue whose label someone removed would be missed. The plain listing (most
+    # recent 1000 issues, open and closed) is consistent; the marker is matched here.
+    issues = json.loads(gh(["issue", "list", "--state", "all", "--limit", "1000",
+                            "--json", "number,body,url"]) or "[]")
     existing = find_reported(issues, mark)
     if existing:
         return "exists", existing.get("url") or f"#{existing['number']}"

@@ -185,7 +185,7 @@ def history(tmp_path_factory):
 def test_baseline_skips_the_empty_main(history, tmp_path):
     repo, c = history
     status, msg, sha = sc.baseline(c["empty"], repo, tmp_path / "b.json")
-    assert (status, sha) == ("skipped", c["empty"]) and "has no app" in msg
+    assert (status, sha) == ("skipped", c["empty"]) and "no `app/` directory" in msg
 
 
 def test_baseline_skips_a_newly_created_branch(history, tmp_path):
@@ -255,6 +255,14 @@ def test_existing_issue_with_the_same_marker_is_not_duplicated():
     assert gh.created() == []
     listing = next(a for a in gh.calls if a[:2] == ["issue", "list"])
     assert listing[listing.index("--state") + 1] == "all"  # closed issues count too
+    # no --label filter: gh would answer it from GitHub search, which can lag, and an issue
+    # whose label someone removed would be missed
+    assert "--label" not in listing
+
+
+def test_an_issue_whose_label_was_removed_still_counts():
+    gh = FakeGh([{"number": 7, "url": "u7", "labels": [], "body": body_for()}])
+    assert sc.publish(sc.marker(A, B), "t", body_for(), False, gh=gh) == ("exists", "u7")
 
 
 def test_a_different_comparison_opens_an_issue_with_labels():
@@ -302,3 +310,73 @@ def test_rerunning_the_same_push_end_to_end(tmp_path, monkeypatch):
 def test_publish_refuses_a_body_without_the_marker():
     with pytest.raises(ValueError):
         sc.publish(sc.marker(A, B), "t", "no marker here", False, gh=FakeGh([]))
+
+
+# ---------- review follow-ups: branch names, force pushes, paths, moved modules ----------
+
+@pytest.fixture(scope="module")
+def remote_and_clone(tmp_path_factory):
+    """An origin with a branch and an unreachable commit (like the old tip after a force
+    push), and a clone that has neither as a local branch or object."""
+    base = tmp_path_factory.mktemp("remote")
+    origin, clone = base / "origin", base / "clone"
+    origin.mkdir()
+    git(origin, "init", "-q")
+    copy_app(origin)
+    git(origin, "add", "-A")
+    git(origin, "commit", "-q", "-m", "app")
+    git(origin, "branch", "feature")
+    git(origin, "checkout", "-q", "-b", "gone")
+    cfg = origin / "config.yaml"
+    cfg.write_text(cfg.read_text(encoding="utf-8").replace("  heat: 0.15\n", "  heat: 0.45\n"),
+                   encoding="utf-8")
+    git(origin, "commit", "-q", "-am", "old tip, later force-pushed away")
+    lost = git(origin, "rev-parse", "HEAD")
+    git(origin, "checkout", "-q", "-")
+    git(origin, "branch", "-D", "gone")
+    git(origin, "config", "uploadpack.allowAnySHA1InWant", "true")  # as GitHub allows
+    # --no-local: transfer only reachable objects, as a real fetch from GitHub does
+    subprocess.run(["git", "clone", "-q", "--no-local", str(origin), str(clone)], check=True)
+    assert subprocess.run(["git", "-C", str(clone), "cat-file", "-e", lost]).returncode != 0
+    return clone, lost
+
+
+def test_a_branch_name_resolves_through_the_remote_tracking_ref(remote_and_clone, tmp_path):
+    clone, _ = remote_and_clone
+    assert subprocess.run(["git", "-C", str(clone), "rev-parse", "--verify", "--quiet",
+                           "refs/heads/feature"]).returncode != 0  # only origin/feature exists
+    status, _, sha = sc.baseline("feature", clone, tmp_path / "b.json")
+    assert status == "scored" and sha == git(clone, "rev-parse", "origin/feature")
+
+
+def test_a_force_pushed_away_commit_is_fetched_and_scored(remote_and_clone, tmp_path):
+    clone, lost = remote_and_clone
+    status, _, sha = sc.baseline(lost, clone, tmp_path / "b.json")
+    assert (status, sha) == ("scored", lost)
+    old = json.loads((tmp_path / "b.json").read_text(encoding="utf-8"))
+    assert sc.compare(old, sc.snapshot())["changed"]  # that version's own weights were used
+
+
+def test_a_relative_out_path_is_kept_after_the_worktree_is_removed(history, tmp_path, monkeypatch):
+    repo, c = history
+    monkeypatch.chdir(tmp_path)
+    assert sc.main(["baseline", "--repo-dir", str(repo), "--before", c["good"], "--out", "rel.json"]) == 0
+    assert json.loads((tmp_path / "rel.json").read_text(encoding="utf-8"))["hubs"]["dallas"]["overall"] == 34.9
+
+
+def test_moved_scoring_module_is_still_scored_and_a_missing_one_fails(tmp_path):
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    git(repo, "init", "-q")
+    copy_app(repo)
+    (repo / "app" / "scoring").mkdir()
+    (repo / "app" / "scoring.py").rename(repo / "app" / "scoring" / "__init__.py")
+    git(repo, "add", "-A")
+    git(repo, "commit", "-q", "-m", "scoring as a package")
+    moved = git(repo, "rev-parse", "HEAD")
+    status, _, _ = sc.baseline(moved, repo, tmp_path / "m.json")
+    assert status == "scored"  # an existing app is never skipped
+    git(repo, "rm", "-q", "-r", "app/scoring")
+    git(repo, "commit", "-q", "-m", "no scoring module")
+    status, msg, _ = sc.baseline(git(repo, "rev-parse", "HEAD"), repo, tmp_path / "n.json")
+    assert status == "failed" and "couldn't be calculated" in msg
