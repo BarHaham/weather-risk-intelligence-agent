@@ -9571,6 +9571,910 @@ Dark mode works too, and the logo tile now stands out from the masthead. I'll ad
 … [truncated, 2519 more chars]
 ```
 
+<details><summary>Tool result</summary>
+
+```
+115 passed in 3.71s
+wrote /home/user/weather-risk-intelligence-agent/docs/session-transcript.md (634,332 chars)
+emails: 0 keys: 0
+no .env in repo
+M  app/static/index.html
+M  docs/DESIGN.md
+M  docs/session-transcript.md
+47eee33 Atlas UI review fixes: phone chat scrolling, contrast, focus, labels, request handling
+47eee3312db5ff5d17f3fb335f95ead1555e51cf
+47eee3312db5ff5d17f3fb335f95ead1555e51cf
+```
+</details>
+
+### 🤖 Claude
+
+Pushed as `47eee33`. Updating the PR description's UI section:
+
+**Tool call:** `mcp__github__update_pull_request`
+
+```json
+{
+ "owner": "BarHaham",
+ "repo": "weather-risk-intelligence-agent",
+ "pullNumber": 1,
+ "body": "## Summary\nAn AI agent that helps analysts decide which of 7 US distribution hubs are most exposed to weather disruption.\n- A **deterministic Python risk model** scores each hub from public data: Open-Meteo daily gridded estimates (default Best Match model selection) and FEMA National Risk Index frequencies.\n- **Claude Sonnet 5.5** answers chat questions by calling that model through 6 strict tools, and returns a **JSON-schema-enforced** answer (`AgentAnswer`) that the UI renders.\n- If Sonnet is temporarily unavailable, the request is tried **once on Claude Haiku 5.5**, and every answer reports which model actually answered.\n- The **browser UI is a weather atlas**: a clickable US hub map and the chat share the screen, and each answer shows its main result first.\n- Design, architecture, storage choice and assumptions: `docs/DESIGN.md`. Run instructions (including Windows/PowerShell): `README.md`. AI session transcript: `docs/session-transcript.md`.\n\n## What's included\n- `app/sources/`: Open-Meteo and FEMA NRI clients. Raw responses are cached in `data/cache/` (committed), and SQL
+… [truncated, 5837 more chars]
+```
+
+**Tool call:** `TaskUpdate`
+
+```json
+{
+ "taskId": "18",
+ "status": "completed"
+}
+```
+
+<details><summary>Tool result</summary>
+
+```
+{"id":"5411194102","url":"https://github.com/BarHaham/weather-risk-intelligence-agent/pull/1"}
+```
+</details>
+
+<details><summary>Tool result</summary>
+
+```
+Updated task #18 status
+```
+</details>
+
+**Tool call:** `SendUserFile`
+
+```json
+{
+ "files": [
+  "/tmp/claude-0/-home-user-weather-risk-intelligence-agent/054feb9f-992e-53ec-86ec-b86ccf98458a/scratchpad/ui2/opening-desktop.png",
+  "/tmp/claude-0/-home-user-weather-risk-intelligence-agent/054feb9f-992e-53ec-86ec-b86ccf98458a/scratchpad/ui2/denver-desktop.png",
+  "/tmp/claude-0/-home-user-weather-risk-intelligence-agent/054feb9f-992e-53ec-86ec-b86ccf98458a/scratchpad/ui2/hover-houston.png",
+  "/tmp/claude-0/-home-user-weather-risk-intelligence-agent/054feb9f-992e-53ec-86ec-b86ccf98458a/scratchpad/ui2/opening-mobile.png",
+  "/tmp/claude-0/-home-user-weather-risk-intelligence-agent/054feb9f-992e-53ec-86ec-b86ccf98458a/scratchpad/ui2/denver-dark.png"
+ ],
+ "caption": "1) Opening screen, 1440\u00d7900. 2) Denver answer with Denver selected on the map; the answer is a canned mock, not a live Claude reply. 3) Hovering Houston in the ranking highlights it on the map. 4) iPhone opening screen. 5) The Denver screen in dark mode.",
+ "status": "normal",
+ "display": "render"
+}
+```
+
+<details><summary>Tool result</summary>
+
+```
+5 files delivered to user.
+  /tmp/claude-0/-home-user-weather-risk-intelligence-agent/054feb9f-992e-53ec-86ec-b86ccf98458a/scratchpad/ui2/opening-desktop.png → file_uuid: b56b831a-2936-44b5-8e6e-fce60b547b7a
+  /tmp/claude-0/-home-user-weather-risk-intelligence-agent/054feb9f-992e-53ec-86ec-b86ccf98458a/scratchpad/ui2/denver-desktop.png → file_uuid: 8d0f1b6a-a580-4d28-b460-949b72446ef0
+  /tmp/claude-0/-home-user-weather-risk-intelligence-agent/054feb9f-992e-53ec-86ec-b86ccf98458a/scratchpad/ui2/hover-houston.png → file_uuid: 13aa10af-759a-48a8-852a-02f58198a315
+  /tmp/claude-0/-home-user-weather-risk-intelligence-agent/054feb9f-992e-53ec-86ec-b86ccf98458a/scratchpad/ui2/opening-mobile.png → file_uuid: b9f0b29e-7009-4180-9150-5440d87bd903
+  /tmp/claude-0/-home-user-weather-risk-intelligence-agent/054feb9f-992e-53ec-86ec-b86ccf98458a/scratchpad/ui2/denver-dark.png → file_uuid: 92573bc8-07c1-468e-9a03-ea5a0362f28d
+```
+</details>
+
+### 🤖 Claude
+
+The atlas redesign is finished and I've sent you the opening screen and a Denver answer screen to review. The Denver answer is a canned reply rather than a live Claude answer, because there's no API key here. Nothing has been deployed; the changes are pushed to the draft PR branch (`ae5aebe`, then fixes in `47eee33`).
+
+**Look and layout**
+- **Look:** warm off-white background with navy text, teal accents and serif headings. The map has parchment land on a pale sea, with a faint latitude/longitude grid.
+- **Desktop:** the map and the chat get equal halves and end on the same line.
+- **Mobile:** the chat comes first, then the map.
+- **City labels:** they stay at about 15–17 px at every screen width and move automatically so they never overlap.
+
+**Opening screen**
+- The question box sits right under "What would you like to know about your hubs?", with three example questions below it.
+- After your first question it switches to the normal conversation layout, and "New conversation" brings the opening screen back.
+
+**Ranking and map**
+- Hovering a city in the ranking highlights it on the map and fades the other hubs. Hovering a hub on the map highlights its ranking row.
+- Selecting a hub shows the full name, like "Houston, Texas", with its county, region, score, tier and rank. It also offers one suggested question, such as "What drives Houston's moderate risk score?", and a box to ask your own.
+
+**Favicon:** a teal map pin on a navy tile, with versions for older browsers and iPhone home screens.
+
+**Review fixes.** I had two independent reviewers check the redesign. They confirmed 23 problems and I fixed all of them. The ones you'd notice most:
+- On phones, follow-up answers landed off-screen and kept pushing the map further down.
+- The "Moderate" tier text failed the WCAG contrast guideline, and that's the tier of your top two hubs.
+- Labels shrank to about 10 px on small laptops.
+- Pressing "New conversation" while an answer was loading let the old answer appear in the new conversation.
+- Some error messages showed as "[object Object]".
+
+All 115 tests and 68 browser checks pass, including checks for each of those fixes.
+
+To see it for real, restart the server on Windows, click the Denver example, and hover a few cities in the ranking:
+
+```bash
+.\.venv\Scripts\python.exe -m uvicorn app.main:app --port 8000
+```
+
+The PR is [BarHaham/weather-risk-intelligence-agent#1](https://github.com/BarHaham/weather-risk-intelligence-agent/pull/1). It stays a draft until you're happy with these screens.
+
+---
+
+## 🧑 User
+
+I ran the app locally and noticed a couple of things while testing. Where can I switch to light mode? I couldn’t find a toggle. If it follows my system settings, could you add a light/dark switch in the header and remember my choice?
+I also got an “Invalid signature” error when I continued an older chat after an update. Starting a new conversation worked. Could you handle that case with a short message and a “Start a new conversation” button?
+One more thing about the Denver eval. Would it still pass if the answer said “11.8 days” instead of “11.8%”? Could you check that it validates the unit along with the number, and that the case fails if a required figure is missing?
+
+### 🤖 Claude
+
+Here's what's behind each of the three issues:
+
+1. **Theme:** the app only follows your system setting today. I'll add a light/dark switch to the header and remember your choice.
+2. **"Invalid signature":** Claude's reasoning blocks are tied to the exact system prompt and tools of the conversation they came from. Updates that changed the prompt, like the snowfall-rule fix, make an older conversation's stored reasoning fail validation, so the API rejects it. The fix you asked for is a short message plus a "Start a new conversation" button.
+3. **Denver eval:** I'll confirm the "11.8 days" case by running it before changing anything.
+
+I'll start with the eval question:
+
+**Tool call:** `Bash`
+
+```json
+{
+ "command": "python3 -c \"\nfrom app import store; store.build_from_cache()\nfrom evals import run as r\nimport yaml\ncase = next(c for c in yaml.safe_load(open('evals/cases.yaml', encoding='utf-8')) if c['id']=='denver_snow_last_year')\ndef res(figs, text='Snow fell on 43 of 365 days.'):\n    return {'tool_calls':[{'tool':'weather_stat','input':{},'is_error':False}], 'answer': {'in_scope':True,'answer':text,'hubs':[],'figures':figs,'reasoning_steps':[],'data_sources':[],'assumptions':['x'],'confidence':'medium','follow_up_suggestions':[]}}\nf = lambda v,u: {'label':'x','value':v,'unit':u,'source_tool':'weather_stat','role':'headline'}\nfor name, figs in [('11.8 %', [f(11.8,'%')]), ('11.8 days (wrong unit)', [f(11.8,'days')]), ('no figures at all', []), ('only in text, not in figures', [])]:\n    checks = r.check_case(case, res(figs, 'Denver had snowfall on 11.8% of days.' if 'text' in name else 'x'))\n    print(f'{name:32} passes={all(c[1] for c in checks if c[1] is not None)}', [(n,o) for n,o,_ in checks if n.startswith('figure')])\n\"; grep -n \"figure\" evals/cases.yaml | head",
+ "description": "Check whether the Denver eval accepts a wrong unit or a missing figure"
+}
+```
+
+<details><summary>Tool result</summary>
+
+```
+11.8 %                           passes=True [('figure value', True), ('figure is headline', True)]
+11.8 days (wrong unit)           passes=True [('figure value', True), ('figure is headline', True)]
+no figures at all                passes=False [('figure value', False), ('figure is headline', False)]
+only in text, not in figures     passes=False [('figure value', False), ('figure is headline', False)]
+10:#   figure:         {hub_id, metric, year, threshold, field, tol} -> some answer.figures value
+12:#                   optional role: headline -> that figure must be a headline figure (the
+15:#                   breakdown belongs in the detail figures, not in the text)
+38:  figure: {hub_id: denver, metric: snowfall, year: 2025, threshold: null, field: percent_of_days, tol: 0.5, role: headline}
+60:  figure: {hub_id: denver, metric: snowfall, year: 2025, threshold: 1.0, field: days_meeting_condition, tol: 0, role: headline}
+```
+</details>
+
+**Tool call:** `TaskCreate`
+
+```json
+{
+ "subject": "Eval: validate figure unit, fail when required figure missing",
+ "description": "figure spec unit (default from field), aliases, combined value+unit check, no-data = FAIL, tests",
+ "activeForm": "Tightening the figure eval"
+}
+```
+
+<details><summary>Tool result</summary>
+
+```
+Task #19 created successfully: Eval: validate figure unit, fail when required figure missing
+```
+</details>
+
+**Tool call:** `TaskCreate`
+
+```json
+{
+ "subject": "Stale conversation (invalid signature) handling",
+ "description": "detect 400 signature errors (primary and fallback), 409 with code, UI message + Start a new conversation button (prefill question), tests",
+ "activeForm": "Handling expired conversations"
+}
+```
+
+<details><summary>Tool result</summary>
+
+```
+Task #20 created successfully: Stale conversation (invalid signature) handling
+```
+</details>
+
+**Tool call:** `TaskCreate`
+
+```json
+{
+ "subject": "Light/dark switch in header, remembered",
+ "description": "data-theme tokens, inline pre-paint script, role=switch button, localStorage, follow system until chosen, browser checks",
+ "activeForm": "Adding the theme switch"
+}
+```
+
+<details><summary>Tool result</summary>
+
+```
+Task #21 created successfully: Light/dark switch in header, remembered
+```
+</details>
+
+**Tool call:** `TaskCreate`
+
+```json
+{
+ "subject": "Verify, review, docs, PR, push",
+ "description": "pytest, browser checks, independent review, README/DESIGN, PR body, transcript, commit/push",
+ "activeForm": "Verifying and shipping"
+}
+```
+
+<details><summary>Tool result</summary>
+
+```
+Task #22 created successfully: Verify, review, docs, PR, push
+```
+</details>
+
+**Tool call:** `TaskUpdate`
+
+```json
+{
+ "taskId": "19",
+ "status": "in_progress"
+}
+```
+
+<details><summary>Tool result</summary>
+
+```
+Updated task #19 status
+```
+</details>
+
+**Tool call:** `Bash`
+
+```json
+{
+ "command": "grep -n 'if \"figure\" in case:' -A20 evals/run.py && grep -n \"def expected_figure\" -A5 evals/run.py && grep -n \"dry_run\" -A9 evals/run.py | head -14",
+ "description": "Show current figure check, expected_figure and dry run"
+}
+```
+
+<details><summary>Tool result</summary>
+
+```
+108:    if "figure" in case:
+109-        want, stat = expected_figure(case["figure"])
+110-        if want is None:
+111-            checks.append(("figure", None, f"SKIP: no data ({stat.get('error')})"))
+112-        else:
+113-            vals = [f["value"] for f in a["figures"]]
+114-            ok = any(abs(v - want) <= case["figure"]["tol"] for v in vals)
+115-            checks.append(("figure value", ok, f"want={want} got={vals}"))
+116-            if case["figure"].get("role"):
+117-                role = case["figure"]["role"]
+118-                roles = [f.get("role") for f in a["figures"]
+119-                         if abs(f["value"] - want) <= case["figure"]["tol"]]
+120-                checks.append((f"figure is {role}", role in roles, f"roles={roles}"))
+121-    if case.get("no_month_list"):
+122-        months = months_named(a["answer"])
+123-        checks.append(("no month list in answer", len(months) <= MAX_MONTHS_IN_ANSWER,
+124-                       f"months={months}"))
+125-
+126-    # Always: scores in the answer must match the deterministic model (no invented numbers).
+127-    bad = [(h["hub_id"], h["hazard"], h["score"], model_score(h["hub_id"], h["hazard"]))
+128-           for h in a["hubs"] if abs(h["score"] - model_score(h["hub_id"], h["hazard"])) > 0.1]
+34:def expected_figure(spec: dict):
+35-    stat = metrics.weather_stat(spec["hub_id"], spec["metric"], spec.get("year"),
+36-                                spec.get("threshold"))
+37-    return stat.get(spec["fie
+… [truncated, 427 more chars]
+```
+</details>
+
+**Tool call:** `Bash`
+
+```json
+{
+ "command": "python3 - <<'EOF'\nimport pathlib\ndef edit(path, pairs):\n    p = pathlib.Path(path); s = p.read_text(encoding=\"utf-8\")\n    for old, new in pairs:\n        assert old in s, (path, old[:70]); s = s.replace(old, new)\n    p.write_text(s, encoding=\"utf-8\")\nedit(\"evals/run.py\", [\n('''def expected_figure(spec: dict):\n    stat = metrics.weather_stat(spec[\"hub_id\"], spec[\"metric\"], spec.get(\"year\"),\n                                spec.get(\"threshold\"))\n    return stat.get(spec[\"field\"]), stat\n''', '''def expected_figure(spec: dict):\n    stat = metrics.weather_stat(spec[\"hub_id\"], spec[\"metric\"], spec.get(\"year\"),\n                                spec.get(\"threshold\"))\n    return stat.get(spec[\"field\"]), stat\n\n\n# A figure must carry the right unit as well as the right number: \"11.8 days\" is not \"11.8%\".\nFIELD_UNITS = {\"percent_of_days\": \"%\", \"days_meeting_condition\": \"days\", \"days_with_data\": \"days\"}\n_PERCENT_RE = re.compile(r\"%|\\\\bper ?cent(age)?\\\\b|\\\\bpct\\\\b\", re.IGNORECASE)\n_DAYS_RE = re.compile(r\"\\\\bdays?\\\\b\", re.IGNORECASE)\n\n\ndef expected_unit(spec: dict) -> str:\n    unit = spec.get(\"unit\")
+… [truncated, 4816 more chars]
+```
+
+<details><summary>Tool result</summary>
+
+```
+denver_snow_last_year    tools=['weather_stat'] in_scope=True {'figure': '11.8 %'}
+denver_snow_threshold    tools=['weather_stat'] in_scope=True {'figure': '17 days'}
+overall_ranking          tools=['rank_hubs'] in_scope=True {'ranking': ['houston', 'miami', 'dallas', 'chicago', 'detroit', 'minneapolis', 'denver']}
+11.8 %           True  want 11.8 % (tol 0.5); got 11.8 '%'
+11.8 percent     True  want 11.8 % (tol 0.5); got 11.8 'percent'
+11.8 % of days   True  want 11.8 % (tol 0.5); got 11.8 '% of days'
+11.8 days        False  want 11.8 % (tol 0.5); got 11.8 'days'
+none             False  want 11.8 % (tol 0.5); got no figures
+=========================== short test summary info ============================
+FAILED tests/test_model_fallback.py::test_threshold_case_fails_when_agent_tries_0_99_even_with_the_right_count
+1 failed, 114 passed in 3.76s
+```
+</details>
+
+**Tool call:** `Bash`
+
+```json
+{
+ "command": "python3 - <<'EOF'\nimport pathlib\np = pathlib.Path(\"tests/test_model_fallback.py\"); s = p.read_text(encoding=\"utf-8\")\nold = '''    assert checks[\"figure value\"] is True            # the count itself is right...'''\nassert old in s\ns = s.replace(old, '''    assert checks[next(n for n in checks if n.startswith(\"figure 17\"))] is True  # the count is right...''')\np.write_text(s, encoding=\"utf-8\")\nEOF\ncat > tests/test_eval_figure_checks.py <<'EOF'\n\"\"\"The eval's required-figure check: right number AND right unit, in answer.figures.\"\"\"\nimport pytest\n\nfrom app import store\nfrom evals import run as eval_run\n\n\ndef setup_module():\n    store.build_from_cache()\n\n\nPCT = {\"id\": \"denver_snow_last_year\", \"turns\": [\"q\"], \"in_scope\": True,\n       \"figure\": {\"hub_id\": \"denver\", \"metric\": \"snowfall\", \"year\": 2025, \"threshold\": None,\n                  \"field\": \"percent_of_days\", \"tol\": 0.5, \"unit\": \"%\", \"role\": \"headline\"}}\nDAYS = {\"id\": \"denver_snow_threshold\", \"turns\": [\"q\"], \"in_scope\": True,\n        \"figure\": {\"hub_id\": \"denver\", \"metric\": \"snowfall\", \"year\": 2025, \"threshold\": 1.0,\n  
+… [truncated, 4021 more chars]
+```
+
+<details><summary>Tool result</summary>
+
+```
+..............................................................           [100%]
+134 passed in 3.71s
+```
+</details>
+
+**Tool call:** `TaskUpdate`
+
+```json
+{
+ "taskId": "19",
+ "status": "completed"
+}
+```
+
+<details><summary>Tool result</summary>
+
+```
+Updated task #19 status
+```
+</details>
+
+**Tool call:** `TaskUpdate`
+
+```json
+{
+ "taskId": "20",
+ "status": "in_progress"
+}
+```
+
+<details><summary>Tool result</summary>
+
+```
+Updated task #20 status
+```
+</details>
+
+**Tool call:** `Bash`
+
+```json
+{
+ "command": "cd /tmp/claude-0/bundled-skills/2.1.329/584084131c90118515174e77db29bc70/claude-api/shared && grep -n -i \"invalid.*signature\\|signature.*invalid\\|history-editing check.*400\\|is a 400\\|prefix_mismatch\\|thinking block.*400\" model-migration.md | head -20",
+ "description": "Find documented error text for invalid thinking signatures"
+}
+```
+
+<details><summary>Tool result</summary>
+
+```
+1382:Each model reads its own thinking blocks and those of a fixed set of other models; the Claude Opus 5.5, Claude Sonnet 5.5, and Claude Haiku 5.5 migration sections list who reads theirs. A Claude Fable 5.1 / Claude Mythos 5.1 block is read only by that pair and by Claude Fable 5.2 / Claude Mythos 5.2 (see Migrating to Claude Fable 5.1 from Claude Fable 5), and a thinking block from Claude Fable 5/Claude Mythos 5 replayed to a different model is **dropped from the prompt** (except by Claude Fable 5.1 / Claude Mythos 5.1 and Claude Fable 5.2 / Claude Mythos 5.2, which read these blocks) - typically silently (early-access builds hard-rejected with `invalid_request_error`; that broke workflows and was reverted before launch, but the new behavior is still rolling out, so don't build logic that depends on either outcome). The drop happens before the prompt is priced, so a dropped block **lowers `usage.input_tokens`** - you aren't billed for it, and there's nothing to strip for cost. Don't strip thinking blocks yourself either, even ones the current model can't read: removing them can trigger ordering/signature 400s, and a block left in the history is read again when the conversation returns to a model that can read it. Two rules for replay bodies stand regardless: fallback-credit retries must echo the refused body **unchanged**, and `fallback` blocks from a mid-output fallback stay where they appeared.
+1466:**3. Hand-rolled retry + fallback credit (raw HTTP, or SDKs without the
+… [truncated, 21970 more chars]
+```
+</details>
+
+**Tool call:** `Bash`
+
+```json
+{
+ "command": "python3 - <<'EOF'\nimport pathlib\ndef edit(path, pairs):\n    p = pathlib.Path(path); s = p.read_text(encoding=\"utf-8\")\n    for old, new in pairs:\n        assert old in s, (path, old[:70]); s = s.replace(old, new)\n    p.write_text(s, encoding=\"utf-8\")\nedit(\"app/agent.py\", [\n('''class FallbackFailedError(Exception):''',\n '''_INVALID_SIGNATURE_RE = re.compile(r\"invalid\\\\W+signature\", re.IGNORECASE)\n\n\ndef is_expired_conversation(err: BaseException) -> bool:\n    \"\"\"True for the 400 the API returns when a stored conversation's reasoning (thinking) blocks\n    no longer validate: \"Invalid `signature` in `thinking` block\". That happens when an app\n    update changed the system prompt or tools after the conversation was stored (preserved\n    thinking's history-editing check), or when a signature can't be verified. The conversation\n    can't be continued; a new one works.\"\"\"\n    if isinstance(err, FallbackFailedError):\n        return is_expired_conversation(err.fallback_error)\n    return isinstance(err, anthropic.BadRequestError) and bool(\n        _INVALID_SIGNATURE_RE.search(describe_error(err)))\n\n\nclass FallbackFailedError(Exception):'
+… [truncated, 1905 more chars]
+```
+
+<details><summary>Tool result</summary>
+
+```
+True | messages.5.content.0: Invalid `signature` in `thinking` bloc
+True | messages.1.content.0: Invalid `signature` in `thinking` bloc
+False | max_tokens: must be positive
+```
+</details>
+
+**Tool call:** `Bash`
+
+```json
+{
+ "command": "python3 - <<'EOF'\nimport pathlib\np = pathlib.Path(\"app/main.py\"); s = p.read_text(encoding=\"utf-8\")\nold = '''    except agent.FallbackFailedError as e:\n        # Both errors are named; the status follows the fallback's real error, so an outage\n        # (503) can be told apart from a permissions/config problem on the fallback (502).\n        raise HTTPException(503 if e.fallback_unavailable else 502, e.describe())\n'''\nassert old in s; s = s.replace(old, \"\")\ns = s.replace('''        if isinstance(e, agent.FallbackFailedError):\n            raise HTTPException(503 if e.fallback_unavailable else 502, e.describe())''',\n'''        if isinstance(e, agent.FallbackFailedError):\n            # Both errors are named; the status follows the fallback's real error, so an outage\n            # (503) can be told apart from a permissions/config problem on the fallback (502).\n            raise HTTPException(503 if e.fallback_unavailable else 502, e.describe())''')\np.write_text(s, encoding=\"utf-8\")\nEOF\nsed -n '/^@app.post(\"\\/chat\")/,/^@app.get(\"\\/hubs\")/p' app/main.py",
+ "description": "Remove unreachable except clause; show /chat handler"
+}
+```
+
+<details><summary>Tool result</summary>
+
+```
+@app.post("/chat")
+def chat(req: ChatRequest):
+    try:
+        return agent.chat(req.message, req.session_id)
+    except (anthropic.BadRequestError, agent.FallbackFailedError) as e:
+        if agent.is_expired_conversation(e):  # stored reasoning no longer validates
+            raise HTTPException(409, CONVERSATION_EXPIRED)
+        if isinstance(e, agent.FallbackFailedError):
+            # Both errors are named; the status follows the fallback's real error, so an outage
+            # (503) can be told apart from a permissions/config problem on the fallback (502).
+            raise HTTPException(503 if e.fallback_unavailable else 502, e.describe())
+        raise HTTPException(502, f"Anthropic API error: {agent.describe_error(e)}")
+    except TypeError as e:  # SDK raises this when no credentials can be resolved at all
+        if "authentication" not in str(e).lower():
+            raise
+        raise HTTPException(503, "No Anthropic credentials found: set ANTHROPIC_API_KEY "
+                                 "(in .env or the environment).")
+    except anthropic.AuthenticationError as e:
+        raise HTTPException(503, "Anthropic credentials missing or invalid: check "
+                                 f"ANTHROPIC_API_KEY ({agent.describe_error(e)}).")
+    except anthropic.RateLimitError as e:  # only reached when no fallback model is configured
+        raise HTTPException(429, f"Anthropic rate limit hit; retry shortly ({agent.describe_error(e)}).")
+    except anthropic.APIStatu
+… [truncated, 262 more chars]
+```
+</details>
+
+**Tool call:** `TaskUpdate`
+
+```json
+{
+ "taskId": "21",
+ "status": "in_progress"
+}
+```
+
+<details><summary>Tool result</summary>
+
+```
+Updated task #21 status
+```
+</details>
+
+**Tool call:** `Bash`
+
+```json
+{
+ "command": "python3 - <<'EOF'\nimport pathlib\np = pathlib.Path(\"app/static/index.html\"); s = p.read_text(encoding=\"utf-8\")\npairs = [\n# --- pre-paint theme script ---\n('''<link rel=\"apple-touch-icon\" href=\"/static/apple-touch-icon.png\">\n<style>''',\n '''<link rel=\"apple-touch-icon\" href=\"/static/apple-touch-icon.png\">\n<script>\n  // Apply the saved light/dark choice (or the system setting) before the first paint.\n  (function () {\n    var t = null;\n    try { t = localStorage.getItem(\"wr_theme\"); } catch (e) {}\n    if (t !== \"light\" && t !== \"dark\") t = matchMedia(\"(prefers-color-scheme: dark)\").matches ? \"dark\" : \"light\";\n    document.documentElement.dataset.theme = t;\n  })();\n</script>\n<style>'''),\n# --- theme tokens: data-theme instead of the media query ---\n('''  :root { color-scheme: light dark;\n          --bg:#f6f1e6;''', '''  :root { color-scheme: light;\n          --bg:#f6f1e6;'''),\n('''  @media (prefers-color-scheme: dark) {\n    :root { --bg:#0e1525; --panel:#15203a; --ink:#f3ede0; --muted:#a8b0c2; --line:#27324f;\n            --accent:#3cc4b4; --user:#1f2c4a; --hl:#1b2d44;\n            --sea:#101a2e; --land:#243251; --land-edge:#
+… [truncated, 6583 more chars]
+```
+
+<details><summary>Tool result</summary>
+
+```
+15:    if (t !== "light" && t !== "dark") t = matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+545:const THEME_KEY = "wr_theme", systemDark = window.matchMedia("(prefers-color-scheme: dark)");
+```
+</details>
+
+**Tool call:** `Bash`
+
+```json
+{
+ "command": "cat > tests/test_expired_conversation.py <<'EOF'\n\"\"\"Continuing a conversation stored before an app update: the API rejects its saved reasoning\nblocks (\"Invalid `signature` in `thinking` block\"); /chat answers 409 conversation_expired so the\nUI can offer a fresh start, and other 400s keep their normal handling.\"\"\"\nimport uuid\n\nimport anthropic\nimport pytest\nfrom fastapi import HTTPException\n\nfrom app import agent, main, store\nfrom tests.fakes import HAIKU, SONNET, FakeClient, api_error, overloaded\n\nBOUND = (\"messages.5.content.0: Invalid `signature` in `thinking` block. The block is bound to a \"\n         \"different conversation. Remove the block, or set \"\n         \"`thinking.block_binding.prefix_mismatch_behavior` to \\\"drop_block\\\".\")\nTAMPERED = \"messages.1.content.0: Invalid `signature` in `thinking` block\"\n\n\ndef setup_module():\n    store.build_from_cache()\n\n\ndef bad_request(message):\n    return api_error(anthropic.BadRequestError, 400, \"invalid_request_error\", message)\n\n\[email redacted](\"message\", [BOUND, TAMPERED, \"Invalid signature in thinking block\"])\ndef test_invalid_thinking_signature_is_an_expired_conversat
+… [truncated, 2556 more chars]
+```
+
+<details><summary>Tool result</summary>
+
+```
+.                                                                        [100%]
+145 passed in 3.80s
+```
+</details>
+
+### 🤖 Claude
+
+All 145 tests pass. Now a browser check for the theme switch and the expired-conversation notice:
+
+**Tool call:** `Bash`
+
+```json
+{
+ "command": "S=/tmp/claude-0/-home-user-weather-risk-intelligence-agent/054feb9f-992e-53ec-86ec-b86ccf98458a/scratchpad/ui2 && cat > $S/check-theme.js <<'EOF'\nconst { chromium, devices } = require('playwright');\nconst BASE = 'http://127.0.0.1:8797', OUT = process.argv[2];\nconst CANNED = require('./canned.js');\nconst results = []; const ok = (n, c, i = '') => results.push(`${c ? 'PASS' : 'FAIL'}  ${n}${i ? '  ' + i : ''}`);\nconst LIGHT_BG = 'rgb(246, 241, 230)', DARK_BG = 'rgb(14, 21, 37)';\nconst state = p => p.evaluate(() => ({ theme: document.documentElement.dataset.theme,\n  checked: document.getElementById('theme').getAttribute('aria-checked'), bg: getComputedStyle(document.body).backgroundColor,\n  land: getComputedStyle(document.querySelector('#states path') || document.body).fill,\n  stored: (() => { try { return localStorage.getItem('wr_theme'); } catch (e) { return 'ERR'; } })() }));\nasync function open(ctx, chat) {\n  const p = await ctx.newPage(); p.on('pageerror', e => results.push('FAIL  page error: ' + e.message));\n  if (chat) await p.route('**/chat', chat);\n  await p.goto(BASE + '/'); await p.waitForSelector('#markers .hub'); return p;\n}\n(async () => {\n 
+… [truncated, 6006 more chars]
+```
+
+<details><summary>Tool result</summary>
+
+```
+PASS  theme script runs before the stylesheet
+PASS  system light: starts light, switch off  {"theme":"light","checked":"false","bg":"rgb(246, 241, 230)","land":"rgb(237, 227, 205)","stored":null}
+PASS  switch is in the header and named "Dark mode"
+PASS  click: switches to dark and remembers it  {"theme":"dark","checked":"true","bg":"rgb(14, 21, 37)","land":"rgb(36, 50, 81)","stored":"dark"}
+PASS  map colours follow the switch  rgb(36, 50, 81)
+PASS  reload: dark choice remembered  {"theme":"dark","checked":"true","bg":"rgb(14, 21, 37)","land":"rgb(36, 50, 81)","stored":"dark"}
+PASS  a saved choice wins over the system setting
+PASS  keyboard Space toggles back to light
+PASS  keyboard Enter toggles to dark
+PASS  system dark + saved light: shows light  {"theme":"light","checked":"false","bg":"rgb(246, 241, 230)","land":"rgb(237, 227, 205)","stored":"light"}
+PASS  system dark, nothing saved: starts dark, switch on  {"theme":"dark","checked":"true","bg":"rgb(14, 21, 37)","land":"rgb(36, 50, 81)","stored":null}
+PASS  nothing saved: follows a live system change
+PASS  mobile: switch visible, label visually hidden but still its name
+PASS  mobile: no horizontal scroll
+PASS  expired: short message shown  "This conversation was started with an earlier version of the app and can't be continued. S"
+PASS  expired: "Start a new conversation" button shown
+PASS  expired: old session forgotten right away
+PASS  restart: opening screen with the question ready to send
+ALL CHECKS PASSED
+--- ui:
+ALL 
+… [truncated, 43 more chars]
+```
+</details>
+
+### 🤖 Claude
+
+All 18 new checks pass, and the earlier UI and review suites still pass. I'll look at the new screens:
+
+**Tool call:** `Read`
+
+```json
+{
+ "file_path": "/tmp/claude-0/-home-user-weather-risk-intelligence-agent/054feb9f-992e-53ec-86ec-b86ccf98458a/scratchpad/ui2/expired-notice.png"
+}
+```
+
+<details><summary>Tool result</summary>
+
+```
+[image]
+```
+</details>
+
+---
+
+## 🧑 User
+
+[Image: original 2880x1800, displayed at 2000x1250. Multiply coordinates by 1.44 to map to original image.]
+
+**Tool call:** `Read`
+
+```json
+{
+ "file_path": "/tmp/claude-0/-home-user-weather-risk-intelligence-agent/054feb9f-992e-53ec-86ec-b86ccf98458a/scratchpad/ui2/header-light.png"
+}
+```
+
+<details><summary>Tool result</summary>
+
+```
+[image]
+```
+</details>
+
+---
+
+## 🧑 User
+
+[Image: original 2880x164, displayed at 2000x114. Multiply coordinates by 1.44 to map to original image.]
+
+**Tool call:** `Read`
+
+```json
+{
+ "file_path": "/tmp/claude-0/-home-user-weather-risk-intelligence-agent/054feb9f-992e-53ec-86ec-b86ccf98458a/scratchpad/ui2/header-dark.png"
+}
+```
+
+<details><summary>Tool result</summary>
+
+```
+[image]
+```
+</details>
+
+---
+
+## 🧑 User
+
+[Image: original 2880x164, displayed at 2000x114. Multiply coordinates by 1.44 to map to original image.]
+
+**Tool call:** `Read`
+
+```json
+{
+ "file_path": "/tmp/claude-0/-home-user-weather-risk-intelligence-agent/054feb9f-992e-53ec-86ec-b86ccf98458a/scratchpad/ui2/header-mobile.png"
+}
+```
+
+<details><summary>Tool result</summary>
+
+```
+[image]
+```
+</details>
+
+**Tool call:** `Bash`
+
+```json
+{
+ "command": "python3 - <<'EOF'\nimport pathlib\np = pathlib.Path(\"app/static/index.html\"); s = p.read_text(encoding=\"utf-8\")\npairs = [\n('''  .theme-switch .knob { position:absolute; top:3px; left:3px; width:16px; height:16px; border-radius:50%;\n                        background:var(--panel); box-shadow:0 1px 2px rgba(0,0,0,.25); transition:transform .15s ease; }''',\n '''  .theme-switch .track { box-shadow:inset 0 0 0 1px var(--muted); }  /* >= 3:1 outline when off */\n  .theme-switch .knob { position:absolute; top:3px; left:3px; width:16px; height:16px; border-radius:50%;\n                        background:var(--panel); box-shadow:0 1px 2px rgba(0,0,0,.25); transition:transform .15s ease;\n                        display:grid; place-items:center; color:var(--ink); }\n  .theme-switch .knob svg { width:11px; height:11px; }\n  .theme-switch .moon, .theme-switch[aria-checked=\"true\"] .sun { display:none; }\n  .theme-switch[aria-checked=\"true\"] .moon { display:block; }'''),\n('''  .theme-switch[aria-checked=\"true\"] .track { background:var(--accent); }''',\n '''  .theme-switch[aria-checked=\"true\"] .track { background:var(--accent); box-shadow:none; }'''),\n('''<span cl
+… [truncated, 1153 more chars]
+```
+
+**Tool call:** `Workflow`
+
+```json
+{
+ "script": "export const meta = {\n  name: 'theme-expiry-eval-review',\n  description: 'Review the theme switch, expired-conversation handling and eval unit check for real bugs, then verify each finding',\n  phases: [{ title: 'Review' }, { title: 'Verify' }],\n}\nconst A = args\nconst FINDINGS = { type: 'object', properties: { findings: { type: 'array', items: { type: 'object', properties: {\n  title: { type: 'string' }, where: { type: 'string' }, problem: { type: 'string' }, failure_scenario: { type: 'string' },\n  fix: { type: 'string' }, severity: { type: 'string', enum: ['important', 'minor'] } },\n  required: ['title', 'where', 'problem', 'failure_scenario', 'fix', 'severity'] } } }, required: ['findings'] }\nconst VERDICT = { type: 'object', properties: { real: { type: 'boolean' }, reasoning: { type: 'string' }, corrected_fix: { type: 'string' } },\n  required: ['real', 'reasoning', 'corrected_fix'] }\nconst common = `Repository ${A.repo} (read-only; scratch files only under ${A.scratch}). See the uncommitted change with \\`git -C ${A.repo} diff\\` (new files: tests/test_eval_figure_checks.py, tests/test_expired_conversation.py).\nThe change implements three user requests:\
+… [truncated, 3443 more chars]
+```
+
+<details><summary>Tool result</summary>
+
+```
+ALL CHECKS PASSED
+145 passed in 3.86s
+```
+</details>
+
+<details><summary>Tool result</summary>
+
+```
+Workflow launched in background. Task ID: wzsxvd6r7
+Summary: Review the theme switch, expired-conversation handling and eval unit check for real bugs, then verify each finding
+Transcript dir: /root/.claude/projects/-home-user-weather-risk-intelligence-agent/054feb9f-992e-53ec-86ec-b86ccf98458a/subagents/workflows/wf_d9ae18c8-0d2
+Script file: /root/.claude/projects/-home-user-weather-risk-intelligence-agent/054feb9f-992e-53ec-86ec-b86ccf98458a/workflows/scripts/theme-expiry-eval-review-wf_d9ae18c8-0d2.js
+(Edit this file with Write/Edit and re-invoke Workflow with {scriptPath: "/root/.claude/projects/-home-user-weather-risk-intelligence-agent/054feb9f-992e-53ec-86ec-b86ccf98458a/workflows/scripts/theme-expiry-eval-review-wf_d9ae18c8-0d2.js"} to iterate without resending the script.)
+Run ID: wf_d9ae18c8-0d2
+To resume after editing the script, with the same args if this run had any: Workflow({scriptPath: "/root/.claude/projects/-home-user-weather-risk-intelligence-agent/054feb9f-992e-53ec-86ec-b86ccf98458a/workflows/scripts/theme-expiry-eval-review-wf_d9ae18c8-0d2.js", resumeFromRunId: "wf_d9ae18c8-0d2"}) — agent() calls return cached results up to the first one that failed, no longer matches (edited, added, removed, or in a different call order) or never started. Cached results may themselves be empty: inspect journal.jsonl before assuming there is something to recover.
+
+You will be notified when it completes. Use /workflows to watch live progress.
+```
+</details>
+
+### 🤖 Claude
+
+While the review runs, I'll update the docs:
+
+**Tool call:** `Bash`
+
+```json
+{
+ "command": "grep -n \"Older chat sessions saved by a previous version\" README.md; grep -n \"Follow-ups:\\*\\*\" docs/DESIGN.md; grep -n \"Per-case checks\" -A8 docs/DESIGN.md | head -12; grep -n \"Favicon\" docs/DESIGN.md",
+ "description": "Locate doc sections to update"
+}
+```
+
+<details><summary>Tool result</summary>
+
+```
+133:Older chat sessions saved by a previous version can be cleared with "Start a new conversation" in
+68:- **Follow-ups:** history is stored per `session_id` in SQLite and replayed in full, including
+253:Per-case checks:
+254-- the required tools were called
+255-- `in_scope` is correct
+256-- the expected hubs are mentioned
+257-- the ranking order matches the model's
+258-- cited figures are within tolerance of `metrics.weather_stat`
+259-
+260-Always checked:
+261-- the answer validates against the schema
+116:  - **Favicon:** a teal pin on a navy tile (`app/static/favicon.svg`, with PNG fallbacks and
+```
+</details>
+
+**Tool call:** `Bash`
+
+```json
+{
+ "command": "sed -n 66,72p docs/DESIGN.md; sed -n 131,135p README.md; sed -n 114,118p docs/DESIGN.md",
+ "description": "Show exact text around doc edit points"
+}
+```
+
+<details><summary>Tool result</summary>
+
+```
+- **Grounding:** the system prompt says every number must come from a tool result. The evals
+  check that every `hubs[].score` equals the model's score (±0.1).
+- **Follow-ups:** history is stored per `session_id` in SQLite and replayed in full, including
+  thinking and tool blocks. It is append-only, which the model's thinking blocks require.
+- **Refusals and cut-offs:** `stop_reason` is checked for `refusal`, `max_tokens` and `pause_turn`.
+  A refusal is not retried on another model: the earlier server-side refusal fallback was replaced
+  by the availability fallback below. The refused (or cut-off) assistant message is not stored, so
+- **Refusals** are not retried on another model. The answer says the request can't be handled.
+
+Older chat sessions saved by a previous version can be cleared with "Start a new conversation" in
+the UI.
+
+    about your hubs?" and three example questions. It switches to the usual conversation layout
+    after the first question, and "New conversation" returns to it.
+  - **Favicon:** a teal pin on a navy tile (`app/static/favicon.svg`, with PNG fallbacks and
+    `/favicon.ico`).
+- **Hub map.** A US map sits next to the chat on desktop, and below the chat on mobile.
+```
+</details>
+
+**Tool call:** `Bash`
+
+```json
+{
+ "command": "python3 - <<'EOF'\nimport pathlib\ndef edit(path, pairs):\n    p = pathlib.Path(path); s = p.read_text(encoding=\"utf-8\")\n    for old, new in pairs:\n        assert old in s, (path, old[:70]); s = s.replace(old, new)\n    p.write_text(s, encoding=\"utf-8\")\nedit(\"docs/DESIGN.md\", [\n('''- **Follow-ups:** history is stored per `session_id` in SQLite and replayed in full, including\n  thinking and tool blocks. It is append-only, which the model's thinking blocks require.''',\n '''- **Follow-ups:** history is stored per `session_id` in SQLite and replayed in full, including\n  thinking and tool blocks. It is append-only, which the model's thinking blocks require.\n- **Conversations from an earlier app version:** each stored thinking block is tied to the exact\n  system prompt and tools it was produced with.\n  - When an update changes them (as the snowfall-rule and breakdown changes did), continuing an\n    older chat fails with \"Invalid `signature` in `thinking` block\". That is the API's\n    history-editing check, enforced for newer accounts.\n  - `/chat` turns that error into a 409 `conversation_expired`, and the UI shows a short message\n    with a **Start a 
+… [truncated, 2123 more chars]
+```
+
+<details><summary>Tool result</summary>
+
+```
+README.md:133:**Light/dark mode:** use the **Dark mode** switch in the header. The choice is remembered in
+docs/DESIGN.md:75:  - `/chat` turns that error into a 409 `conversation_expired`, and the UI shows a short message
+```
+</details>
+
+### 🤖 Claude
+
+The docs are updated. I'll hold the commit until the review finishes, so its fixes go in with these changes.
+
+---
+
+## 🧑 User
+
+Stop hook feedback:
+[command hook]: There are uncommitted changes in the repository. Please commit and push these changes to the remote branch.
+
+**Tool call:** `Bash`
+
+```json
+{
+ "command": "python3 -m pytest -q -p no:warnings 2>&1 | tail -1 && test ! -e .env && echo \"no .env in repo\" && git add -A && git status --short && git commit -q -m \"Light/dark switch, friendly expired-conversation notice, eval checks figure units\n\n- Header 'Dark mode' switch (role=switch, sun/moon knob) that remembers the\n  choice in localStorage and follows the system setting (live) until chosen;\n  applied by a <head> script before first paint. Dark tokens now hang off\n  data-theme instead of the media query.\n- Continuing a chat stored before an app update fails with 'Invalid\n  signature in thinking block' (its saved reasoning no longer validates\n  after the system prompt/tools changed). /chat now returns 409\n  conversation_expired; the UI shows a short message with a 'Start a new\n  conversation' button that returns to the opening screen with the question\n  kept. Other 400s keep their 502.\n- Eval: a required figure must match the number AND the unit ('%' or\n  'days'; '11.8 days' no longer passes for 11.8%), must be in answer.figures,\n  and an expected value that cannot be computed now fails instead of\n  skipping. Units stated in cases.yaml.\n- Tests: 145 (unit 
+… [truncated, 474 more chars]
+```
+
+<details><summary>Tool result</summary>
+
+```
+145 passed in 3.80s
+no .env in repo
+M  README.md
+M  app/agent.py
+M  app/main.py
+M  app/static/index.html
+M  docs/DESIGN.md
+M  evals/cases.yaml
+M  evals/run.py
+A  tests/test_eval_figure_checks.py
+A  tests/test_expired_conversation.py
+M  tests/test_model_fallback.py
+6ace473 Light/dark switch, friendly expired-conversation notice, eval checks figure units
+6ace47308916bf427efd2f690725cce142a47233
+6ace47308916bf427efd2f690725cce142a47233
+```
+</details>
+
+### 🤖 Claude
+
+I committed and pushed all three changes as `6ace473`. All 145 tests pass, plus 18 new browser checks, and the earlier browser checks still pass. An independent review of these changes is still running, and I'll push any confirmed fixes as a follow-up commit.
+
+- **Light/dark mode:** the page used to follow only your system setting, which is why there was no toggle. There's now a **Dark mode** switch in the header with a sun or moon icon. It remembers your choice in this browser across reloads. Until you choose, it follows your system setting, including when that changes. The theme is applied before the page draws, so it doesn't flash the wrong colours.
+- **"Invalid signature":** each stored chat is tied to the system prompt and tools of the app version that created it. My recent updates changed those, so your account rejects older chats.
+  - **What you'll see now:** a short message, "This conversation was started with an earlier version of the app and can't be continued", with a **Start a new conversation** button.
+  - **The button** takes you back to the opening screen with your question already in the box. Other errors are handled as before.
+  - **Alternative:** a beta API option could let old chats continue without their earlier reasoning. I didn't use it so the app stays off beta features. Say if you'd prefer it.
+- **Denver eval:** you were right that "11.8 days" would have passed, because it compared only the number. Now the figure has to have the right number *and* unit (`%` or `days`), and "percent" and "% of days" also count as percentages. The case fails if the figure is missing, appears only in the answer text, or can't be computed from the data. That last case used to be quietly skipped.
+
+To check the "Invalid signature" fix yourself, open the app with your old chat still in the browser and ask a follow-up. The new message and button should appear.
+
+---
+
+## 🧑 User
+
+<task-notification>
+<task-id>wzsxvd6r7</task-id>
+<tool-use-id>toolu_015ST468E9ySH2XpsnDV3iqG</tool-use-id>
+<output-file>/tmp/claude-0/-home-user-weather-risk-intelligence-agent/054feb9f-992e-53ec-86ec-b86ccf98458a/tasks/wzsxvd6r7.output</output-file>
+<status>completed</status>
+<summary>Dynamic workflow "Review the theme switch, expired-conversation handling and eval unit check for real bugs, then verify each finding" completed</summary>
+<result>{"confirmed":[{"title":"After the expired notice, the follow-up box quietly starts a new conversation under the old messages, and the old notice button can wipe it","where":"app/static/index.html: expiredNotice(), ask(), resetConversation(); the #f askbar stays enabled","problem":"expiredNotice() clears the session but leaves the old chat and the 'Ask a follow-up' bar active. If the user types in that bar instead of pressing the button, the message goes out with session_id:null. That starts a new conversation with no history, but the answer appears below the old messages as if the thread had continued. The old notice's 'Start a new conversation' button also stays clickable. Pressing it later throws away the new conversation and aborts any request still running. It then fills the opening screen with the old question instead of the one the user just asked.","failure_scenario":"Checked in Playwright with /chat mocked. The tab stays open across an app update with a visible thread: 'Which Midwest hubs are most exposed to winter disruption?' and its answer. 1) The user sends 'And Detroit?' and gets 409, so the notice appears. 2) The user types 'And Detroit?' again in the follow-up bar. The request body is {message:'And Detroit?', session_id:null}. The model gets no context, but the answer shows under the Midwest thread as a follow-up. 3) In a second run, the user pressed the old notice button while the new follow-up 'Which hubs are worst?' was still running. The request was aborted, the log cleared, and q0 held the earlier expired question. The latest question was lost.","fix":"Once the notice is shown, make the fresh start the only way forward. For example, add a class to #chat that hides or disables #f until resetConversation() runs. Or have a submit from #q after an expiry call resetConversation(text) and then ask(text), so the old messages are cleared first. Make the notice button single-use (remove or disable it on click, and disable any old notices once a new turn starts).","severity":"important","lens":"ui","verdict":{"real":true,"reasoning":"I reproduced this against the committed code (HEAD 6ace473, app/static/index.html). I ran a server copy on port 8847 and drove it with Playwright, with POST /chat mocked as follows: 200 (session s1), then 409 conversation_expired, then 200 (s2), then a held request.\n\n1. First question: 'Which Midwest hubs are most exposed to winter disruption?'. Its answer was shown.\n2. Follow-up 'And Detroit?' got the 409. expiredNotice() ran. It only calls forgetSession() and appends the notice. After the notice, #f was still visible and #q was still enabled.\n3. Retyping 'And Detroit?' in the follow-up bar sent {\"message\":\"And Detroit?\",\"session_id\":null}. The new answer was added below the Midwest question and answer, so the log read: user Midwest, bot Midwest answer, user And Detroit?, notice, user And Detroit?, bot answer. The page shows this as a continuing thread, but the model got no history. The bar's own placeholder is 'Ask a follow-up', and replies that depend on context (like 'And Detroit?') are answered without it. From then on, wr_session is s2, and the screen still shows Midwest messages that s2 knows nothing about. The other ask paths behave the same way, because they all call ask(): old .follow chips, the hub card's ask and suggest buttons, and the examples.\n4. The old notice's .restart button stayed enabled and visible. It is not in ASK_SEL and is never disabled. I clicked it while a later follow-up ('Which hubs are worst?') was still running. It aborted that request, cleared the log, removed wr_session (dropping the implicitly started s2), and filled #q0 with the stale 'And Detroit?' instead of the latest question.\n\nThis second part is weaker, because the button does what its label says. But it is still a stale control acting on a conversation that has already moved on.\n\nRoot cause: the expired state is only shown as a message. Nothing else changes, so the visible thread and the server-side conversation get out of sync.\n\nI checked the fix below on a patched scratch copy, served through page.route. After the expiry, the follow-up's log contained only [user And Detroit?, bot answer]. No stale .restart button was left. The next follow-up continued s2 normally.","corrected_fix":"In app/static/index.html, track the expired state. The first new question after the notice, from any entry point, should then start on a clean log. That also removes the stale notice button.\n\n1. Change the state line to: `let sessionId = null, expired = false, HUBS = [], busy = false, convGen = 0, inflight = null, labelUnits = 26;`\n2. In expiredNotice(), set `expired = true;` right after `forgetSession();`.\n3. In resetConversation(), add `expired = false;` as the first line, before `convGen++`.\n4. In ask(), right after `if (busy || !text.trim()) return false;`, add:\n   `if (expired) { expired = false; convGen++; log.innerHTML = \"\"; }  // the expired thread can't be continued: the new conversation starts on a clean log`\n\nThis covers #f, the old .follow chips, the hub card's ask and suggest buttons, and the examples, because they all go through ask(). The old notice and its .restart button are removed with the old log, so the button can no longer abort or replace a newer conversation.\n\nOptional alternative with the same effect: add a `chat.classList.add('expired')` class that hides #f until resetConversation() runs. That still leaves the chip and hub-card paths open, so the ask() guard is better."}},{"title":"If storage is blocked, the in-page theme choice is overridden when the system theme changes","where":"app/static/index.html: theme block (storedTheme(), the systemDark 'change' listener, the #theme onclick)","problem":"Whether the user has made a choice is only known by reading localStorage again. If setItem/getItem throw (storage blocked, some private modes), storedTheme() always returns null. The system 'change' listener then treats the page as never chosen and replaces the user's click with the system value.","failure_scenario":"Checked in Playwright with localStorage set to throw and the system in dark mode. The page opens dark, the user clicks the switch and gets light. Then the OS changes appearance (for example automatic light/dark at sunset). The system goes light and then dark, and the page switches back to dark even though the user chose light in this session. The 'follows the system until the user chooses' rule breaks.","fix":"Keep the choice in memory as well. For example: let chosen = storedTheme(); on click set chosen = t (and still try setItem); in the change listener use if (!chosen) applyTheme(...).","severity":"minor","lens":"ui","verdict":{"real":true,"reasoning":"I reproduced this. In app/static/index.html around lines 553-564, the code only knows whether the user has chosen a theme by reading localStorage again: `systemDark.addEventListener(\"change\", e =&gt; { if (!storedTheme()) applyTheme(...) })`. The click handler's `try { localStorage.setItem(...) } catch {}` stores nothing in memory. So when storage throws, storedTheme() always returns null.\n\nI tested it with Playwright against a server copy on port 8847, with colorScheme 'dark'. In one run an init script made the localStorage getter throw a SecurityError.\n- Storage blocked: the page opens dark, a click gives light, the system switch to light gives light, and the system switch back to dark gives dark. The user's choice is lost.\n- Storage working, same steps: open dark, click to light, system light gives light, system dark stays light. The choice holds.\n\nSo when storage is blocked, the rule \"follow the system until the user chooses\" breaks within the session. Nobody would expect the choice to survive a reload without storage, but it should not be undone in the same session. This is a minor edge case: it needs blocked storage and a change to the OS appearance. The fix is small.","corrected_fix":"In the theme block of app
+... (truncated 17200 chars, full result in /tmp/claude-0/-home-user-weather-risk-intelligence-agent/054feb9f-992e-53ec-86ec-b86ccf98458a/tasks/wzsxvd6r7.output)</result>
+<diagnostics>Per-agent results: /root/.claude/projects/-home-user-weather-risk-intelligence-agent/054feb9f-992e-53ec-86ec-b86ccf98458a/subagents/workflows/wf_d9ae18c8-0d2/journal.jsonl — one {"type":"result",...} line per completed agent with its full return value.
+If the result above is empty or unexpected, Read this file BEFORE diagnosing — do not assume agents returned non-empty results.
+To re-run with edited post-processing: Workflow({scriptPath: '/root/.claude/projects/-home-user-weather-risk-intelligence-agent/054feb9f-992e-53ec-86ec-b86ccf98458a/workflows/scripts/theme-expiry-eval-review-wf_d9ae18c8-0d2.js', resumeFromRunId: 'wf_d9ae18c8-0d2', args: {"repo":"/home/user/weather-risk-intelligence-agent","scratch":"/tmp/claude-0/-home-user-weather-risk-intelligence-agent/054feb9f-992e-53ec-86ec-b86ccf98458a/scratchpad/ui2"}}) — agent() calls replay from cache up to the first one that failed or no longer matches (edited, added, removed, or in a different call order); that call and every later one run again. A call a usage limit refused usually runs again without ending reuse: finished calls after it still come from cache.</diagnostics>
+<usage><agent_count>8</agent_count><agents_done>8</agents_done><agents_error>0</agents_error><agents_skipped>0</agents_skipped><agents_empty_result>0</agents_empty_result><subagent_tokens>872743</subagent_tokens><tool_uses>124</tool_uses><duration_ms>597014</duration_ms></usage>
+</task-notification>
+
+**Tool call:** `Bash`
+
+```json
+{
+ "command": "cd /tmp/claude-0/-home-user-weather-risk-intelligence-agent/054feb9f-992e-53ec-86ec-b86ccf98458a/tasks && python3 -c \"\nimport json\nobj=json.load(open('wzsxvd6r7.output',encoding='utf-8'))['result']\nprint('CONFIRMED', len(obj['confirmed']))\nfor i,f in enumerate(obj['confirmed'],1):\n    print(f'\\n===== {i}.', f['severity'], '|', f['lens'], '|', f['title']); print('WHERE:', f['where'][:200]); print('SCENARIO:', f['failure_scenario'][:500]); print('FIX:', f['verdict']['corrected_fix'][:1500])\nprint('\\nREJECTED', len(obj['rejected']))\nfor r in obj['rejected']: print('-', r['title'], '::', (r['why'] or '')[:260])\n\"",
+ "description": "Print confirmed and rejected review findings"
+}
+```
+
+<details><summary>Tool result</summary>
+
+```
+CONFIRMED 6
+
+===== 1. important | ui | After the expired notice, the follow-up box quietly starts a new conversation under the old messages, and the old notice button can wipe it
+WHERE: app/static/index.html: expiredNotice(), ask(), resetConversation(); the #f askbar stays enabled
+SCENARIO: Checked in Playwright with /chat mocked. The tab stays open across an app update with a visible thread: 'Which Midwest hubs are most exposed to winter disruption?' and its answer. 1) The user sends 'And Detroit?' and gets 409, so the notice appears. 2) The user types 'And Detroit?' again in the follow-up bar. The request body is {message:'And Detroit?', session_id:null}. The model gets no context, but the answer shows under the Midwest thread as a follow-up. 3) In a second run, the user pressed 
+FIX: In app/static/index.html, track the expired state. The first new question after the notice, from any entry point, should then start on a clean log. That also removes the stale notice button.
+
+1. Change the state line to: `let sessionId = null, expired = false, HUBS = [], busy = false, convGen = 0, inflight = null, labelUnits = 26;`
+2. In expiredNotice(), set `expired = true;` right after `forgetSession();`.
+3. In resetConversation(), add `expired = false;` as the first line, before `convGen++`.
+4. In ask(), right after `if (busy || !text.trim()) return false;`, add:
+   `if (expired) { expired = false; convGen++; log.innerHTML = ""; }  // the expired thread can't be continued: the new conversat
+… [truncated, 8261 more chars]
+```
+</details>
+
+**Tool call:** `Bash`
+
+```json
+{
+ "command": "python3 - <<'EOF'\nimport pathlib\ndef edit(path, pairs):\n    p = pathlib.Path(path); s = p.read_text(encoding=\"utf-8\")\n    for old, new in pairs:\n        assert old in s, (path, old[:70]); s = s.replace(old, new)\n    p.write_text(s, encoding=\"utf-8\")\n# ---------- eval (findings 4, 5, 6) ----------\nedit(\"evals/run.py\", [\n('''_PERCENT_RE = re.compile(r\"%|\\\\bper ?cent(age)?\\\\b|\\\\bpct\\\\b\", re.IGNORECASE)\n_DAYS_RE = re.compile(r\"\\\\bdays?\\\\b\", re.IGNORECASE)\n''', '''# A unit is classified by its leading token, ignoring parenthetical notes: \"% (43 of 365 days)\"\n# is a percentage, \"days (4.7% of days)\" and \"of 365 days\" are days; \"percentage points\" and\n# \"mm/day\" are neither.\n_PAREN_RE = re.compile(r\"\\\\([^)]*\\\\)\")\n_PERCENT_HEAD_RE = re.compile(r\"^(%|per ?cent(age)?\\\\b(?!\\\\s+points?)|pct\\\\b)\", re.IGNORECASE)\n_DAYS_HEAD_RE = re.compile(r\"^(of \\\\d[\\\\d,]* )?days?\\\\b\", re.IGNORECASE)\n# A number in the answer text and the unit right after it (\"11.8%\", \"43 of 365 days\", \"17 days\").\n_TEXT_NUM_RE = re.compile(r\"(?<![\\\\d.])(\\\\d+(?:\\\\.\\\\d+)?)\\\\s*(%|per ?cent(?:age)?(?:\\\\s+points?)?\\\\b|pct\\\\b|
+… [truncated, 6724 more chars]
+```
+
+<details><summary>Tool result</summary>
+
+```
+.                                                                        [100%]
+145 passed in 3.61s
+```
+</details>
+
+### 🤖 Claude
+
+The existing 145 tests still pass. Adding tests for the eval fixes:
+
+**Tool call:** `Bash`
+
+```json
+{
+ "command": "cat >> tests/test_eval_figure_checks.py <<'EOF'\n\n\n# ---------- review follow-ups: the answer text, unit classification, dry run ----------\n\ndef text_check(case, res):\n    return next(c for c in eval_run.check_case(case, res) if c[0].startswith(\"answer text states\"))\n\n\ndef test_answer_text_saying_11_8_days_fails_even_with_a_percent_figure():\n    res = result([fig(11.8, \"%\")], text=\"Denver had snowfall on 11.8 days in 2025.\")\n    name, ok, detail = text_check(PCT, res)\n    assert ok is False and \"11.8 days\" in detail\n    assert not passed(PCT, res)\n\n\[email redacted](\"case,value,unit,text\", [\n    (PCT, 11.8, \"%\", \"Denver had snowfall on 43 of 365 days (11.8%).\"),\n    (PCT, 11.8, \"%\", \"Snow fell on 11.8% of days.\"),\n    (PCT, 11.8, \"%\", \"About 11.8 percent of 2025's days had snow.\"),\n    (DAYS, 17, \"days\", \"17 of 365 days had at least 1 cm (4.7%).\"),\n    (DAYS, 17, \"days\", \"There were 17 days with at least 1 cm of snow.\"),\n])\ndef test_good_answer_texts_still_pass(case, value, unit, text):\n    assert passed(case, result([fig(value, unit)], text=text))\n\n\ndef test_headline_figure_must_be_stated_in_the_text():\n    res
+… [truncated, 1671 more chars]
+```
+
+<details><summary>Tool result</summary>
+
+```
+........................                                                 [100%]
+168 passed in 3.88s
+denver_snow_last_year    tools=['weather_stat'] in_scope=True {'figure': '11.8 %'}
+denver_snow_threshold    tools=['weather_stat'] in_scope=True {'figure': '17 days'}
+overall_ranking          tools=['rank_hubs'] in_scope=True {'ranking': ['houston', 'miami', 'dallas', 'chicago', 'detroit', 'minneapolis', 'denver']}
+```
+</details>
+
+### 🤖 Claude
+
+All 168 tests pass, and the dry run shows real values. Now browser checks for the three UI fixes:
+
+**Tool call:** `Bash`
+
+```json
+{
+ "command": "S=/tmp/claude-0/-home-user-weather-risk-intelligence-agent/054feb9f-992e-53ec-86ec-b86ccf98458a/scratchpad/ui2 && python3 - <<'EOF'\nimport pathlib\nS = pathlib.Path(\"/tmp/claude-0/-home-user-weather-risk-intelligence-agent/054feb9f-992e-53ec-86ec-b86ccf98458a/scratchpad/ui2\")\nc = (S / \"check-theme.js\").read_text()\nextra = r'''\n  // review follow-up 1: after the notice, any next question starts a clean conversation\n  ctx = await b.newContext({ viewport: { width: 1440, height: 900 }, colorScheme: 'light' });\n  let calls = [];\n  p = await open(ctx, async route => { const body = JSON.parse(route.request().postData()); calls.push(body);\n    if (calls.length === 2) return route.fulfill({ status: 409, json: { detail: { code: 'conversation_expired', message: \"This conversation was started with an earlier version of the app and can't be continued. Start a new conversation to ask again.\" } } });\n    return route.fulfill({ json: { ...CANNED, session_id: 'fresh-' + calls.length } }); });\n  await p.click('#examples button:nth-child(1)'); await p.waitForSelector('.msg.bot .ans');\n  await p.fill('#q', 'And Detroit?'); await p.click('#send'); await p.waitForSelector
+… [truncated, 4078 more chars]
+```
+
+<details><summary>Tool result</summary>
+
+```
+PASS  expired: short message shown  "This conversation was started with an earlier version of the app and can't be continued. S"
+PASS  expired: "Start a new conversation" button shown
+PASS  expired: old session forgotten right away
+PASS  restart: opening screen with the question ready to send
+PASS  after the notice, a typed follow-up starts on a clean log  ["user:And Detroit?","bot"]
+PASS  …as a new conversation (no old session sent)  [null,"fresh-1",null]
+PASS  …and the old notice button is gone
+PASS  …the next follow-up continues the new conversation  "fresh-3"
+PASS  storage blocked: page still loads, follows system (dark)
+PASS  storage blocked: chosen light survives system light->dark
+PASS  header: title on one line at every width 320-1440  [[320,1,93],[375,1,97],[414,1,97],[600,1,101],[768,1,101],[900,1,82],[959,1,82],[1024,1,82],[1440,1,82]]
+PASS  header: no horizontal scroll at any width
+PASS  desktop widths: chat panel ends inside the window (no extra page scroll)  [[900,884],[959,884],[1024,884],[1440,884]]
+ALL CHECKS PASSED
+--- ui:
+ALL CHECKS PASSED
+--- review:
+ALL CHECKS PASSED
+```
+</details>
+
+**Tool call:** `Bash`
+
+```json
+{
+ "command": "python3 - <<'EOF'\nimport pathlib\np = pathlib.Path(\"docs/DESIGN.md\"); s = p.read_text(encoding=\"utf-8\")\nold = '''  - A missing figure, a figure only in the text, or an expected value that can't be computed\n    fails the case.'''\nnew = '''  - A missing figure, a figure only in the text, or an expected value that can't be computed\n    fails the case.\n  - **The answer text counts too:** stating the number with another unit (\"11.8 days\") fails,\n    and a headline figure must appear in the text with the right unit.\n  - **Units** are classified by their leading word: \"% (43 of 365 days)\" is a percentage, while\n    \"days (4.7% of days)\" and \"of 365 days\" are days. \"percentage points\" and \"mm/day\" are\n    neither.'''\nassert old in s; s = s.replace(old, new); p.write_text(s, encoding=\"utf-8\")\nEOF\npython3 -m pytest -q -p no:warnings 2>&1 | tail -1 && python3 -m scripts.export_transcript --plan /root/.claude/plans/root-claude-uploads-054feb9f-992e-53ec-fuzzy-deer.md && echo \"emails: $(grep -cE '[A-Za-z0-9._%+-]+@gmail\\.com' docs/session-transcript.md) keys: $(grep -cE 'sk-ant-[A-Za-z0-9_-]{20,}' docs/session-transcript.md)\"; test ! -e .env && e
+… [truncated, 1644 more chars]
+```
+
 
 ---
 

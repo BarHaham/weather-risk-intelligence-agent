@@ -274,6 +274,11 @@ Per-case checks:
   - "11.8 days" fails where 11.8% is expected.
   - A missing figure, a figure only in the text, or an expected value that can't be computed
     fails the case.
+  - **The answer text counts too:** stating the number with another unit ("11.8 days") fails,
+    and a headline figure must appear in the text with the right unit.
+  - **Units** are classified by their leading word: "% (43 of 365 days)" is a percentage, while
+    "days (4.7% of days)" and "of 365 days" are days. "percentage points" and "mm/day" are
+    neither.
 
 Always checked:
 - the answer validates against the schema

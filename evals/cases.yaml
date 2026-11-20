@@ -11,7 +11,9 @@
 #                   must contain a figure whose value is within tol of metrics.weather_stat(...)[field]
 #                   AND whose unit matches (unit '%' or 'days'; defaults from the field). A missing
 #                   figure, a figure only in the text, a wrong unit ("11.8 days" for 11.8%) or an
-#                   expected value that cannot be computed all fail the case
+#                   expected value that cannot be computed all fail the case. The answer TEXT
+#                   must not state the number with another unit, and a headline figure must be
+#                   stated there with the right unit
 #                   optional role: headline -> that figure must be a headline figure (the
 #                   main result the answer states), not a collapsed breakdown row
 #   no_month_list:  true -> the answer text names at most 3 distinct months (a month-by-month

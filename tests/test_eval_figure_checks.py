@@ -95,3 +95,57 @@ def test_every_figure_case_in_the_eval_set_states_its_unit():
     cases = yaml.safe_load((eval_run.HERE / "cases.yaml").read_text(encoding="utf-8"))
     specs = [c["figure"] for c in cases if "figure" in c]
     assert specs and all(s.get("unit") in ("%", "days") for s in specs)
+
+
+# ---------- review follow-ups: the answer text, unit classification, dry run ----------
+
+def text_check(case, res):
+    return next(c for c in eval_run.check_case(case, res) if c[0].startswith("answer text states"))
+
+
+def test_answer_text_saying_11_8_days_fails_even_with_a_percent_figure():
+    res = result([fig(11.8, "%")], text="Denver had snowfall on 11.8 days in 2025.")
+    name, ok, detail = text_check(PCT, res)
+    assert ok is False and "11.8 days" in detail
+    assert not passed(PCT, res)
+
+
+@pytest.mark.parametrize("case,value,unit,text", [
+    (PCT, 11.8, "%", "Denver had snowfall on 43 of 365 days (11.8%)."),
+    (PCT, 11.8, "%", "Snow fell on 11.8% of days."),
+    (PCT, 11.8, "%", "About 11.8 percent of 2025's days had snow."),
+    (DAYS, 17, "days", "17 of 365 days had at least 1 cm (4.7%)."),
+    (DAYS, 17, "days", "There were 17 days with at least 1 cm of snow."),
+])
+def test_good_answer_texts_still_pass(case, value, unit, text):
+    assert passed(case, result([fig(value, unit)], text=text))
+
+
+def test_headline_figure_must_be_stated_in_the_text():
+    res = result([fig(11.8, "%")], text="Snow was common in Denver in 2025.")
+    assert text_check(PCT, res)[1] is False and not passed(PCT, res)
+
+
+def test_detail_figure_need_not_appear_in_the_text():
+    case = {**PCT, "figure": {**PCT["figure"], "role": None}}
+    res = result([fig(11.8, "%", role="detail")], text="Snow was common in Denver in 2025.")
+    assert text_check(case, res)[1] is True
+
+
+@pytest.mark.parametrize("unit,kind", [
+    ("%", "%"), ("% (43 of 365 days)", "%"), ("percent", "%"), ("Percentage", "%"), ("pct", "%"),
+    ("days (11.8%)", "days"), ("days (4.7% of days)", "days"), ("of 365 days (4.7%)", "days"), ("day", "days"),
+    ("percentage points", None), ("mm/day", None), ("cm per day", None), ("", None), ("cm", None),
+])
+def test_unit_is_classified_by_its_leading_token(unit, kind):
+    assert eval_run.unit_kind(unit) == kind
+
+
+def test_dry_run_reports_a_required_figure_it_cannot_compute(monkeypatch, capsys):
+    monkeypatch.setattr(eval_run.metrics, "weather_stat",
+                        lambda *a, **k: {"error": "no observed weather data available"})
+    monkeypatch.setattr(eval_run.config, "load_env_file", lambda *a, **k: {})
+    monkeypatch.setattr("sys.argv", ["evals.run", "--dry-run", "--case", "denver_snow_last_year"])
+    eval_run.main()
+    out = capsys.readouterr().out
+    assert "could not be computed" in out and "None %" not in out

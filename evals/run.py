@@ -39,8 +39,15 @@ def expected_figure(spec: dict):
 
 # A figure must carry the right unit as well as the right number: "11.8 days" is not "11.8%".
 FIELD_UNITS = {"percent_of_days": "%", "days_meeting_condition": "days", "days_with_data": "days"}
-_PERCENT_RE = re.compile(r"%|\bper ?cent(age)?\b|\bpct\b", re.IGNORECASE)
-_DAYS_RE = re.compile(r"\bdays?\b", re.IGNORECASE)
+# A unit is classified by its leading token, ignoring parenthetical notes: "% (43 of 365 days)"
+# is a percentage, "days (4.7% of days)" and "of 365 days" are days; "percentage points" and
+# "mm/day" are neither.
+_PAREN_RE = re.compile(r"\([^)]*\)")
+_PERCENT_HEAD_RE = re.compile(r"^(%|per ?cent(age)?\b(?!\s+points?)|pct\b)", re.IGNORECASE)
+_DAYS_HEAD_RE = re.compile(r"^(of \d[\d,]* )?days?\b", re.IGNORECASE)
+# A number in the answer text and the unit right after it ("11.8%", "43 of 365 days", "17 days").
+_TEXT_NUM_RE = re.compile(r"(?<![\d.])(\d+(?:\.\d+)?)\s*(%|per ?cent(?:age)?(?:\s+points?)?\b|pct\b|"
+                          r"(?:of\s+\d[\d,]*\s+)?days?\b)?", re.IGNORECASE)
 
 
 def expected_unit(spec: dict) -> str:
@@ -50,12 +57,23 @@ def expected_unit(spec: dict) -> str:
     return unit
 
 
+def unit_kind(unit: str) -> str | None:
+    head = _PAREN_RE.sub("", unit or "").strip()
+    if _PERCENT_HEAD_RE.match(head):
+        return "%"
+    if _DAYS_HEAD_RE.match(head):
+        return "days"
+    return None
+
+
 def unit_matches(unit: str, want: str) -> bool:
     """'%', 'percent', '% of days' count as %; 'days', 'of 365 days' count as days."""
-    unit = unit or ""
-    if want == "%":
-        return bool(_PERCENT_RE.search(unit))
-    return bool(_DAYS_RE.search(unit)) and not _PERCENT_RE.search(unit)
+    return unit_kind(unit) == want
+
+
+def text_figures(text: str) -> list[tuple[float, str]]:
+    """Numbers stated in the answer text with the unit written right after each (or '')."""
+    return [(float(m.group(1)), (m.group(2) or "").strip()) for m in _TEXT_NUM_RE.finditer(text)]
 
 
 def model_score(hub_id: str, hazard: str) -> float:
@@ -144,6 +162,14 @@ def check_case(case: dict, result: dict) -> list[tuple[str, bool, str]]:
             if spec.get("role"):
                 roles = [f.get("role") for f in match]
                 checks.append((f"figure is {spec['role']}", spec["role"] in roles, f"roles={roles}"))
+            # The answer text the analyst reads must not state the number with another unit
+            # ("11.8 days" for 11.8%); a headline figure must appear there with the right unit.
+            near = [(v, u) for v, u in text_figures(a["answer"]) if abs(v - want) <= spec["tol"]]
+            wrong = [f"{v:g} {u}" for v, u in near if u and not unit_matches(u, unit)]
+            right = [u for v, u in near if u and unit_matches(u, unit)]
+            ok_text = not wrong and (bool(right) or spec.get("role") != "headline")
+            checks.append((f"answer text states {want:g} {unit}", ok_text,
+                           f"wrong unit in text: {wrong}" if wrong else f"text numbers near {want:g}: {near}"))
     if case.get("no_month_list"):
         months = months_named(a["answer"])
         checks.append(("no month list in answer", len(months) <= MAX_MONTHS_IN_ANSWER,
@@ -247,7 +273,10 @@ def main() -> None:
             if "ranking" in c:
                 exp["ranking"] = expected_ranking(c["ranking"])
             if "figure" in c:
-                exp["figure"] = f"{expected_figure(c['figure'])[0]} {expected_unit(c['figure'])}"
+                val, stat = expected_figure(c["figure"])
+                unit = expected_unit(c["figure"])
+                exp["figure"] = (f"{val:g} {unit}" if val is not None
+                                 else f"FAIL: required figure could not be computed ({stat.get('error')})")
             print(f"{c['id']:24} tools={c.get('tools', [])} in_scope={c.get('in_scope')} {exp}")
         return
 
