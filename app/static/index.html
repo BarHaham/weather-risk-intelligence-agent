@@ -108,6 +108,8 @@
   .mic[aria-pressed="true"] { background:var(--accent); border-color:var(--accent); color:var(--panel); animation:micpulse 1.4s ease-in-out infinite; }
   @keyframes micpulse { 50% { box-shadow:0 0 0 5px var(--hl); } }
   @media (prefers-reduced-motion: reduce) { .mic[aria-pressed="true"] { animation:none; } }
+  @media (forced-colors: active) { .mic[aria-pressed="true"] { forced-color-adjust:none; background:Highlight; color:HighlightText; border-color:Highlight; } }
+  .chat.empty #f + .voice-hint { display:none; }
   .voice-hint { margin:6px 0 0; }
   .askbar + .voice-hint { margin:-6px 18px 10px; }
   button:disabled { opacity:.5; cursor:wait; }
@@ -354,7 +356,7 @@ function errorText(res, body) {
 
 async function ask(text, opts = {}) {
   if (busy || !text.trim()) return false;
-  stopVoice(true);
+  stopVoice(true); clearVoiceHints();
   // After an "expired conversation" notice the old thread can't be continued: whichever way the
   // next question is asked, it starts a new conversation on a clean log (old notice included).
   if (expired) { expired = false; convGen++; log.innerHTML = ""; }
@@ -560,7 +562,8 @@ Promise.all([getJSON("/static/us-states.json"), getJSON("/map/hubs")])
 // the text stays editable until you press Ask. Shown only where the browser supports it
 // (Chrome, Edge, Safari); elsewhere the box works as before. The audio goes to the browser's
 // speech service, never to this app's server, which only receives the text you send.
-const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
+// Only offered in a secure context (HTTPS or localhost): elsewhere the browser refuses the mic.
+const SpeechRec = window.isSecureContext ? (window.SpeechRecognition || window.webkitSpeechRecognition) : null;
 let voice = null;  // the one running dictation: {rec, input, button, hint, base, final, error}
 const MIC_SVG = `<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path fill="currentColor"
   d="M12 14a3 3 0 0 0 3-3V5a3 3 0 0 0-6 0v6a3 3 0 0 0 3 3zm5-3a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.92V21h2v-3.08A7 7 0 0 0 19 11h-2z"/></svg>`;
@@ -573,16 +576,19 @@ const VOICE_ERRORS = {
   "language-not-supported": "English speech recognition isn't available in this browser.",
 };
 
+// A toggle button: one fixed name, the state is aria-pressed (screen readers say "pressed");
+// the tooltip says what a click does now.
 function setMicState(btn, on) {
-  const label = on ? "Stop listening" : "Speak your question (English)";
   btn.setAttribute("aria-pressed", on ? "true" : "false");
-  btn.setAttribute("aria-label", label); btn.title = label;
+  btn.title = on ? "Stop listening" : "Speak your question (English)";
 }
+function clearVoiceHints() { document.querySelectorAll(".voice-hint").forEach(h => { h.hidden = true; }); }
 
 function attachMic(form, input) {
   if (!SpeechRec || !form || !input || form.querySelector(".mic")) return;
   const btn = document.createElement("button");
   btn.type = "button"; btn.className = "mic"; btn.innerHTML = MIC_SVG;
+  btn.setAttribute("aria-label", "Speak your question (English)");
   setMicState(btn, false);
   const hint = document.createElement("p");
   hint.className = "meta voice-hint"; hint.setAttribute("role", "status"); hint.hidden = true;
@@ -622,13 +628,24 @@ function startVoice(input, btn, hint) {
       hint.textContent = VOICE_ERRORS[v.error] || "Speech recognition stopped. You can still type your question.";
       hint.hidden = false;
     }
-    input.focus({ preventScroll: true });             // ready to edit before pressing Ask
-    const n = input.value.length; try { input.setSelectionRange(n, n); } catch (e) {}
+    // Ready to edit before pressing Ask, unless the user has moved on to something else (the
+    // recognizer can end on its own a few seconds later, e.g. after a pause or no speech).
+    const a = document.activeElement;
+    if (!a || a === document.body || a === btn || a === input) {
+      input.focus({ preventScroll: true });
+      const n = input.value.length; try { input.setSelectionRange(n, n); } catch (e) {}
+    }
   };
   try { rec.start(); }
   catch (e) { voice = null; hint.textContent = "Speech recognition couldn't start. You can still type your question."; hint.hidden = false; return; }
   setMicState(btn, true);
 }
+
+// Moving to another text field (another question box, the access-code field) ends dictation, so
+// words never keep arriving in a box the user has left.
+document.addEventListener("focusin", e => {
+  if (voice && e.target !== voice.input && e.target.matches && e.target.matches("input, textarea")) stopVoice(true);
+});
 
 // stop(): finish and keep what was heard (the mic button). abort: drop pending audio at once
 // (typing, sending, a new conversation, another mic); the text already in the box stays.
@@ -656,7 +673,7 @@ function forgetSession() {
 }
 
 function resetConversation(prefill = "") {  // back to the opening screen, optionally with a question ready
-  stopVoice(true);
+  stopVoice(true); clearVoiceHints();
   expired = false;
   convGen++;                                                // late answers of the old conversation are dropped
   if (inflight) inflight.abort();

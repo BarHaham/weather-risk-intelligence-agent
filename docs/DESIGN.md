@@ -190,15 +190,20 @@ explains the results. It never produces scores itself.
   - **The text:** words go into the box as they are recognised, added after any typed text,
     within the box's 2000-character limit. Nothing is submitted, so the analyst edits and presses
     Ask.
-  - **Stopping:** the mic button stops and keeps what was heard. Typing, sending, a new
-    conversation, picking another hub or starting another mic abort at once, and late results
-    are ignored. Only one mic runs at a time.
+  - **Stopping:** the recognizer ends by itself after a pause, and the mic button stops it and
+    keeps what was heard. Typing, moving to another text field, sending, a new conversation,
+    picking another hub or starting another mic abort at once, and late results are ignored.
+    Only one mic runs at a time. When it ends, focus returns to the box only if the user hasn't
+    moved on.
   - **While a question is running,** the mic stays usable: only the Ask buttons are disabled.
   - **Errors** (microphone blocked, no microphone, no speech, network, start failure) show a
     short `role="status"` note under the box.
   - **Privacy:** the browser handles the audio; Chrome uses Google's speech service. The app's
-    server only ever receives the text that is sent. It needs a secure context (HTTPS or
-    localhost).
+    server only ever receives the text that is sent. The mic is shown only in a secure context
+    (HTTPS or localhost).
+  - **Accessibility:** the mic is a toggle button with one fixed name; `aria-pressed` carries
+    the listening state. There is a forced-colors style for Windows High Contrast and no pulse
+    with reduced motion.
 - **Main result first.** Each answer shows its text first. Every number then sits in one
   collapsed **Breakdown** section: headline figures first, then the detail rows.
   - The answer schema makes the model mark each figure `headline` (a number the answer text
