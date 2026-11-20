@@ -34,6 +34,12 @@ def configured_code() -> str | None:
     return code or None
 
 
+def code_is_sendable(code: str) -> bool:
+    """Browsers and HTTP clients can only send printable ASCII in a header reliably; a code
+    with other characters would never match, so it is flagged at startup."""
+    return code.isascii() and code.isprintable()
+
+
 def mode() -> Mode:
     if configured_code():
         return CODE_REQUIRED

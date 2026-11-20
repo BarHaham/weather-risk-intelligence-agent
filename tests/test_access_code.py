@@ -175,3 +175,19 @@ def test_only_the_chat_route_calls_the_agent():
     assert callers == ["chat"]
     route = next(r for r in main.app.routes if getattr(r, "path", "") == "/chat")
     assert main.require_chat_access in [d.call for d in route.dependant.dependencies]
+
+
+@pytest.mark.parametrize("code,warns", [("pässwort", True), ("tab\tcode", True), (CODE, False)])
+def test_startup_warns_about_a_code_that_cannot_be_sent(monkeypatch, caplog, code, warns):
+    monkeypatch.setenv(access.ACCESS_CODE_VAR, code)
+    with caplog.at_level("INFO", logger="uvicorn.error"):
+        main.log_chat_access()
+    assert ("printable ASCII" in caplog.text) is warns
+    assert code not in caplog.text
+
+
+def test_a_non_ascii_code_fails_closed(client, calls, monkeypatch):
+    monkeypatch.setenv(access.ACCESS_CODE_VAR, "pässwort")
+    # what curl sends for a UTF-8 terminal: the raw UTF-8 bytes
+    assert post(client, {"X-Access-Code": "pässwort".encode("utf-8")}).status_code == 401
+    assert calls == []

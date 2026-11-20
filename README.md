@@ -221,7 +221,9 @@ covers the browser UI and direct API calls alike.
    python -c "import secrets; print(secrets.token_urlsafe(18))"
    ```
 
-   Failed attempts aren't rate-limited, so don't use a short or guessable code.
+   Use printable ASCII only (letters, digits and symbols): other characters can't be sent in an
+   HTTP header, and the server log warns if the code has any. Failed attempts aren't
+   rate-limited, so don't use a short or guessable code.
 3. **Check the mode** at `https://<your-app>.onrender.com/health`: `"chat_access"` should be
    `"code_required"`. Before the code is set, it says `"disabled"`, which also confirms the app
    detected Render (from the `RENDER` / `RENDER_SERVICE_ID` variables Render sets). The server log

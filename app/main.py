@@ -58,6 +58,10 @@ def log_chat_access() -> None:
     elif m == access.CODE_REQUIRED:
         log.info("Chat needs the reviewer access code (%s, sent in the %s header).",
                  access.ACCESS_CODE_VAR, access.HEADER)
+        if not access.code_is_sendable(access.configured_code()):
+            log.warning("%s contains characters other than printable ASCII: browsers and "
+                        "HTTP clients can't send it in a header, so every chat request will be "
+                        "refused. Use letters, digits and symbols only.", access.ACCESS_CODE_VAR)
     else:
         log.info("Chat is open: %s is not set (local run).", access.ACCESS_CODE_VAR)
 

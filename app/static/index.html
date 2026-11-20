@@ -583,12 +583,17 @@ function expiredNotice(question, message) {
 function accessNotice(question, userEl, reason) {
   const invalid = reason === "access_code_invalid";
   if (invalid) saveAccessCode(null);
+  // One prompt at a time: an earlier, unanswered prompt (and its question) gives way to this one.
+  log.querySelectorAll(".msg.notice .access-form").forEach(f => {
+    const old = f.closest(".msg"); if (old._question) old._question.remove(); old.remove();
+  });
   const el = add(`<p>${invalid ? "That access code wasn't accepted. Check it and try again."
                               : "This chat needs a reviewer access code."}</p>
     <form class="askbox access-form">
       <input type="password" autocomplete="off" maxlength="200" aria-label="Reviewer access code" placeholder="Reviewer access code">
       <button type="submit" class="send">Continue</button>
     </form><p class="meta access-hint" hidden></p>`, "bot notice");
+  el._question = userEl;
   const input = el.querySelector("input"), hint = el.querySelector(".access-hint");
   el.querySelector("form").onsubmit = ev => {
     ev.preventDefault();
