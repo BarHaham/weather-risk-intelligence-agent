@@ -321,6 +321,7 @@ explains the results. It never produces scores itself.
 ```
 app/
   main.py          FastAPI routes; serves the UI
+  access.py        reviewer access code check for /chat
   agent.py         Claude tool-use loop, structured output, history
   tools.py         tool schemas (strict) + dispatch to deterministic code
   scoring.py       risk model (pure compute_breakdown + DB-backed wrappers)
@@ -334,10 +335,20 @@ app/
   static/us-states.json  state outlines (SVG paths), built by scripts/build_us_map.py
 data/hubs.json, data/cache/*.json, config.yaml
 scripts/refresh_data.py, scripts/build_us_map.py, scripts/export_transcript.py
+scripts/score_changes.py   before/after scores for the score-change workflow
+.github/workflows/score-changes.yml   opens an issue when a score changes on main
 evals/cases.yaml, evals/run.py
-tests/  scoring, agent loop, model fallback, .env, map and breakdown
+tests/  scoring, agent loop, model fallback, .env, map and breakdown, tool limit,
+        monthly breakdown, access code, score changes
 docs/DESIGN.md, docs/session-transcript.md
 ```
+
+### Score-change monitoring
+Scores are a pure function of committed files. The "Score changes" workflow therefore
+re-scores the commit before and after each push to `main`, each in its own checkout, and opens
+an issue when an overall score changes. A tier change is highlighted. A hidden marker for the
+commit pair prevents duplicate issues on re-runs. The run is skipped only when there is no
+earlier app to score, and it fails if an existing version can't be scored. See the README.
 
 ## 8. Evaluation
 `evals/cases.yaml` has 10 cases:

@@ -242,6 +242,46 @@ covers the browser UI and direct API calls alike.
 and restart the server. The evals call the agent directly, not through `/chat`, so they never
 need the code.
 
+## Score-change issues (GitHub Action)
+
+`.github/workflows/score-changes.yml` watches the branch Render deploys from (`main`).
+- **What it compares:** on every push it re-scores the commit before the push and the pushed
+  commit, each from its own committed data, `config.yaml` and scoring code. No API key or
+  network is needed.
+- **When it opens an issue:** a hub's **overall score** changed.
+  - **The issue shows:**
+    - the old and new score, the change, the tier and the rank
+    - how far each hub now sits from the nearest tier cutoff
+    - the hazard sub-scores that moved
+  - **A tier change** (e.g. Dallas 34.9 Low → 35.0 Moderate) is highlighted at the top and
+    labelled `tier-change`. Every score-change issue is labelled `score-change`.
+  - **No duplicates:** re-running the same push never opens a second issue. Each issue carries a
+    hidden marker for its commit pair, and existing issues, open or closed, are checked first.
+- **When it skips:** only when there is no earlier version to score. That's when the push
+  created the branch, or when the earlier commit has no app, like the first merge into the empty
+  `main`. If an earlier version exists but its scores can't be calculated, the run **fails** and
+  shows the error.
+- **Another branch:** set the repository variable `DEPLOY_BRANCH` (Settings → Secrets and
+  variables → Actions → Variables).
+- **Try it without opening an issue:** Actions → Score changes → Run workflow. Set `before` to
+  an older commit or branch and leave `dry_run` on; the result appears in the run's summary.
+- **If opening the issue fails with 403:** allow write access under Settings → Actions → General
+  → Workflow permissions.
+
+The same comparison runs locally:
+
+```bash
+python scripts/score_changes.py baseline --before <commit> --out before.json
+```
+
+```bash
+PYTHONPATH=. python scripts/score_changes.py snapshot --out after.json
+```
+
+```bash
+python scripts/score_changes.py compare before.json after.json --before <commit> --after HEAD --branch main --repo BarHaham/weather-risk-intelligence-agent --title-file title.txt --body-file body.md
+```
+
 ## Map data
 
 State outlines come from [us-atlas](https://github.com/topojson/us-atlas) 3.0.1
