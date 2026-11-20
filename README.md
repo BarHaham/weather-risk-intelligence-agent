@@ -5,9 +5,15 @@ weather disruption. A **deterministic risk model** (Python) scores 7 hubs from p
 **Claude** answers questions by calling that model through tools, and returns a
 **JSON-schema-validated** answer that the chat UI renders.
 
-The browser UI shows each answer's main result first, with the numbers in an expandable
-**Breakdown**. A **US hub map** sits next to the chat (below it on mobile): click a hub to see
-its city, state, score and tier, and ask about it.
+The browser UI is a **weather atlas**: the hub map and the chat share the screen equally on
+desktop, and on mobile the chat comes first.
+- **Opening screen:** a question box under "What would you like to know about your hubs?" with
+  three example questions. After the first question it switches to the conversation layout.
+- **Answers:** each one shows its main result first, with the numbers in an expandable
+  **Breakdown**.
+- **Ranking and map:** hovering a city in the ranking highlights it on the map. Selecting it
+  shows the full name ("Houston, Texas"), its score and tier, and a question you can ask
+  about that hub.
 
 The agent runs on **Claude Sonnet 5.5**. If Sonnet is temporarily unavailable, the same request is
 tried once on **Claude Haiku 5.5**, and every answer (UI, `/chat`, eval results) says which model

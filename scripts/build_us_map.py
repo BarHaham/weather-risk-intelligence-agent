@@ -74,7 +74,10 @@ def build(topo: dict) -> dict:
         d = "".join(ring_path(ring_points(ring, arcs)) for poly in polygons for ring in poly)
         states.append({"name": geom["properties"]["name"], "d": d})
     states.sort(key=lambda s: s["name"])
-    return {"viewBox": "0 0 975 610", "attribution": ATTRIBUTION, "states": states}
+    from app.geo import graticule  # same projection as the hub markers
+    return {"viewBox": "0 0 975 610", "attribution": ATTRIBUTION, "states": states,
+            "lower48": [s["name"] for s in states if s["name"] not in ("Alaska", "Hawaii")],
+            "graticule": graticule()}
 
 
 def main() -> None:

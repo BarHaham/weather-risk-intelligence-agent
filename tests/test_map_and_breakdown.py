@@ -140,3 +140,34 @@ def test_system_prompt_asks_for_main_result_first_and_detail_figures():
     from app import agent
     p = agent._system_prompt()
     assert 'collapsed "Breakdown"' in p and 'role "detail"' in p and 'role "headline"' in p
+
+
+# ---------- atlas redesign: full state names, graticule, favicon ----------
+
+def test_map_hubs_include_full_state_names():
+    names = {r["id"]: r["state_name"] for r in main.map_hubs()}
+    assert names["houston"] == "Texas" and names["denver"] == "Colorado"
+    assert names["miami"] == "Florida" and names["minneapolis"] == "Minnesota"
+
+
+def test_state_names_cover_every_map_state():
+    assert set(geo.STATE_NAMES.values()) == {s["name"] for s in MAP["states"]}
+
+
+def test_map_asset_has_lower48_clip_list_and_graticule():
+    assert len(MAP["lower48"]) == 49 and "Alaska" not in MAP["lower48"] and "Hawaii" not in MAP["lower48"]
+    assert len(MAP["graticule"]) >= 15
+    for d in MAP["graticule"]:  # lines may run past the edge (the UI clips them to land),
+        pts = [tuple(map(float, p.split())) for p in d[1:].split("L")]  # but each crosses the map
+        assert any(0 <= x <= 975 and 0 <= y <= 610 for x, y in pts)
+
+
+def test_favicon_is_a_teal_pin_on_navy_and_served():
+    svg = (ROOT / "app" / "static" / "favicon.svg").read_text(encoding="utf-8")
+    assert 'fill="#14213d"' in svg and 'fill="#2bb3a3"' in svg  # navy tile, teal pin
+    resp = main.favicon()
+    assert resp.media_type == "image/png" and str(resp.path).endswith("favicon-32.png")
+    png = (ROOT / "app" / "static" / "favicon-32.png").read_bytes()
+    assert png.startswith(b"\x89PNG") and int.from_bytes(png[16:20], "big") == 32
+    html = (ROOT / "app" / "static" / "index.html").read_text(encoding="utf-8")
+    assert 'rel="icon" href="/static/favicon.svg"' in html and 'rel="apple-touch-icon"' in html

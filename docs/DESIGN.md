@@ -105,7 +105,21 @@ explains the results. It never produces scores itself.
   - The prompt keeps detail numbers out of the answer text, so a breakdown never appears twice.
   - Two eval checks enforce this: the main figure must be a headline, and the Denver answer may
     not list months.
+- **Atlas layout.**
+  - **Look:** warm off-white paper, navy ink, a teal accent, and serif headings. Land is
+    parchment on a pale sea, with a dashed 5° latitude/longitude grid clipped to the lower 48.
+  - **Desktop:** the map and chat get equal columns.
+  - **Mobile:** one column with the chat first.
+  - **Opening screen:** the chat shows only a question box under "What would you like to know
+    about your hubs?" and three example questions. It switches to the usual conversation layout
+    after the first question, and "New conversation" returns to it.
+  - **Favicon:** a teal pin on a navy tile (`app/static/favicon.svg`, with PNG fallbacks and
+    `/favicon.ico`).
 - **Hub map.** A US map sits next to the chat on desktop, and below the chat on mobile.
+  - **Ranking and map linked both ways:** hovering or focusing a city in the ranking
+    highlights its marker and dims the others; hovering a marker highlights its ranking row.
+  - **Selecting a hub** from either shows the full name ("Houston, Texas", from
+    `/map/hubs` `state_name`) with one suggested question and a question box.
   - **Data:** the state outlines come from us-atlas 3.0.1 (`states-albers-10m.json`, ISC licence,
     (c) Michael Bostock, from US Census Bureau 2017 cartographic boundaries). The file is
     integrity-checked and converted to SVG paths by `scripts/build_us_map.py`, then committed, so
@@ -114,9 +128,11 @@ explains the results. It never produces scores itself.
     built with. Tests check it against d3's own output and confirm that every hub lands inside
     its own state.
   - **Markers:** coloured by tier, and keyboard-accessible.
-  - **Selecting a hub** shows its city, state, region, county, score and tier, with two suggested
-    questions and a question box. A typed question that doesn't name the city is sent as "About
-    the Denver, CO hub: …", and the chat shows exactly what was sent.
+  - **Hub card:** shows county, region, score, tier and rank. A typed question that doesn't
+    name the city is sent as "About the Denver, Colorado hub: …", and the chat shows exactly
+    what was sent.
+  - **Labels:** city labels are larger (about 21 px on desktop, 15 px on phones), with a paper
+    halo, and they move automatically so they never overlap.
 
 ## 4. Data sources
 | Source | What we use | Why |

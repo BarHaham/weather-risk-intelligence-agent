@@ -55,6 +55,11 @@ def index():
     return FileResponse(STATIC / "index.html")
 
 
+@app.get("/favicon.ico", include_in_schema=False)
+def favicon():  # for browsers that ask for /favicon.ico before reading the <link rel="icon">
+    return FileResponse(STATIC / "favicon-32.png", media_type="image/png")
+
+
 @app.get("/health")
 def health():
     return {"status": "ok",
@@ -104,7 +109,8 @@ def map_hubs():
         x, y = geo.albers_usa(h["lon"], h["lat"])
         r = ranked[h["id"]]
         out.append({k: h[k] for k in ("id", "city", "state", "region", "county")} |
-                   {"x": round(x, 1), "y": round(y, 1), "overall_score": r["overall_score"],
+                   {"state_name": geo.STATE_NAMES.get(h["state"], h["state"]),
+                    "x": round(x, 1), "y": round(y, 1), "overall_score": r["overall_score"],
                     "tier": r["tier"], "rank": r["rank"]})
     return out
 

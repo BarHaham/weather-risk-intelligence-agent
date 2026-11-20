@@ -3,117 +3,183 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Weather Risk Agent</title>
+<title>Weather Risk Atlas</title>
+<link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="/static/favicon-32.png" type="image/png" sizes="32x32">
+<link rel="apple-touch-icon" href="/static/apple-touch-icon.png">
 <style>
-  :root { --bg:#f6f7f9; --panel:#fff; --ink:#1b2430; --muted:#5d6b7a; --line:#dde3ea;
-          --accent:#1f5fbf; --user:#e8f0fc; --land:#e1e6ec; --land-edge:#ffffff;
-          --Low:#2e7d4f; --Moderate:#b7791f; --High:#c2410c; --Severe:#9b1c1c; }
+  /* Weather-atlas palette: warm paper, navy ink, teal accent, parchment land on a pale sea. */
+  :root { --bg:#f6f1e6; --panel:#fffcf5; --ink:#14213d; --muted:#5a6478; --line:#e5dccb;
+          --accent:#0f766e; --user:#e9eef6; --hl:#eef6f4;
+          --sea:#e4ecec; --land:#ede3cd; --land-edge:#fffaf0; --grid:rgba(20,33,61,.16);
+          --Low:#2f7d5b; --Moderate:#b9831a; --High:#c4501b; --Severe:#9b1c31;
+          --serif:"Iowan Old Style","Palatino Linotype",Palatino,"Book Antiqua",Georgia,serif; }
   @media (prefers-color-scheme: dark) {
-    :root { --bg:#12161c; --panel:#1b2129; --ink:#e6ebf1; --muted:#9aa7b5; --line:#2c3440;
-            --accent:#6ea8ff; --user:#1e2b40; --land:#2a323d; --land-edge:#1b2129;
-            --Low:#4fb07a; --Moderate:#d69e2e; --High:#ec6a3a; --Severe:#e05252; }
+    :root { --bg:#0e1525; --panel:#15203a; --ink:#f3ede0; --muted:#a8b0c2; --line:#27324f;
+            --accent:#3cc4b4; --user:#1f2c4a; --hl:#1b2d44;
+            --sea:#101a2e; --land:#243251; --land-edge:#15203a; --grid:rgba(243,237,224,.14);
+            --Low:#4fb487; --Moderate:#dba73a; --High:#ec7440; --Severe:#e2566b; }
   }
   * { box-sizing: border-box; }
-  body { margin:0; font:15px/1.5 system-ui, -apple-system, Segoe UI, sans-serif; background:var(--bg); color:var(--ink); }
-  header { padding:14px 16px; border-bottom:1px solid var(--line); background:var(--panel); }
-  header h1 { margin:0; font-size:18px; }
-  header p { margin:2px 0 0; color:var(--muted); font-size:13px; }
-  /* Desktop: chat left, map + ranking right. Mobile: one column, chat first (document order). */
-  main { display:grid; grid-template-columns: minmax(0, 1fr) minmax(320px, 420px); gap:16px;
-         padding:16px; max-width:1280px; margin:0 auto; align-items:start; }
-  .side { display:flex; flex-direction:column; gap:16px; min-width:0; }
-  @media (max-width: 899px) { main { grid-template-columns: minmax(0, 1fr); } }
-  .panel { background:var(--panel); border:1px solid var(--line); border-radius:10px; min-width:0; }
-  #log { height: calc(100vh - 230px); min-height:320px; overflow-y:auto; padding:16px; }
-  @media (max-width: 899px) { #log { height: 60vh; min-height:280px; } }
-  .msg { margin:0 0 14px; padding:10px 14px; border-radius:10px; max-width: 95%; overflow-wrap:anywhere; }
+  body { margin:0; font:15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; background:var(--bg); color:var(--ink); }
+  h1, h2, h3 { font-family:var(--serif); font-weight:600; letter-spacing:.01em; }
+  .masthead { padding:14px 24px; border-bottom:1px solid var(--line); background:var(--panel); }
+  .brand { display:flex; align-items:center; gap:12px; max-width:1440px; margin:0 auto; }
+  .brand svg { width:34px; height:34px; flex:none; }
+  .brand h1 { margin:0; font-size:22px; }
+  .brand p { margin:0; color:var(--muted); font-size:13px; }
+  @media (max-width: 599px) { .brand p .long { display:none; } .masthead { padding:12px 16px; } }
+  /* Desktop: chat and atlas share the screen equally. Mobile: one column, chat first. */
+  main.atlas { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:20px;
+               padding:20px 24px; max-width:1440px; margin:0 auto; align-items:start; }
+  @media (max-width: 899px) { main.atlas { grid-template-columns:minmax(0,1fr); padding:16px; gap:16px; } }
+  .panel { background:var(--panel); border:1px solid var(--line); border-radius:12px; min-width:0; }
+  .meta { font-size:13px; color:var(--muted); }
+  a { color:var(--accent); }
+  button { font:inherit; }
+  /* ---------- chat ---------- */
+  .chat { display:flex; flex-direction:column; height:max(600px, calc(100vh - 118px)); }
+  .chat-head { display:flex; justify-content:space-between; align-items:baseline; padding:14px 18px 10px;
+               border-bottom:1px solid var(--line); }
+  .chat-head h2 { margin:0; font-size:17px; }
+  #log { flex:1; overflow-y:auto; padding:16px 18px; }
+  .welcome { flex:1; display:none; flex-direction:column; justify-content:center;
+             padding:24px clamp(18px, 6%, 56px) max(24px, 9vh); }  /* sits a little above centre */
+  .chat.empty .welcome { display:flex; }
+  .chat.empty #log, .chat.empty #f, .chat.empty .chat-head { display:none; }
+  .welcome h2 { margin:0 0 14px; font-size:clamp(22px, 2.4vw, 30px); line-height:1.25; }
+  .welcome .examples { margin-top:14px; display:flex; flex-direction:column; gap:8px; }
+  .welcome .examples button { text-align:left; padding:9px 12px; border:1px solid var(--line); border-radius:10px;
+                              background:var(--bg); color:var(--ink); cursor:pointer; }
+  .welcome .examples button:hover, .welcome .examples button:focus-visible { border-color:var(--accent); }
+  .welcome .hint { margin-top:16px; }
+  @media (max-width: 899px) { .chat { height:auto; } .chat:not(.empty) #log { height:60vh; } .welcome { padding:20px 16px; } }
+  .askbox, .askbar { display:flex; gap:8px; }
+  .askbar { padding:12px 18px; border-top:1px solid var(--line); }
+  input[type=text] { flex:1; min-width:0; padding:11px 13px; border-radius:10px; border:1px solid var(--line);
+                     background:var(--bg); color:var(--ink); font-size:15px; }
+  input[type=text]:focus { outline:2px solid var(--accent); outline-offset:1px; border-color:transparent; }
+  .send { padding:11px 18px; border-radius:10px; border:0; background:var(--ink); color:var(--panel); font-weight:600; cursor:pointer; }
+  button:disabled { opacity:.5; cursor:wait; }
+  .msg { margin:0 0 14px; padding:10px 14px; border-radius:12px; max-width:95%; overflow-wrap:anywhere; }
   .user { background:var(--user); margin-left:auto; width:fit-content; }
-  .bot { border:1px solid var(--line); }
+  .bot { border:1px solid var(--line); background:var(--panel); }
   .bot .ans p { margin:6px 0; }
   .chips { display:flex; flex-wrap:wrap; gap:6px; margin:8px 0; }
   .chip { font-size:12px; padding:2px 8px; border-radius:999px; border:1px solid var(--line); }
-  .meta { font-size:13px; color:var(--muted); }
   details { margin-top:6px; } summary { cursor:pointer; color:var(--muted); font-size:13px; }
   .breakdown .scroll { overflow-x:auto; }
   table { border-collapse:collapse; font-size:13px; margin:6px 0; }
   td, th { border-bottom:1px solid var(--line); padding:3px 8px; text-align:left; }
   tr.headline td { font-weight:600; }
-  .follow button, .suggest button { margin:4px 6px 0 0; font-size:13px; padding:4px 10px; border-radius:999px;
+  .follow button, .suggest button { margin:4px 6px 0 0; font-size:13px; padding:5px 11px; border-radius:999px;
                    border:1px solid var(--accent); background:transparent; color:var(--accent); cursor:pointer; text-align:left; }
-  form { display:flex; gap:8px; padding:12px; border-top:1px solid var(--line); }
-  input[type=text] { flex:1; min-width:0; padding:10px 12px; border-radius:8px; border:1px solid var(--line);
-                     background:var(--bg); color:var(--ink); font-size:15px; }
-  button.send { padding:10px 16px; border-radius:8px; border:0; background:var(--accent); color:#fff; font-weight:600; cursor:pointer; }
-  button:disabled { opacity:.5; cursor:wait; }
-  .side .panel { padding:14px; } .side h2 { font-size:14px; margin:0 0 8px; }
-  .rank-row { display:flex; justify-content:space-between; padding:5px 0; border-bottom:1px solid var(--line); font-size:14px; }
-  .tier { font-size:12px; font-weight:600; }
   .err { color:var(--High); }
-  .examples button { display:block; width:100%; text-align:left; margin:4px 0; padding:6px 8px; font-size:13px;
-                     border:1px solid var(--line); border-radius:6px; background:transparent; color:var(--ink); cursor:pointer; }
-  /* map */
-  #map { width:100%; height:auto; display:block; }
-  #map .state { fill:var(--land); stroke:var(--land-edge); stroke-width:1; }
+  /* ---------- atlas ---------- */
+  .atlas-panel { padding:16px 18px 14px; }
+  .atlas-head { display:flex; flex-wrap:wrap; justify-content:space-between; align-items:baseline; gap:4px 12px; }
+  .atlas-head h2 { margin:0; font-size:17px; }
+  #map { width:100%; height:auto; display:block; margin-top:10px; border-radius:10px; }
+  #map .sea { fill:var(--sea); }
+  #map .state { fill:var(--land); stroke:var(--land-edge); stroke-width:1.2; }
+  #map .grid { fill:none; stroke:var(--grid); stroke-width:1; stroke-dasharray:3 4; }
   #map .hub { cursor:pointer; outline:none; -webkit-tap-highlight-color:transparent; }
-  #map .hub circle { stroke:var(--panel); stroke-width:4; }
-  #map .hub text { font-size:28px; font-weight:600; fill:var(--ink); paint-order:stroke;
-                   stroke:var(--panel); stroke-width:7px; stroke-linejoin:round; }
-  #map .hub:hover circle, #map .hub:focus-visible circle { stroke:var(--accent); stroke-width:7; }
-  #map .hub.selected circle { stroke:var(--ink); stroke-width:7; }
-  .legend { display:flex; flex-wrap:wrap; gap:10px; font-size:12px; color:var(--muted); margin:6px 0 0; }
+  #map .hub circle { stroke:var(--panel); stroke-width:4; transform-box:fill-box; transform-origin:center;
+                     transition:transform .15s ease, opacity .15s ease; }
+  #map .hub text { font:650 26px system-ui, -apple-system, "Segoe UI", sans-serif; letter-spacing:.2px; fill:var(--ink);
+                   paint-order:stroke; stroke:var(--panel); stroke-width:8px; stroke-linejoin:round; }
+  @media (max-width: 899px) { #map .hub text { font-size:38px; } }
+  #markers.has-hl .hub:not(.hl):not(.selected) { opacity:.38; }
+  #map .hub.hl circle, #map .hub:hover circle, #map .hub:focus-visible circle { transform:scale(1.45); stroke:var(--accent); stroke-width:4; }
+  #map .hub.hl text { text-decoration:underline; text-decoration-thickness:3px; text-underline-offset:6px; }
+  #map .hub.selected circle { stroke:var(--ink); stroke-width:5; transform:scale(1.3); }
+  .legend { display:flex; flex-wrap:wrap; gap:6px 12px; font-size:12px; color:var(--muted); margin:8px 0 0; }
   .legend i { display:inline-block; width:10px; height:10px; border-radius:50%; margin-right:4px; vertical-align:-1px; }
-  .hubcard { border-top:1px solid var(--line); margin-top:10px; padding-top:10px; }
-  .hubcard form { padding:8px 0 0; border:0; }
-  .attrib { font-size:11px; margin:10px 0 0; }
+  .atlas-foot { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1.15fr); grid-template-areas:"rank card";
+                gap:16px; margin-top:14px; padding-top:12px; border-top:1px solid var(--line); }
+  @media (max-width: 1199px) { .atlas-foot { grid-template-columns:minmax(0,1fr); grid-template-areas:"card" "rank"; } }
+  .atlas-foot h3 { margin:0 0 6px; font-size:15px; }
+  .ranking-wrap { grid-area:rank; }
+  #ranking { list-style:none; margin:0; padding:0; }
+  .rank-row { width:100%; display:grid; grid-template-columns:1.6em minmax(0,1fr) auto; gap:6px; align-items:baseline;
+              padding:6px 8px; border:0; border-radius:8px; background:transparent; color:var(--ink); cursor:pointer;
+              text-align:left; font-size:14px; }
+  .rank-row:hover, .rank-row.hl, .rank-row:focus-visible { background:var(--hl); outline:none; }
+  .rank-row[aria-pressed="true"] { background:var(--hl); font-weight:650; }
+  .rank-row[aria-pressed="true"] .n { color:var(--accent); }
+  .rank-row .n { color:var(--muted); font-variant-numeric:tabular-nums; }
+  .rank-row .sc { font-variant-numeric:tabular-nums; }
+  .tier { font-size:12px; font-weight:650; }
+  .hubcard { grid-area:card; }
+  .hubcard h3 { font-size:20px; margin:0; }
+  .hubcard .stats { margin:4px 0 8px; font-size:14px; }
+  .hubcard form { margin-top:8px; }
+  .attrib { font-size:11px; margin:12px 0 0; }
 </style>
 </head>
 <body>
-<header>
-  <h1>Weather Risk Intelligence Agent</h1>
-  <p>Ask about weather-disruption exposure of our distribution hubs. Scores come from a deterministic model; the AI explains them.</p>
+<header class="masthead">
+  <div class="brand">
+    <svg viewBox="0 0 64 64" aria-hidden="true"><rect width="64" height="64" rx="14" fill="#14213d"/>
+      <path d="M32 9.5c-8.6 0-15.5 6.8-15.5 15.3 0 11.2 15.5 29.7 15.5 29.7s15.5-18.5 15.5-29.7C47.5 16.3 40.6 9.5 32 9.5z" fill="#2bb3a3"/>
+      <circle cx="32" cy="25" r="6" fill="#14213d"/></svg>
+    <div><h1>Weather Risk Atlas</h1>
+      <p>Weather-disruption exposure of our distribution hubs.<span class="long"> Scores come from a deterministic model; the AI explains them.</span></p></div>
+  </div>
 </header>
-<main>
-  <section class="panel" id="chat" aria-label="Chat">
-    <div id="log"></div>
-    <form id="f">
-      <input id="q" type="text" autocomplete="off" aria-label="Your question"
-             placeholder="e.g. Which hubs in the Midwest are most exposed to winter disruption?">
+<main class="atlas">
+  <section class="panel chat empty" id="chat" aria-label="Chat">
+    <div class="chat-head"><h2>Ask about your hubs</h2><a href="#" id="newchat">New conversation</a></div>
+    <div class="welcome" id="welcome">
+      <h2 id="welcome-title">What would you like to know about your hubs?</h2>
+      <form class="askbox" id="f0">
+        <input id="q0" type="text" autocomplete="off" aria-labelledby="welcome-title"
+               placeholder="Ask about any hub, hazard or ranking">
+        <button class="send">Ask</button>
+      </form>
+      <div class="examples" id="examples" role="group" aria-label="Example questions"></div>
+      <p class="meta hint">Or pick a hub on the map to ask about it.</p>
+    </div>
+    <div id="log" aria-live="polite"></div>
+    <form class="askbar" id="f">
+      <input id="q" type="text" autocomplete="off" aria-label="Your question" placeholder="Ask a follow-up or a new question">
       <button class="send" id="send">Ask</button>
     </form>
   </section>
-  <div class="side">
-    <section class="panel" id="map-panel" aria-labelledby="map-title">
-      <h2 id="map-title">Hub map</h2>
-      <svg id="map" viewBox="0 0 975 610" role="group" aria-label="Map of company hubs; select a hub to ask about it">
-        <g id="states"></g><g id="markers"></g>
-      </svg>
-      <div class="legend" id="legend"></div>
+  <section class="panel atlas-panel" id="map-panel" aria-labelledby="map-title">
+    <div class="atlas-head"><h2 id="map-title">Hub atlas</h2>
+      <span class="meta">Overall weather-disruption risk, 2020–2025</span></div>
+    <svg id="map" viewBox="0 0 975 610" role="group" aria-label="Map of company hubs; select a hub to ask about it">
+      <defs><clipPath id="land48"></clipPath></defs>
+      <rect class="sea" width="975" height="610"/>
+      <g id="states"></g><g id="grid" clip-path="url(#land48)"></g><g id="markers"></g>
+    </svg>
+    <div class="legend" id="legend"></div>
+    <div class="atlas-foot">
       <div class="hubcard" id="hubcard" aria-live="polite">
-        <p class="meta">Select a hub on the map to see it and ask about it.</p>
+        <h3>Explore a hub</h3>
+        <p class="meta">Hover a city in the ranking to find it on the map. Select it to see the hub and ask about it.</p>
       </div>
-      <p class="attrib meta" id="attrib"></p>
-    </section>
-    <section class="panel">
-      <h2>Overall risk ranking</h2>
-      <div id="ranking" class="meta">Loading…</div>
-      <h2 style="margin-top:16px">Try</h2>
-      <div class="examples" id="examples"></div>
-      <p class="meta" style="margin-top:16px"><a href="#" id="newchat">Start a new conversation</a></p>
-    </section>
-  </div>
+      <div class="ranking-wrap">
+        <h3>Overall risk ranking</h3>
+        <ol id="ranking" aria-label="Hubs ranked by overall risk"><li class="meta">Loading…</li></ol>
+      </div>
+    </div>
+    <p class="attrib meta" id="attrib"></p>
+  </section>
 </main>
 <script>
 const EXAMPLES = [
   "Which hubs in the Midwest are most exposed to winter disruption?",
-  "Compare Miami and Houston in terms of hurricane and flood exposure.",
+  "Compare Miami and Houston for hurricane and flood exposure.",
   "What percentage of days in Denver last year had snowfall?",
-  "Why is the Dallas hub's weather disruption risk high?",
 ];
 const TIERS = ["Low", "Moderate", "High", "Severe"];
 const SVG = "http://www.w3.org/2000/svg";
-let sessionId = null;
+let sessionId = null, HUBS = [];
 try { sessionId = localStorage.getItem("wr_session"); } catch (e) {}
-const log = document.getElementById("log");
+const $ = id => document.getElementById(id);
+const log = $("log"), chat = $("chat");
 const esc = s => String(s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 const narrow = () => window.matchMedia("(max-width: 899px)").matches;
 const score = v => Number(v).toFixed(1);  // 41 -> "41.0"
@@ -174,10 +240,17 @@ function renderAnswer(r) {
   el.querySelectorAll(".follow button").forEach(b => b.onclick = () => ask(b.textContent));
 }
 
+function startConversation() {  // empty welcome screen -> usual conversation layout
+  if (!chat.classList.contains("empty")) return;
+  chat.classList.remove("empty");
+  $("q").focus({ preventScroll: true });
+}
+
 async function ask(text) {
   if (!text.trim()) return;
+  startConversation();
   add(esc(text), "user");
-  const btn = document.getElementById("send"); btn.disabled = true;
+  const btn = $("send"); btn.disabled = true;
   const pending = add("<span class='meta'>Thinking and running tools…</span>", "bot");
   try {
     const res = await fetch("/chat", { method:"POST", headers:{"Content-Type":"application/json"},
@@ -192,108 +265,139 @@ async function ask(text) {
   finally { btn.disabled = false; }
 }
 
-// ---------- hub map ----------
-function hubName(h) { return `${h.city}, ${h.state}`; }
+// ---------- atlas: map, ranking and hub card ----------
+const fullName = h => `${h.city}, ${h.state_name}`;          // "Houston, Texas"
+const marker = id => document.querySelector(`#markers .hub[data-id="${id}"]`);
+const rankRow = id => document.querySelector(`.rank-row[data-id="${id}"]`);
+
+function highlight(id, on) {  // ranking row <-> map marker, both ways
+  const m = marker(id), r = rankRow(id);
+  if (m) m.classList.toggle("hl", on);
+  if (r) r.classList.toggle("hl", on);
+  $("markers").classList.toggle("has-hl", !!document.querySelector("#markers .hub.hl"));
+}
 
 function askAbout(h, text) {
   text = text.trim();
   if (!text) return;
   // Make the hub explicit unless the question already names it; the chat shows what is sent.
-  const msg = text.toLowerCase().includes(h.city.toLowerCase()) ? text : `About the ${hubName(h)} hub: ${text}`;
-  if (narrow()) document.getElementById("chat").scrollIntoView({ behavior: "smooth", block: "start" });
+  const msg = text.toLowerCase().includes(h.city.toLowerCase()) ? text : `About the ${fullName(h)} hub: ${text}`;
+  if (narrow()) chat.scrollIntoView({ behavior: "smooth", block: "start" });
   ask(msg);
 }
 
-function selectHub(h) {
+function selectHub(id, opts = {}) {
+  const h = HUBS.find(x => x.id === id); if (!h) return;
   document.querySelectorAll("#markers .hub").forEach(g => {
-    const on = g.dataset.id === h.id;
-    g.classList.toggle("selected", on); g.setAttribute("aria-pressed", on ? "true" : "false");
-  });
-  const card = document.getElementById("hubcard");
-  const suggestions = [`What drives the ${hubName(h)} hub's risk score?`,
-                       `How does ${h.city} rank against the other hubs?`];
+    const on = g.dataset.id === id; g.classList.toggle("selected", on); g.setAttribute("aria-pressed", on ? "true" : "false"); });
+  document.querySelectorAll(".rank-row").forEach(b => b.setAttribute("aria-pressed", b.dataset.id === id ? "true" : "false"));
+  const question = `What drives ${h.city}'s ${h.tier.toLowerCase()} risk score?`;
+  const card = $("hubcard");
   card.innerHTML = `
-    <div><b id="hub-name">${esc(hubName(h))}</b> <span class="meta">${esc(h.region)} · ${esc(h.county)} County</span></div>
-    <div class="meta">Overall risk <b>${score(h.overall_score)}</b>
-      <span class="tier" style="color:var(--${esc(h.tier)})">${esc(h.tier)}</span> · rank ${esc(h.rank)} of ${esc(window.HUBS.length)}</div>
-    <div class="suggest">${suggestions.map(s => `<button type="button">${esc(s)}</button>`).join("")}</div>
-    <form id="hubask"><input type="text" autocomplete="off" aria-label="${esc(`Ask about ${hubName(h)}`)}"
-      placeholder="${esc(`Ask about ${hubName(h)}…`)}"><button class="send">Ask</button></form>`;
-  card.querySelectorAll(".suggest button").forEach(b => b.onclick = () => askAbout(h, b.textContent));
+    <h3 id="hub-name">${esc(fullName(h))}</h3>
+    <div class="meta">${esc(h.county)} County · ${esc(h.region)} region</div>
+    <div class="stats">Overall risk <b>${score(h.overall_score)}</b>
+      <span class="tier" style="color:var(--${esc(h.tier)})">${esc(h.tier)}</span>
+      <span class="meta">· #${esc(h.rank)} of ${HUBS.length}</span></div>
+    <div class="suggest"><button type="button">${esc(question)}</button></div>
+    <form class="askbox" id="hubask"><input type="text" autocomplete="off" aria-label="${esc(`Ask about ${fullName(h)}`)}"
+      placeholder="${esc(`Ask about ${fullName(h)}…`)}"><button class="send">Ask</button></form>`;
+  card.querySelector(".suggest button").onclick = () => askAbout(h, question);
   card.querySelector("#hubask").onsubmit = e => {
     e.preventDefault(); const inp = e.target.querySelector("input"); askAbout(h, inp.value); inp.value = ""; };
+  if (opts.fromRanking && narrow()) card.scrollIntoView({ behavior: "smooth", block: "nearest" });
 }
 
-// Keep city labels readable: a label that would overlap an earlier label or another marker
-// moves to the left of its marker, then below it, whichever fits first.
+// Keep city labels readable: a label that would overlap another label or marker, or run off
+// the map, moves to the left of its marker, then below or above it, whichever fits first.
 function placeLabels() {
   const hubs = [...document.querySelectorAll("#markers .hub")];
   const at = g => g.transform.baseVal.consolidate().matrix;
-  const circles = hubs.map(g => { const m = at(g); return { x: m.e - 15, y: m.f - 15, width: 30, height: 30, g }; });
+  const circles = hubs.map(g => { const m = at(g); return { x: m.e - 17, y: m.f - 17, width: 34, height: 34, g }; });
   const overlap = (a, b) => a.x < b.x + b.width && b.x < a.x + a.width && a.y < b.y + b.height && b.y < a.y + a.height;
   const placed = [];
-  const spots = [{ x: 19, y: 10, anchor: "start" }, { x: -19, y: 10, anchor: "end" }, { x: 0, y: 44, anchor: "middle" },
-                 { x: 0, y: -24, anchor: "middle" }];
+  const spots = [{ x: 22, y: 9, anchor: "start" }, { x: -22, y: 9, anchor: "end" }, { x: 0, y: 46, anchor: "middle" },
+                 { x: 0, y: -26, anchor: "middle" }];
   for (const g of hubs) {
     const t = g.querySelector("text"), m = at(g);
     for (const s of spots) {
       t.setAttribute("x", s.x); t.setAttribute("y", s.y); t.setAttribute("text-anchor", s.anchor);
-      const b = t.getBBox(), box = { x: m.e + b.x, y: m.f + b.y, width: b.width, height: b.height };
+      const b = t.getBBox(), box = { x: m.e + b.x - 4, y: m.f + b.y, width: b.width + 8, height: b.height };
+      const inMap = box.x >= 0 && box.x + box.width <= 975 && box.y >= 0 && box.y + box.height <= 610;
       const clash = placed.some(p => overlap(p, box)) || circles.some(c => c.g !== g && overlap(c, box));
-      if (!clash) break;  // otherwise try the next spot (the last one is kept if none fits)
+      if (inMap && !clash) break;  // otherwise try the next spot (the last one is kept if none fits)
     }
-    const b = t.getBBox(); placed.push({ x: m.e + b.x, y: m.f + b.y, width: b.width, height: b.height });
+    const b = t.getBBox(); placed.push({ x: m.e + b.x - 4, y: m.f + b.y, width: b.width + 8, height: b.height });
   }
 }
 
-function drawMap(atlas, hubsOnMap) {
-  window.HUBS = hubsOnMap;
-  const states = document.getElementById("states");
+function drawMap(atlas) {
+  const states = $("states"), clip = $("land48"), grid = $("grid");
   for (const s of atlas.states) {
     const p = document.createElementNS(SVG, "path");
     p.setAttribute("d", s.d); p.setAttribute("class", "state");
     const t = document.createElementNS(SVG, "title"); t.textContent = s.name; p.appendChild(t);
     states.appendChild(p);
+    if ((atlas.lower48 || []).includes(s.name)) {
+      const c = document.createElementNS(SVG, "path"); c.setAttribute("d", s.d); clip.appendChild(c); }
   }
-  const markers = document.getElementById("markers");
-  for (const h of hubsOnMap) {
+  for (const d of atlas.graticule || []) {
+    const p = document.createElementNS(SVG, "path"); p.setAttribute("d", d); p.setAttribute("class", "grid"); grid.appendChild(p); }
+  const markers = $("markers");
+  for (const h of HUBS) {
     const g = document.createElementNS(SVG, "g");
     g.setAttribute("class", "hub"); g.dataset.id = h.id;
     g.setAttribute("transform", `translate(${h.x} ${h.y})`);
     g.setAttribute("tabindex", "0"); g.setAttribute("role", "button"); g.setAttribute("aria-pressed", "false");
-    g.setAttribute("aria-label", `${hubName(h)}, overall ${score(h.overall_score)}, ${h.tier}`);
+    g.setAttribute("aria-label", `${fullName(h)}, overall ${score(h.overall_score)}, ${h.tier}`);
     const c = document.createElementNS(SVG, "circle");
     c.setAttribute("r", "13"); c.setAttribute("fill", `var(--${h.tier})`);
-    const label = document.createElementNS(SVG, "text");
-    label.setAttribute("x", "19"); label.setAttribute("y", "10"); label.textContent = h.city;
-    const tip = document.createElementNS(SVG, "title"); tip.textContent = `${hubName(h)}: overall ${score(h.overall_score)} (${h.tier})`;
+    const label = document.createElementNS(SVG, "text"); label.textContent = h.city;
+    const tip = document.createElementNS(SVG, "title"); tip.textContent = `${fullName(h)}: overall ${score(h.overall_score)} (${h.tier})`;
     g.append(c, label, tip);
-    g.addEventListener("click", () => selectHub(h));
-    g.addEventListener("keydown", e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); selectHub(h); } });
+    g.addEventListener("click", () => selectHub(h.id));
+    g.addEventListener("keydown", e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); selectHub(h.id); } });
+    g.addEventListener("mouseenter", () => highlight(h.id, true));
+    g.addEventListener("mouseleave", () => highlight(h.id, false));
+    g.addEventListener("focus", () => highlight(h.id, true));
+    g.addEventListener("blur", () => highlight(h.id, false));
     markers.appendChild(g);
   }
   placeLabels();
-  document.getElementById("legend").innerHTML = "<span>Overall risk tier:</span>" +
+  window.matchMedia("(max-width: 899px)").addEventListener("change", placeLabels);  // label size changes
+  $("legend").innerHTML = "<span>Overall risk tier:</span>" +
     TIERS.map(t => `<span><i style="background:var(--${t})"></i>${t}</span>`).join("");
-  document.getElementById("attrib").textContent = atlas.attribution;
+  $("attrib").textContent = atlas.attribution;
+}
+
+function drawRanking() {
+  const ol = $("ranking");
+  ol.innerHTML = [...HUBS].sort((a, b) => a.rank - b.rank).map(h => `<li>
+    <button type="button" class="rank-row" data-id="${esc(h.id)}" aria-pressed="false">
+      <span class="n">${esc(h.rank)}.</span><span>${esc(h.city)}, ${esc(h.state)}</span>
+      <span><span class="sc">${score(h.overall_score)}</span> <span class="tier" style="color:var(--${esc(h.tier)})">${esc(h.tier)}</span></span>
+    </button></li>`).join("");
+  ol.querySelectorAll(".rank-row").forEach(b => {
+    const id = b.dataset.id;
+    b.addEventListener("mouseenter", () => highlight(id, true));
+    b.addEventListener("mouseleave", () => highlight(id, false));
+    b.addEventListener("focus", () => highlight(id, true));
+    b.addEventListener("blur", () => highlight(id, false));
+    b.addEventListener("click", () => selectHub(id, { fromRanking: true }));
+  });
 }
 
 Promise.all([fetch("/static/us-states.json").then(r => r.json()), fetch("/map/hubs").then(r => r.json())])
-  .then(([atlas, hubsOnMap]) => drawMap(atlas, hubsOnMap))
-  .catch(() => { document.getElementById("hubcard").innerHTML = "<p class='meta'>Map unavailable.</p>"; });
+  .then(([atlas, hubsOnMap]) => { HUBS = hubsOnMap; drawMap(atlas); drawRanking(); })
+  .catch(() => { $("hubcard").innerHTML = "<p class='meta'>Map unavailable.</p>"; $("ranking").innerHTML = ""; });
 
-// ---------- chat controls and ranking ----------
-document.getElementById("f").onsubmit = e => { e.preventDefault(); const q = document.getElementById("q"); ask(q.value); q.value = ""; };
-document.getElementById("newchat").onclick = e => { e.preventDefault(); sessionId = null;
-  try { localStorage.removeItem("wr_session"); } catch (err) {} log.innerHTML = ""; };
-const ex = document.getElementById("examples");
-EXAMPLES.forEach(t => { const b = document.createElement("button"); b.textContent = t; b.onclick = () => ask(t); ex.appendChild(b); });
-
-fetch("/rankings").then(r => r.json()).then(rows => {
-  document.getElementById("ranking").innerHTML = rows.map(r =>
-    `<div class="rank-row"><span>${r.rank}. ${esc(r.city)}</span><span>${score(r.score)} <span class="tier" style="color:var(--${r.tier})">${esc(r.tier)}</span></span></div>`).join("")
-    + `<p class="meta">Confidence: ${esc(rows[0]?.confidence || "")} (see caveats in answers)</p>`;
-}).catch(() => { document.getElementById("ranking").textContent = "Could not load ranking."; });
+// ---------- chat controls ----------
+const ex = $("examples");
+EXAMPLES.forEach(t => { const b = document.createElement("button"); b.type = "button"; b.textContent = t; b.onclick = () => ask(t); ex.appendChild(b); });
+$("f0").onsubmit = e => { e.preventDefault(); const q = $("q0"); const v = q.value; q.value = ""; ask(v); };
+$("f").onsubmit = e => { e.preventDefault(); const q = $("q"); const v = q.value; q.value = ""; ask(v); };
+$("newchat").onclick = e => { e.preventDefault(); sessionId = null;
+  try { localStorage.removeItem("wr_session"); } catch (err) {} log.innerHTML = ""; chat.classList.add("empty"); $("q0").focus(); };
 </script>
 </body>
 </html>
