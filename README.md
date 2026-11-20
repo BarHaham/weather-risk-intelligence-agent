@@ -37,7 +37,6 @@ tried once on **Claude Haiku 5.5**, and every answer (UI, `/chat`, eval results)
 actually answered.
 
 - Design and architecture: [`docs/DESIGN.md`](docs/DESIGN.md)
-- AI session transcript (plan and full conversation): [`docs/session-transcript.md`](docs/session-transcript.md)
 
 ## Quick start
 
