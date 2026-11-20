@@ -471,7 +471,7 @@ def test_threshold_case_fails_when_agent_tries_0_99_even_with_the_right_count():
                   "label": "daily snowfall >= 1 cm (at least 1 cm)", "value": want,
                   "unit": "days", "source_tool": "weather_stat", "role": "headline"}]))}
     checks = {name: ok for name, ok, _ in eval_run.check_case(case, result)}
-    assert checks["figure value"] is True            # the count itself is right...
+    assert checks[next(n for n in checks if n.startswith("figure 17"))] is True  # the count is right...
     assert checks[next(n for n in checks if n.startswith("weather_stat input"))] is False
 
 

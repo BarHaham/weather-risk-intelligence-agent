@@ -7,8 +7,11 @@
 #   hubs_mentioned: hub ids that must appear in answer.hubs
 #   ranking:        {hazard, region, top_n} -> answer.hubs (for that hazard) must list the
 #                   model's top_n hubs in the model's order
-#   figure:         {hub_id, metric, year, threshold, field, tol} -> some answer.figures value
-#                   must be within tol of metrics.weather_stat(...)[field]
+#   figure:         {hub_id, metric, year, threshold, field, tol, unit} -> REQUIRED: answer.figures
+#                   must contain a figure whose value is within tol of metrics.weather_stat(...)[field]
+#                   AND whose unit matches (unit '%' or 'days'; defaults from the field). A missing
+#                   figure, a figure only in the text, a wrong unit ("11.8 days" for 11.8%) or an
+#                   expected value that cannot be computed all fail the case
 #                   optional role: headline -> that figure must be a headline figure (the
 #                   main result the answer states), not a collapsed breakdown row
 #   no_month_list:  true -> the answer text names at most 3 distinct months (a month-by-month
@@ -35,7 +38,7 @@
   turns: ["What percentage of days in Denver last year had snowfall?"]
   tools: [weather_stat]
   in_scope: true
-  figure: {hub_id: denver, metric: snowfall, year: 2025, threshold: null, field: percent_of_days, tol: 0.5, role: headline}
+  figure: {hub_id: denver, metric: snowfall, year: 2025, threshold: null, field: percent_of_days, tol: 0.5, unit: "%", role: headline}
   no_month_list: true
 
 - id: dallas_why
@@ -57,7 +60,7 @@
   tools: [weather_stat]
   tool_input: {tool: weather_stat, threshold: 1.0}
   in_scope: true
-  figure: {hub_id: denver, metric: snowfall, year: 2025, threshold: 1.0, field: days_meeting_condition, tol: 0, role: headline}
+  figure: {hub_id: denver, metric: snowfall, year: 2025, threshold: 1.0, field: days_meeting_condition, tol: 0, unit: days, role: headline}
 
 - id: overall_ranking
   turns: ["Rank all of our hubs by overall weather disruption risk."]

@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import uuid
 
 import anthropic
@@ -126,6 +127,21 @@ def describe_error(err: BaseException) -> str:
     if getattr(err, "simulated", False):
         text += " [simulated]"
     return text
+
+
+_INVALID_SIGNATURE_RE = re.compile(r"invalid\W+signature", re.IGNORECASE)
+
+
+def is_expired_conversation(err: BaseException) -> bool:
+    """True for the 400 the API returns when a stored conversation's reasoning (thinking) blocks
+    no longer validate: "Invalid `signature` in `thinking` block". That happens when an app
+    update changed the system prompt or tools after the conversation was stored (preserved
+    thinking's history-editing check), or when a signature can't be verified. The conversation
+    can't be continued; a new one works."""
+    if isinstance(err, FallbackFailedError):
+        return is_expired_conversation(err.fallback_error)
+    return isinstance(err, anthropic.BadRequestError) and bool(
+        _INVALID_SIGNATURE_RE.search(describe_error(err)))
 
 
 class FallbackFailedError(Exception):

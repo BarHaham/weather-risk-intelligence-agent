@@ -130,8 +130,13 @@ Haiku.
   request or the key, so they are raised directly.
 - **Refusals** are not retried on another model. The answer says the request can't be handled.
 
-Older chat sessions saved by a previous version can be cleared with "Start a new conversation" in
-the UI.
+**Light/dark mode:** use the **Dark mode** switch in the header. The choice is remembered in
+this browser; until you choose, the page follows your system setting.
+
+**Chats from an earlier version:** an app update that changes the system prompt or tools stops
+older conversations from continuing. The API rejects their saved reasoning ("Invalid signature").
+The chat then shows a short message with a **Start a new conversation** button, and your question
+is kept in the box.
 
 ## Tests and evaluation
 

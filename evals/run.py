@@ -37,6 +37,27 @@ def expected_figure(spec: dict):
     return stat.get(spec["field"]), stat
 
 
+# A figure must carry the right unit as well as the right number: "11.8 days" is not "11.8%".
+FIELD_UNITS = {"percent_of_days": "%", "days_meeting_condition": "days", "days_with_data": "days"}
+_PERCENT_RE = re.compile(r"%|\bper ?cent(age)?\b|\bpct\b", re.IGNORECASE)
+_DAYS_RE = re.compile(r"\bdays?\b", re.IGNORECASE)
+
+
+def expected_unit(spec: dict) -> str:
+    unit = spec.get("unit") or FIELD_UNITS.get(spec["field"])
+    if unit not in ("%", "days"):
+        raise ValueError(f"figure spec needs unit '%' or 'days' (field {spec['field']!r})")
+    return unit
+
+
+def unit_matches(unit: str, want: str) -> bool:
+    """'%', 'percent', '% of days' count as %; 'days', 'of 365 days' count as days."""
+    unit = unit or ""
+    if want == "%":
+        return bool(_PERCENT_RE.search(unit))
+    return bool(_DAYS_RE.search(unit)) and not _PERCENT_RE.search(unit)
+
+
 def model_score(hub_id: str, hazard: str) -> float:
     b = scoring.score_hub(hub_id)
     if hazard == "overall":
@@ -106,18 +127,23 @@ def check_case(case: dict, result: dict) -> list[tuple[str, bool, str]]:
     if "tool_input" in case:
         checks.append(check_tool_input(case["tool_input"], result["tool_calls"]))
     if "figure" in case:
-        want, stat = expected_figure(case["figure"])
-        if want is None:
-            checks.append(("figure", None, f"SKIP: no data ({stat.get('error')})"))
+        spec = case["figure"]
+        want, stat = expected_figure(spec)
+        unit = expected_unit(spec)
+        if want is None:  # a required figure that cannot be computed fails the case
+            checks.append(("figure available", False,
+                           f"required figure could not be computed: {stat.get('error')}"))
         else:
-            vals = [f["value"] for f in a["figures"]]
-            ok = any(abs(v - want) <= case["figure"]["tol"] for v in vals)
-            checks.append(("figure value", ok, f"want={want} got={vals}"))
-            if case["figure"].get("role"):
-                role = case["figure"]["role"]
-                roles = [f.get("role") for f in a["figures"]
-                         if abs(f["value"] - want) <= case["figure"]["tol"]]
-                checks.append((f"figure is {role}", role in roles, f"roles={roles}"))
+            # Required: some figure with the right number AND the right unit (in answer.figures,
+            # not just in the text). A missing figure or a wrong unit fails the case.
+            match = [f for f in a["figures"] if abs(f["value"] - want) <= spec["tol"]
+                     and unit_matches(f.get("unit", ""), unit)]
+            got = ", ".join(f"{f['value']:g} {f.get('unit', '')!r}" for f in a["figures"])
+            checks.append((f"figure {want:g} {unit}", bool(match),
+                           f"want {want:g} {unit} (tol {spec['tol']}); got {got or 'no figures'}"))
+            if spec.get("role"):
+                roles = [f.get("role") for f in match]
+                checks.append((f"figure is {spec['role']}", spec["role"] in roles, f"roles={roles}"))
     if case.get("no_month_list"):
         months = months_named(a["answer"])
         checks.append(("no month list in answer", len(months) <= MAX_MONTHS_IN_ANSWER,
@@ -221,7 +247,7 @@ def main() -> None:
             if "ranking" in c:
                 exp["ranking"] = expected_ranking(c["ranking"])
             if "figure" in c:
-                exp["figure"] = expected_figure(c["figure"])[0]
+                exp["figure"] = f"{expected_figure(c['figure'])[0]} {expected_unit(c['figure'])}"
             print(f"{c['id']:24} tools={c.get('tools', [])} in_scope={c.get('in_scope')} {exp}")
         return
 

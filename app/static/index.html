@@ -7,24 +7,33 @@
 <link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
 <link rel="icon" href="/static/favicon-32.png" type="image/png" sizes="32x32">
 <link rel="apple-touch-icon" href="/static/apple-touch-icon.png">
+<script>
+  // Apply the saved light/dark choice (or the system setting) before the first paint.
+  (function () {
+    var t = null;
+    try { t = localStorage.getItem("wr_theme"); } catch (e) {}
+    if (t !== "light" && t !== "dark") t = matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+    document.documentElement.dataset.theme = t;
+  })();
+</script>
 <style>
   /* Weather-atlas palette: warm paper, navy ink, teal accent, parchment land on a pale sea.
      --Tier = marker/legend fill; --Tier-text = tier words (WCAG AA 4.5:1 on panel and --hl). */
-  :root { color-scheme: light dark;
+  :root { color-scheme: light;
           --bg:#f6f1e6; --panel:#fffcf5; --ink:#14213d; --muted:#5a6478; --line:#e5dccb;
           --accent:#0f766e; --user:#e9eef6; --hl:#eef6f4;
           --sea:#e4ecec; --land:#ede3cd; --land-edge:#fffaf0; --grid:rgba(20,33,61,.16);
           --Low:#2f7d5b; --Moderate:#b9831a; --High:#c4501b; --Severe:#9b1c31;
           --Low-text:#2a6f51; --Moderate-text:#8a5a00; --High-text:#a8410f; --Severe-text:#9b1c31;
           --serif:"Iowan Old Style","Palatino Linotype",Palatino,"Book Antiqua",Georgia,serif; }
-  @media (prefers-color-scheme: dark) {
-    :root { --bg:#0e1525; --panel:#15203a; --ink:#f3ede0; --muted:#a8b0c2; --line:#27324f;
+  /* Dark theme: chosen with the header switch (remembered), else following the system setting. */
+  :root[data-theme="dark"] { color-scheme: dark;
+            --bg:#0e1525; --panel:#15203a; --ink:#f3ede0; --muted:#a8b0c2; --line:#27324f;
             --accent:#3cc4b4; --user:#1f2c4a; --hl:#1b2d44;
             --sea:#101a2e; --land:#243251; --land-edge:#15203a; --grid:rgba(243,237,224,.14);
             --Low:#4fb487; --Moderate:#dba73a; --High:#ec7440; --Severe:#e2566b;
             --Low-text:#4fb487; --Moderate-text:#dba73a; --High-text:#ec7440; --Severe-text:#f27a8a; }
-    .brand .tile { fill:#2a3d6b; }  /* keep the navy logo tile visible on the dark masthead */
-  }
+  :root[data-theme="dark"] .brand .tile { fill:#2a3d6b; }  /* keep the logo tile visible */
   * { box-sizing: border-box; }
   body { margin:0; font:15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; background:var(--bg); color:var(--ink); }
   h1, h2, h3 { font-family:var(--serif); font-weight:600; letter-spacing:.01em; }
@@ -34,6 +43,23 @@
   .brand h1 { margin:0; font-size:22px; }
   .brand p { margin:0; color:var(--muted); font-size:13px; }
   @media (max-width: 599px) { .brand p .long { display:none; } .masthead { padding:12px 16px; } }
+  .theme-switch { margin-left:auto; flex:none; display:flex; align-items:center; gap:8px; padding:6px 8px;
+                  border:1px solid var(--line); border-radius:999px; background:var(--bg); color:var(--ink);
+                  cursor:pointer; font-size:13px; }
+  .theme-switch .track { position:relative; width:38px; height:22px; border-radius:999px; background:var(--line);
+                         transition:background .15s ease; }
+  .theme-switch .track { box-shadow:inset 0 0 0 1px var(--muted); }  /* >= 3:1 outline when off */
+  .theme-switch .knob { position:absolute; top:3px; left:3px; width:16px; height:16px; border-radius:50%;
+                        background:var(--panel); box-shadow:0 1px 2px rgba(0,0,0,.25); transition:transform .15s ease;
+                        display:grid; place-items:center; color:var(--ink); }
+  .theme-switch .knob svg { width:11px; height:11px; }
+  .theme-switch .moon, .theme-switch[aria-checked="true"] .sun { display:none; }
+  .theme-switch[aria-checked="true"] .moon { display:block; }
+  .theme-switch[aria-checked="true"] .track { background:var(--accent); box-shadow:none; }
+  .theme-switch[aria-checked="true"] .knob { transform:translateX(16px); }
+  @media (max-width: 599px) { .theme-switch .theme-label { position:absolute; width:1px; height:1px; overflow:hidden;
+                              clip:rect(0 0 0 0); white-space:nowrap; } }
+  .restart { margin-top:8px; }
   /* Desktop: chat and atlas share the screen equally, same height. Mobile: one column, chat first. */
   main.atlas { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:20px;
                padding:20px 24px; max-width:1440px; margin:0 auto; align-items:start; }
@@ -146,6 +172,12 @@
       <circle class="tile" cx="32" cy="25" r="6" fill="#14213d"/></svg>
     <div><h1>Weather Risk Atlas</h1>
       <p>Weather-disruption exposure of our distribution hubs.<span class="long"> Scores come from a deterministic model; the AI explains them.</span></p></div>
+    <button type="button" class="theme-switch" id="theme" role="switch" aria-checked="false">
+      <span class="theme-label">Dark mode</span><span class="track" aria-hidden="true"><span class="knob">
+        <svg class="sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><circle cx="12" cy="12" r="4.5"/><path d="M12 1.5v3M12 19.5v3M1.5 12h3M19.5 12h3M4.6 4.6l2.1 2.1M17.3 17.3l2.1 2.1M4.6 19.4l2.1-2.1M17.3 6.7l2.1-2.1"/></svg>
+        <svg class="moon" viewBox="0 0 24 24" fill="currentColor"><path d="M20.5 14.5A8.5 8.5 0 0 1 9.5 3.5a8.5 8.5 0 1 0 11 11z"/></svg>
+      </span></span>
+    </button>
   </div>
 </header>
 <main class="atlas">
@@ -284,7 +316,8 @@ function startConversation(fromTyping) {  // empty welcome screen -> usual conve
 
 function errorText(res, body) {
   const d = body && body.detail;
-  const msg = typeof d === "string" ? d : Array.isArray(d) ? d.map(x => x.msg || "").filter(Boolean).join("; ") : "";
+  const msg = typeof d === "string" ? d : Array.isArray(d) ? d.map(x => x.msg || "").filter(Boolean).join("; ")
+            : d && typeof d.message === "string" ? d.message : "";
   return msg || `The assistant is unavailable (${res.status}). Please try again.`;
 }
 
@@ -302,7 +335,10 @@ async function ask(text, opts = {}) {
     const body = await res.json().catch(() => ({}));
     if (gen !== convGen) return true;            // the user started a new conversation meanwhile
     pending.remove();
-    if (!res.ok) { add(`<span class="err">${esc(errorText(res, body))}</span>`, "bot"); return true; }
+    if (!res.ok) {
+      if (body.detail && body.detail.code === "conversation_expired") { expiredNotice(text, body.detail.message); return true; }
+      add(`<span class="err">${esc(errorText(res, body))}</span>`, "bot"); return true;
+    }
     sessionId = body.session_id;
     try { localStorage.setItem("wr_session", sessionId); } catch (e) {}
     renderAnswer(body);
@@ -489,13 +525,43 @@ for (const [formId, inputId] of [["f0", "q0"], ["f", "q"]]) {
     const v = q.value; q.value = ""; ask(v, { fromTyping: true });
   };
 }
-$("newchat").onclick = () => {
+function forgetSession() {
+  sessionId = null;
+  try { localStorage.removeItem("wr_session"); } catch (err) {}
+}
+
+function resetConversation(prefill = "") {  // back to the opening screen, optionally with a question ready
   convGen++;                                                // late answers of the old conversation are dropped
   if (inflight) inflight.abort();
   setBusy(false);
-  sessionId = null;
-  try { localStorage.removeItem("wr_session"); } catch (err) {}
-  log.innerHTML = ""; chat.classList.add("empty"); $("q0").focus();
+  forgetSession();
+  log.innerHTML = ""; chat.classList.add("empty");
+  const q0 = $("q0"); q0.value = prefill; q0.focus();
+}
+$("newchat").onclick = () => resetConversation();
+
+// A conversation stored before an app update can't be continued (its saved reasoning no longer
+// validates). Say so briefly and offer a fresh start with the same question ready to send.
+function expiredNotice(question, message) {
+  forgetSession();
+  const el = add(`<p>${esc(message || "This conversation can't be continued.")}</p>
+    <button type="button" class="send restart">Start a new conversation</button>`, "bot notice");
+  el.querySelector(".restart").onclick = () => resetConversation(question);
+}
+
+// ---------- light / dark switch (remembered; follows the system until you choose) ----------
+const THEME_KEY = "wr_theme", systemDark = window.matchMedia("(prefers-color-scheme: dark)");
+const storedTheme = () => { try { const t = localStorage.getItem(THEME_KEY); return t === "light" || t === "dark" ? t : null; } catch (e) { return null; } };
+function applyTheme(t) {
+  document.documentElement.dataset.theme = t;
+  $("theme").setAttribute("aria-checked", t === "dark" ? "true" : "false");
+}
+applyTheme(storedTheme() || (systemDark.matches ? "dark" : "light"));
+systemDark.addEventListener("change", e => { if (!storedTheme()) applyTheme(e.matches ? "dark" : "light"); });
+$("theme").onclick = () => {
+  const t = document.documentElement.dataset.theme === "dark" ? "light" : "dark";
+  try { localStorage.setItem(THEME_KEY, t); } catch (e) {}
+  applyTheme(t);
 };
 </script>
 </body>

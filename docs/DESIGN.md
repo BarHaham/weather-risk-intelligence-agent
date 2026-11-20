@@ -67,6 +67,16 @@ explains the results. It never produces scores itself.
   check that every `hubs[].score` equals the model's score (±0.1).
 - **Follow-ups:** history is stored per `session_id` in SQLite and replayed in full, including
   thinking and tool blocks. It is append-only, which the model's thinking blocks require.
+- **Conversations from an earlier app version:** each stored thinking block is tied to the exact
+  system prompt and tools it was produced with.
+  - When an update changes them (as the snowfall-rule and breakdown changes did), continuing an
+    older chat fails with "Invalid `signature` in `thinking` block". That is the API's
+    history-editing check, enforced for newer accounts.
+  - `/chat` turns that error into a 409 `conversation_expired`, and the UI shows a short message
+    with a **Start a new conversation** button. The button returns to the opening screen with
+    the question already in the box. Other 400s keep their normal 502.
+  - An alternative would be the `thinking-binding-controls` beta with `drop_block`, which
+    continues the old chat without its earlier reasoning. It isn't used, to stay off the beta.
 - **Refusals and cut-offs:** `stop_reason` is checked for `refusal`, `max_tokens` and `pause_turn`.
   A refusal is not retried on another model: the earlier server-side refusal fallback was replaced
   by the availability fallback below. The refused (or cut-off) assistant message is not stored, so
@@ -115,6 +125,10 @@ explains the results. It never produces scores itself.
     after the first question, and "New conversation" returns to it.
   - **Favicon:** a teal pin on a navy tile (`app/static/favicon.svg`, with PNG fallbacks and
     `/favicon.ico`).
+  - **Light/dark switch:** in the header (`role="switch"`, with a sun or moon icon), and the
+    choice is remembered in `localStorage`. Until you choose, the page follows the system
+    setting, including live changes. A small script in `<head>` applies the theme before the
+    first paint, so there's no flash.
 - **Hub map.** A US map sits next to the chat on desktop, and below the chat on mobile.
   - **Ranking and map linked both ways:** hovering or focusing a city in the ranking
     highlights its marker and dims the others; hovering a marker highlights its ranking row.
@@ -255,7 +269,11 @@ Per-case checks:
 - `in_scope` is correct
 - the expected hubs are mentioned
 - the ranking order matches the model's
-- cited figures are within tolerance of `metrics.weather_stat`
+- **required figures:** `answer.figures` must contain the number within tolerance of
+  `metrics.weather_stat`, **with the right unit** (`%` or `days`).
+  - "11.8 days" fails where 11.8% is expected.
+  - A missing figure, a figure only in the text, or an expected value that can't be computed
+    fails the case.
 
 Always checked:
 - the answer validates against the schema

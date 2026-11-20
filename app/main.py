@@ -71,14 +71,25 @@ def health():
             "api_key_source": config.api_key_source}
 
 
+CONVERSATION_EXPIRED = {
+    "code": "conversation_expired",
+    "message": "This conversation was started with an earlier version of the app and can't be "
+               "continued. Start a new conversation to ask again.",
+}
+
+
 @app.post("/chat")
 def chat(req: ChatRequest):
     try:
         return agent.chat(req.message, req.session_id)
-    except agent.FallbackFailedError as e:
-        # Both errors are named; the status follows the fallback's real error, so an outage
-        # (503) can be told apart from a permissions/config problem on the fallback (502).
-        raise HTTPException(503 if e.fallback_unavailable else 502, e.describe())
+    except (anthropic.BadRequestError, agent.FallbackFailedError) as e:
+        if agent.is_expired_conversation(e):  # stored reasoning no longer validates
+            raise HTTPException(409, CONVERSATION_EXPIRED)
+        if isinstance(e, agent.FallbackFailedError):
+            # Both errors are named; the status follows the fallback's real error, so an outage
+            # (503) can be told apart from a permissions/config problem on the fallback (502).
+            raise HTTPException(503 if e.fallback_unavailable else 502, e.describe())
+        raise HTTPException(502, f"Anthropic API error: {agent.describe_error(e)}")
     except TypeError as e:  # SDK raises this when no credentials can be resolved at all
         if "authentication" not in str(e).lower():
             raise
