@@ -1,0 +1,84 @@
+# Evaluation cases. Expected rankings and numbers are NOT written here: the runner computes
+# them from the deterministic model / data at run time, then checks the agent reported them.
+#
+# Checks available per case:
+#   tools:          tool names that must appear in the final turn's tool calls
+#   in_scope:       expected value of answer.in_scope
+#   hubs_mentioned: hub ids that must appear in answer.hubs
+#   ranking:        {hazard, region, top_n} -> answer.hubs (for that hazard) must list the
+#                   model's top_n hubs in the model's order
+#   figure:         {hub_id, metric, year, threshold, field, tol, unit} -> REQUIRED: answer.figures
+#                   must contain a figure whose value is within tol of metrics.weather_stat(...)[field]
+#                   AND whose unit matches (unit '%' or 'days'; defaults from the field). A missing
+#                   figure, a figure only in the text, a wrong unit ("11.8 days" for 11.8%) or an
+#                   expected value that cannot be computed all fail the case. The answer TEXT
+#                   must not state the number with another unit, and a headline figure must be
+#                   stated there with the right unit
+#                   optional role: headline -> that figure must be a headline figure (the
+#                   main result the answer states), not a collapsed breakdown row
+#   no_month_list:  true -> the answer text names at most 3 distinct months (a month-by-month
+#                   breakdown belongs in the detail figures, not in the text)
+#   tool_input:     {tool, <field>: <value>, ...} -> there is at least one call of that tool and
+#                   EVERY call of it used exactly these input values (e.g. a turn that tries both
+#                   threshold 1 and 0.99 fails, even if the reported count is right)
+# Always checked: schema-valid answer; every score in answer.hubs matches the model (±0.1);
+# in-scope answers list at least one assumption.
+
+- id: midwest_winter
+  turns: ["Which hubs in the Midwest are most exposed to winter disruption?"]
+  tools: [rank_hubs]
+  in_scope: true
+  ranking: {hazard: winter, region: Midwest, top_n: 3}
+
+- id: miami_vs_houston
+  turns: ["Compare Miami and Houston in terms of hurricane and flood exposure."]
+  tools: [compare_hubs]
+  in_scope: true
+  hubs_mentioned: [miami, houston]
+
+- id: denver_snow_last_year
+  turns: ["What percentage of days in Denver last year had snowfall?"]
+  tools: [weather_stat]
+  in_scope: true
+  figure: {hub_id: denver, metric: snowfall, year: 2025, threshold: null, field: percent_of_days, tol: 0.5, unit: "%", role: headline}
+  no_month_list: true
+
+- id: dallas_why
+  turns: ["Why is the Dallas hub's weather disruption risk high?"]
+  tools: [get_score_breakdown]
+  in_scope: true
+  hubs_mentioned: [dallas]
+
+- id: follow_up_detroit
+  turns:
+    - "Which hubs in the Midwest are most exposed to winter disruption?"
+    - "What drives Detroit's score?"
+  tools: [get_score_breakdown]
+  in_scope: true
+  hubs_mentioned: [detroit]
+
+- id: denver_snow_threshold
+  turns: ["In 2025, on how many days did Denver get at least 1 cm of snow?"]
+  tools: [weather_stat]
+  tool_input: {tool: weather_stat, threshold: 1.0}
+  in_scope: true
+  figure: {hub_id: denver, metric: snowfall, year: 2025, threshold: 1.0, field: days_meeting_condition, tol: 0, unit: days, role: headline}
+
+- id: overall_ranking
+  turns: ["Rank all of our hubs by overall weather disruption risk."]
+  tools: [rank_hubs]
+  in_scope: true
+  ranking: {hazard: overall, region: null, top_n: 7}
+
+- id: methodology
+  turns: ["How is the risk score calculated, and what does it leave out?"]
+  tools: [get_methodology]
+  in_scope: true
+
+- id: unknown_hub
+  turns: ["How exposed is our Seattle hub to flooding?"]
+  in_scope: false
+
+- id: out_of_scope_hazard
+  turns: ["Which of our hubs has the highest wildfire risk?"]
+  in_scope: false

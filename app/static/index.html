@@ -1,0 +1,749 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Weather Risk Atlas</title>
+<link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="/static/favicon-32.png" type="image/png" sizes="32x32">
+<link rel="apple-touch-icon" href="/static/apple-touch-icon.png">
+<script>
+  // Apply the saved light/dark choice (or the system setting) before the first paint.
+  (function () {
+    var t = null;
+    try { t = localStorage.getItem("wr_theme"); } catch (e) {}
+    if (t !== "light" && t !== "dark") t = matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+    document.documentElement.dataset.theme = t;
+  })();
+</script>
+<style>
+  /* Weather-atlas palette: warm paper, navy ink, teal accent, parchment land on a pale sea.
+     --Tier = marker/legend fill; --Tier-text = tier words (WCAG AA 4.5:1 on panel and --hl). */
+  :root { color-scheme: light;
+          --bg:#f6f1e6; --panel:#fffcf5; --ink:#14213d; --muted:#5a6478; --line:#e5dccb;
+          --accent:#0f766e; --user:#e9eef6; --hl:#eef6f4;
+          --sea:#e4ecec; --land:#ede3cd; --land-edge:#fffaf0; --grid:rgba(20,33,61,.16);
+          --Low:#2f7d5b; --Moderate:#b9831a; --High:#c4501b; --Severe:#9b1c31;
+          --Low-text:#2a6f51; --Moderate-text:#8a5a00; --High-text:#a8410f; --Severe-text:#9b1c31;
+          --serif:"Iowan Old Style","Palatino Linotype",Palatino,"Book Antiqua",Georgia,serif; }
+  /* Dark theme: chosen with the header switch (remembered), else following the system setting. */
+  :root[data-theme="dark"] { color-scheme: dark;
+            --bg:#0e1525; --panel:#15203a; --ink:#f3ede0; --muted:#a8b0c2; --line:#27324f;
+            --accent:#3cc4b4; --user:#1f2c4a; --hl:#1b2d44;
+            --sea:#101a2e; --land:#243251; --land-edge:#15203a; --grid:rgba(243,237,224,.14);
+            --Low:#4fb487; --Moderate:#dba73a; --High:#ec7440; --Severe:#e2566b;
+            --Low-text:#4fb487; --Moderate-text:#dba73a; --High-text:#ec7440; --Severe-text:#f27a8a; }
+  :root[data-theme="dark"] .brand .tile { fill:#2a3d6b; }  /* keep the logo tile visible */
+  * { box-sizing: border-box; }
+  body { margin:0; font:15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; background:var(--bg); color:var(--ink); }
+  h1, h2, h3 { font-family:var(--serif); font-weight:600; letter-spacing:.01em; }
+  .masthead { padding:14px 24px; border-bottom:1px solid var(--line); background:var(--panel); }
+  .brand { display:flex; align-items:center; gap:12px; max-width:1392px; margin:0 auto; }
+  .brand svg { width:34px; height:34px; flex:none; }
+  .brand h1 { margin:0; font-size:22px; }
+  .brand p { margin:0; color:var(--muted); font-size:13px; }
+  @media (max-width: 599px) { .brand p .long { display:none; } .masthead { padding:12px 16px; } }
+  .theme-switch { margin-left:auto; flex:none; display:flex; align-items:center; gap:8px; padding:6px 8px;
+                  border:1px solid var(--line); border-radius:999px; background:var(--bg); color:var(--ink);
+                  cursor:pointer; font-size:13px; }
+  .theme-switch .track { position:relative; width:38px; height:22px; border-radius:999px; background:var(--line);
+                         transition:background .15s ease; }
+  .theme-switch .track { box-shadow:inset 0 0 0 1px var(--muted); }  /* >= 3:1 outline when off */
+  .theme-switch .knob { position:absolute; top:3px; left:3px; width:16px; height:16px; border-radius:50%;
+                        background:var(--panel); box-shadow:0 1px 2px rgba(0,0,0,.25); transition:transform .15s ease;
+                        display:grid; place-items:center; color:var(--ink); }
+  .theme-switch .knob svg { width:11px; height:11px; }
+  .theme-switch .moon, .theme-switch[aria-checked="true"] .sun { display:none; }
+  .theme-switch[aria-checked="true"] .moon { display:block; }
+  .theme-switch[aria-checked="true"] .track { background:var(--accent); box-shadow:none; }
+  .theme-switch[aria-checked="true"] .knob { transform:translateX(16px); }
+  @media (max-width: 959px) { .theme-switch .theme-label { position:absolute; width:1px; height:1px; overflow:hidden;
+                              clip:rect(0 0 0 0); white-space:nowrap; } }
+  @media (max-width: 359px) { .brand { gap:8px; } .brand h1 { font-size:19px; } .brand svg { width:30px; height:30px; } }
+  .restart { margin-top:8px; }
+  /* Desktop: chat and atlas share the screen equally, same height. Mobile: one column, chat first. */
+  main.atlas { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:20px;
+               padding:20px 24px; max-width:1440px; margin:0 auto; align-items:start; }
+  @media (max-width: 899px) { main.atlas { grid-template-columns:minmax(0,1fr); padding:16px; gap:16px; } }
+  .panel { background:var(--panel); border:1px solid var(--line); border-radius:12px; min-width:0; }
+  .meta { font-size:13px; color:var(--muted); }
+  a { color:var(--accent); }
+  button { font:inherit; -webkit-tap-highlight-color:transparent; }
+  :focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
+  .linklike { background:none; border:0; padding:0; font-size:13px; color:var(--accent); text-decoration:underline; cursor:pointer; }
+  /* ---------- chat ---------- */
+  .chat { display:flex; flex-direction:column; height:max(600px, calc(100vh - var(--mh, 82px) - 36px)); }
+  .chat-head { display:flex; justify-content:space-between; align-items:baseline; padding:14px 18px 10px;
+               border-bottom:1px solid var(--line); }
+  .chat-head h2 { margin:0; font-size:17px; }
+  #log { flex:1; overflow-y:auto; padding:16px 18px; }
+  #log:focus { outline:none; }
+  .welcome { flex:1; display:none; flex-direction:column; justify-content:center;
+             padding:24px clamp(18px, 6%, 56px) max(24px, 9vh); }  /* sits a little above centre */
+  .chat.empty .welcome { display:flex; }
+  .chat.empty #log, .chat.empty #f, .chat.empty .chat-head { display:none; }
+  .welcome h2 { margin:0 0 14px; font-size:clamp(22px, 2.4vw, 30px); line-height:1.25; }
+  .welcome .examples { margin-top:14px; display:flex; flex-direction:column; gap:8px; }
+  .welcome .examples button { text-align:left; padding:9px 12px; border:1px solid var(--line); border-radius:10px;
+                              background:var(--bg); color:var(--ink); cursor:pointer; }
+  .welcome .examples button:hover, .welcome .examples button:active { border-color:var(--accent); }
+  .welcome .hint { margin-top:16px; }
+  @media (max-width: 899px) {
+    .chat { height:auto; }
+    .chat:not(.empty) #log { flex:0 0 60vh; height:60vh; min-height:0; }  /* a real scroll box on phones */
+    .welcome { padding:20px 16px; }
+  }
+  .askbox, .askbar { display:flex; gap:8px; }
+  .askbar { padding:12px 18px; border-top:1px solid var(--line); }
+  input[type=text], input[type=password] { flex:1; min-width:0; padding:11px 13px; border-radius:10px; border:1px solid var(--line);
+                     background:var(--bg); color:var(--ink); font-size:15px; text-overflow:ellipsis; }
+  input[type=text]::placeholder, input[type=password]::placeholder { color:var(--muted); opacity:1; }
+  input[type=text]:focus, input[type=password]:focus { outline:2px solid var(--accent); outline-offset:1px; border-color:transparent; }
+  .send { padding:11px 18px; border-radius:10px; border:0; background:var(--ink); color:var(--panel); font-weight:600; cursor:pointer; }
+  /* voice input: shown only where the browser has speech recognition */
+  .mic { flex:none; width:44px; padding:0; border-radius:10px; border:1px solid var(--muted); background:var(--bg); color:var(--ink);
+         cursor:pointer; display:grid; place-items:center; }
+  .mic svg { width:20px; height:20px; }
+  .mic:hover { border-color:var(--accent); color:var(--accent); }
+  .mic[aria-pressed="true"] { background:var(--accent); border-color:var(--accent); color:var(--panel); animation:micpulse 1.4s ease-in-out infinite; }
+  @keyframes micpulse { 50% { box-shadow:0 0 0 5px var(--hl); } }
+  @media (prefers-reduced-motion: reduce) { .mic[aria-pressed="true"] { animation:none; } }
+  @media (forced-colors: active) { .mic[aria-pressed="true"] { forced-color-adjust:none; background:Highlight; color:HighlightText; border-color:Highlight; } }
+  .chat.empty #f + .voice-hint { display:none; }
+  .voice-hint { margin:6px 0 0; }
+  .askbar + .voice-hint { margin:-6px 18px 10px; }
+  button:disabled { opacity:.5; cursor:wait; }
+  .msg { margin:0 0 14px; padding:10px 14px; border-radius:12px; max-width:95%; overflow-wrap:anywhere; }
+  .user { background:var(--user); margin-left:auto; width:fit-content; }
+  .bot { border:1px solid var(--line); background:var(--panel); }
+  .bot .ans p { margin:6px 0; }
+  .chips { display:flex; flex-wrap:wrap; gap:6px; margin:8px 0; }
+  .chip { font-size:12px; padding:2px 8px; border-radius:999px; border:1px solid var(--line); }
+  details { margin-top:6px; } summary { cursor:pointer; color:var(--muted); font-size:13px; }
+  .breakdown .scroll { overflow-x:auto; }
+  table { border-collapse:collapse; font-size:13px; margin:6px 0; }
+  td, th { border-bottom:1px solid var(--line); padding:3px 8px; text-align:left; }
+  tr.headline td { font-weight:600; }
+  .follow button, .suggest button { margin:4px 6px 0 0; font-size:13px; padding:5px 11px; border-radius:999px;
+                   border:1px solid var(--accent); background:transparent; color:var(--accent); cursor:pointer; text-align:left; }
+  .follow button:active, .suggest button:active { background:var(--hl); }
+  .err { color:var(--High-text); }
+  .access-form { margin-top:8px; }
+  .status-note { margin:8px 0 4px; padding:6px 10px; border-left:3px solid var(--accent); background:var(--hl);
+                 border-radius:4px; font-size:14px; }
+  .bot .status-note p { margin:2px 0; }
+  /* ---------- atlas ---------- */
+  .atlas-panel { padding:16px 18px 14px; }
+  @media (min-width: 900px) {  /* same height as the chat; the atlas scrolls inside itself if needed */
+    .atlas-panel { height:max(600px, calc(100vh - var(--mh, 82px) - 36px)); overflow-y:auto; overscroll-behavior:contain;
+                   display:flex; flex-direction:column; }
+    .atlas-panel > * { flex:none; }
+    .atlas-panel .attrib { margin-top:auto; padding-top:12px; }
+  }
+  .atlas-head { display:flex; flex-wrap:wrap; justify-content:space-between; align-items:baseline; gap:4px 12px; }
+  .atlas-head h2 { margin:0; font-size:17px; }
+  #map { width:100%; height:auto; display:block; margin-top:10px; border-radius:10px; }
+  #map .sea { fill:var(--sea); }
+  #map .state { fill:var(--land); stroke:var(--land-edge); stroke-width:1.2; }
+  #map .grid { fill:none; stroke:var(--grid); stroke-width:1; stroke-dasharray:3 4; }
+  #markers { font-size:26px; }  /* set from JS so labels stay about 15-17 px on screen at any width */
+  #map .hub { cursor:pointer; outline:none; -webkit-tap-highlight-color:transparent; }
+  #map .hub circle { stroke:var(--panel); stroke-width:4; transform-box:fill-box; transform-origin:center;
+                     transition:transform .15s ease, opacity .15s ease; }
+  #map .hub text { font-weight:650; font-family:system-ui, -apple-system, "Segoe UI", sans-serif; letter-spacing:.2px;
+                   fill:var(--ink); paint-order:stroke; stroke:var(--panel); stroke-width:.3em; stroke-linejoin:round; }
+  #markers.has-hl .hub:not(.hl):not(.selected) { opacity:.38; }
+  #map .hub.hl circle, #map .hub:hover circle, #map .hub:focus-visible circle { transform:scale(1.45); stroke:var(--accent); stroke-width:4; }
+  #map .hub.hl text, #map .hub:focus-visible text { text-decoration:underline; text-decoration-thickness:.1em; text-underline-offset:.2em; }
+  #map .hub.selected circle { stroke:var(--ink); stroke-width:5; transform:scale(1.3); }
+  .legend { display:flex; flex-wrap:wrap; gap:6px 12px; font-size:12px; color:var(--muted); margin:8px 0 0; }
+  .legend i { display:inline-block; width:10px; height:10px; border-radius:50%; margin-right:4px; vertical-align:-1px; }
+  .atlas-foot { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1.15fr); grid-template-areas:"rank card";
+                gap:16px; margin-top:14px; padding-top:12px; border-top:1px solid var(--line); }
+  @media (max-width: 1199px) { .atlas-foot { grid-template-columns:minmax(0,1fr); grid-template-areas:"rank" "card"; } }
+  .atlas-foot h3 { margin:0 0 6px; font-size:15px; }
+  .ranking-wrap { grid-area:rank; }
+  #ranking { list-style:none; margin:0; padding:0; }
+  .rank-row { width:100%; display:grid; grid-template-columns:1.6em minmax(0,1fr) auto; gap:6px; align-items:baseline;
+              padding:6px 8px; border:0; border-radius:8px; background:transparent; color:var(--ink); cursor:pointer;
+              text-align:left; font-size:14px; }
+  .rank-row:hover, .rank-row.hl, .rank-row:active { background:var(--hl); }
+  .rank-row:focus-visible { background:var(--hl); outline:2px solid var(--accent); outline-offset:-2px; }
+  .rank-row[aria-pressed="true"] { background:var(--hl); font-weight:650; }
+  .rank-row[aria-pressed="true"] .n { color:var(--accent); }
+  .rank-row .n { color:var(--muted); font-variant-numeric:tabular-nums; }
+  .rank-row .sc { font-variant-numeric:tabular-nums; }
+  .tier { font-size:12px; font-weight:650; }
+  .hubcard { grid-area:card; }
+  .hubcard h3 { font-size:20px; margin:0; }
+  .hubcard .stats { margin:4px 0 8px; font-size:14px; }
+  .hubcard form { margin-top:8px; }
+  .attrib { font-size:11px; margin:12px 0 0; }
+</style>
+</head>
+<body>
+<header class="masthead">
+  <div class="brand">
+    <svg viewBox="0 0 64 64" aria-hidden="true"><rect class="tile" width="64" height="64" rx="14" fill="#14213d"/>
+      <path d="M32 9.5c-8.6 0-15.5 6.8-15.5 15.3 0 11.2 15.5 29.7 15.5 29.7s15.5-18.5 15.5-29.7C47.5 16.3 40.6 9.5 32 9.5z" fill="#2bb3a3"/>
+      <circle class="tile" cx="32" cy="25" r="6" fill="#14213d"/></svg>
+    <div><h1>Weather Risk Atlas</h1>
+      <p>Weather-disruption exposure of our distribution hubs.<span class="long"> Scores come from a deterministic model; the AI explains them.</span></p></div>
+    <button type="button" class="theme-switch" id="theme" role="switch" aria-checked="false">
+      <span class="theme-label">Dark mode</span><span class="track" aria-hidden="true"><span class="knob">
+        <svg class="sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><circle cx="12" cy="12" r="4.5"/><path d="M12 1.5v3M12 19.5v3M1.5 12h3M19.5 12h3M4.6 4.6l2.1 2.1M17.3 17.3l2.1 2.1M4.6 19.4l2.1-2.1M17.3 6.7l2.1-2.1"/></svg>
+        <svg class="moon" viewBox="0 0 24 24" fill="currentColor"><path d="M20.5 14.5A8.5 8.5 0 0 1 9.5 3.5a8.5 8.5 0 1 0 11 11z"/></svg>
+      </span></span>
+    </button>
+  </div>
+</header>
+<main class="atlas">
+  <section class="panel chat empty" id="chat" aria-label="Chat">
+    <div class="chat-head"><h2>Ask about your hubs</h2><button type="button" class="linklike" id="newchat">New conversation</button></div>
+    <div class="welcome" id="welcome">
+      <h2 id="welcome-title">What would you like to know about your hubs?</h2>
+      <form class="askbox" id="f0">
+        <input id="q0" type="text" autocomplete="off" maxlength="2000" aria-labelledby="welcome-title"
+               placeholder="Ask about any hub">
+        <button class="send">Ask</button>
+      </form>
+      <div class="examples" id="examples" role="group" aria-label="Example questions"></div>
+      <p class="meta hint">Or pick a hub on the map to ask about it.</p>
+    </div>
+    <div id="log" aria-live="polite" tabindex="-1"></div>
+    <form class="askbar" id="f">
+      <input id="q" type="text" autocomplete="off" maxlength="2000" aria-label="Your question" placeholder="Ask a follow-up">
+      <button class="send" id="send">Ask</button>
+    </form>
+  </section>
+  <section class="panel atlas-panel" id="map-panel" aria-labelledby="map-title">
+    <div class="atlas-head"><h2 id="map-title">Hub atlas</h2>
+      <span class="meta">Overall weather-disruption risk, 2020–2025</span></div>
+    <svg id="map" viewBox="0 0 975 610" role="group" aria-label="Map of company hubs; select a hub to ask about it">
+      <defs><clipPath id="land48"></clipPath></defs>
+      <rect class="sea" width="975" height="610"/>
+      <g id="states" aria-hidden="true"></g><g id="grid" aria-hidden="true" clip-path="url(#land48)"></g><g id="markers"></g>
+    </svg>
+    <div class="legend" id="legend"></div>
+    <div class="atlas-foot">
+      <div class="ranking-wrap">
+        <h3>Overall risk ranking</h3>
+        <ol id="ranking" aria-label="Hubs ranked by overall risk"><li class="meta">Loading…</li></ol>
+      </div>
+      <div class="hubcard" id="hubcard" aria-live="polite">
+        <h3>Explore a hub</h3>
+        <p class="meta">Hover a city in the ranking to find it on the map. Select it to see the hub and ask about it.</p>
+      </div>
+    </div>
+    <p class="attrib meta" id="attrib"></p>
+  </section>
+</main>
+<script>
+const EXAMPLES = [
+  "Which hubs in the Midwest are most exposed to winter disruption?",
+  "Compare Miami and Houston for hurricane and flood exposure.",
+  "What percentage of days in Denver last year had snowfall?",
+];
+const TIERS = ["Low", "Moderate", "High", "Severe"];
+const SVG = "http://www.w3.org/2000/svg";
+// Every control that sends a question; all are disabled while a request is running.
+const ASK_SEL = "#send, #f0 .send, #hubask .send, #hubcard .suggest button, .follow button, #examples button, .access-form button";
+let sessionId = null, expired = false, HUBS = [], busy = false, convGen = 0, inflight = null, labelUnits = 26;
+try { sessionId = localStorage.getItem("wr_session"); } catch (e) {}
+// Reviewer access code (when the server needs one): kept for this tab only, or in memory if
+// storage is blocked. The server checks it on every /chat request.
+const ACCESS_KEY = "wr_access_code";
+let accessCode = null;
+try { accessCode = sessionStorage.getItem(ACCESS_KEY); } catch (e) {}
+function saveAccessCode(code) {
+  accessCode = code || null;
+  try { code ? sessionStorage.setItem(ACCESS_KEY, code) : sessionStorage.removeItem(ACCESS_KEY); } catch (e) {}
+}
+const $ = id => document.getElementById(id);
+const log = $("log"), chat = $("chat");
+const esc = s => String(s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const narrow = () => window.matchMedia("(max-width: 899px)").matches;
+const stacked = () => window.matchMedia("(max-width: 1199px)").matches;   // ranking above the hub card
+const score = v => Number(v).toFixed(1);  // 41 -> "41.0"
+
+function md(text) {  // tiny, safe Markdown subset: paragraphs, bullets, bold, italics, code
+  const inline = s => esc(s).replace(/\*\*(.+?)\*\*/g, "<b>$1</b>").replace(/\*(.+?)\*/g, "<i>$1</i>")
+                            .replace(/`(.+?)`/g, "<code>$1</code>");
+  const out = []; let list = null;
+  for (const line of text.split("\n")) {
+    const m = line.match(/^\s*(?:[-*]|\d+\.)\s+(.*)/);
+    if (m) { if (!list) { list = []; } list.push(`<li>${inline(m[1])}</li>`); continue; }
+    if (list) { out.push(`<ul>${list.join("")}</ul>`); list = null; }
+    if (line.trim()) out.push(`<p>${inline(line)}</p>`);
+  }
+  if (list) out.push(`<ul>${list.join("")}</ul>`);
+  return out.join("");
+}
+
+function add(html, cls) {
+  const d = document.createElement("div");
+  d.className = "msg " + cls; d.innerHTML = html; log.appendChild(d);
+  log.scrollTop = log.scrollHeight; return d;
+}
+
+function setBusy(on) {
+  busy = on;
+  document.querySelectorAll(ASK_SEL).forEach(b => b.disabled = on);
+  chat.setAttribute("aria-busy", on ? "true" : "false");
+}
+
+// Main result first: the answer text, then everything numeric in ONE collapsed "Breakdown".
+function breakdownHtml(figures) {
+  if (!figures.length) return "";
+  const isHead = f => f.role === "headline";          // figures without a role count as detail
+  const rows = [...figures.filter(isHead), ...figures.filter(f => !isHead(f))];
+  const nDetail = figures.length - figures.filter(isHead).length;
+  const summary = nDetail ? `Breakdown (${figures.length} figures)` : `Figures (${figures.length})`;
+  return `<details class="breakdown"><summary>${summary}</summary><div class="scroll"><table>
+    <tr><th>Figure</th><th>Value</th><th>Source</th></tr>${rows.map(f =>
+      `<tr class="${isHead(f) ? "headline" : "detail"}"><td>${esc(f.label)}</td><td>${esc(f.value)} ${esc(f.unit)}</td><td>${esc(f.source_tool)}</td></tr>`).join("")}
+  </table></div></details>`;
+}
+
+// chat() statuses whose answer is a short harness message, not the model's answer
+const NO_ANSWER = { tool_limit: "stopped at the tool-round limit", cut_off: "cut off",
+                    refused: "refused", invalid_answer: "invalid response" };
+
+function renderAnswer(r) {
+  const a = r.answer, status = r.status || "answered", noAnswer = NO_ANSWER[status];
+  const list = xs => xs.length ? `<ul>${xs.map(x => `<li>${esc(x)}</li>`).join("")}</ul>` : "<p class='meta'>none</p>";
+  const chips = a.hubs.map(h => `<span class="chip">${esc(h.hub_id)} · ${esc(h.hazard)} ${esc(h.score)}</span>`).join("");
+  const tools = r.tool_calls.map(t => `<li><code>${esc(t.tool)}</code> ${esc(JSON.stringify(t.input))}${t.is_error ? " <span class='err'>(error)</span>" : ""}${t.repeated ? ` <span class='meta'>(repeat${t.same_as_call ? ` of call ${esc(t.same_as_call)}` : ""}: not run again)</span>` : ""}</li>`).join("");
+  const follow = a.follow_up_suggestions.map(s => `<button type="button">${esc(s)}</button>`).join("");
+  // Reaching the tool-round limit is reported as such, never as an out-of-scope question.
+  const limitNote = status === "answered_at_tool_limit"
+    ? `<p class="status-note" role="note">Reached the ${esc(r.max_tool_rounds ?? "")}-round tool limit. Answered from the data already gathered, with tools turned off for the final reply.</p>` : "";
+  const el = add(`
+    ${noAnswer ? `<div class="ans status-note" role="note">${md(a.answer)}</div>` : `<div class="ans">${md(a.answer)}</div>${limitNote}`}
+    ${chips ? `<div class="chips">${chips}</div>` : ""}
+    ${breakdownHtml(a.figures)}
+    <div class="meta">${noAnswer ? `No answer: <b>${esc(noAnswer)}</b>` : `Confidence: <b>${esc(a.confidence)}</b>${a.in_scope === false ? " · out of scope" : ""}`}
+      · ${noAnswer ? "Model" : "Answered by"} <b>${esc(r.models?.answered_by || "?")}</b>${r.models?.fallback
+        ? ` <span class="err">(fallback from ${esc(r.models.fallback.from)}: ${esc(r.models.fallback.reason)})</span>` : ""}</div>
+    <details><summary>Reasoning, sources &amp; assumptions</summary>
+      <b>Reasoning steps</b>${list(a.reasoning_steps)}
+      <b>Data sources</b>${list(a.data_sources)}
+      <b>Assumptions</b>${list(a.assumptions)}
+      <b>Tool calls</b>${tools ? `<ol>${tools}</ol>` : "<p class='meta'>none</p>"}
+    </details>
+    <div class="follow">${follow}</div>`, "bot");
+  el.querySelectorAll(".follow button").forEach(b => { b.onclick = () => ask(b.textContent); b.disabled = busy; });
+  // Long answers: show the question and the start of the answer, not the end.
+  const q = el.previousElementSibling, top = q && q.classList.contains("user") ? q : el;
+  log.scrollTop += top.getBoundingClientRect().top - log.getBoundingClientRect().top - 8;
+}
+
+function startConversation(fromTyping) {  // empty welcome screen -> usual conversation layout
+  if (!chat.classList.contains("empty")) return;
+  chat.classList.remove("empty");
+  // Focus the follow-up box only when the user was typing or has a mouse; on touch devices a
+  // focused input would pop up the keyboard over the answer.
+  if (fromTyping || !window.matchMedia("(pointer: coarse)").matches) $("q").focus({ preventScroll: true });
+  else log.focus({ preventScroll: true });
+}
+
+function errorText(res, body) {
+  const d = body && body.detail;
+  const msg = typeof d === "string" ? d : Array.isArray(d) ? d.map(x => x.msg || "").filter(Boolean).join("; ")
+            : d && typeof d.message === "string" ? d.message : "";
+  return msg || `The assistant is unavailable (${res.status}). Please try again.`;
+}
+
+async function ask(text, opts = {}) {
+  if (busy || !text.trim()) return false;
+  stopVoice(true); clearVoiceHints();
+  // After an "expired conversation" notice the old thread can't be continued: whichever way the
+  // next question is asked, it starts a new conversation on a clean log (old notice included).
+  if (expired) { expired = false; convGen++; log.innerHTML = ""; }
+  const gen = convGen, controller = new AbortController();
+  inflight = controller;
+  setBusy(true);
+  startConversation(opts.fromTyping);
+  const userEl = add(esc(text), "user");
+  const pending = add("<span class='meta'>Thinking and running tools…</span>", "bot");
+  try {
+    const headers = { "Content-Type": "application/json" };
+    if (accessCode) headers["X-Access-Code"] = accessCode;
+    const res = await fetch("/chat", { method:"POST", headers, signal: controller.signal,
+                                       body: JSON.stringify({ message:text, session_id:sessionId }) });
+    const body = await res.json().catch(() => ({}));
+    if (gen !== convGen) return true;            // the user started a new conversation meanwhile
+    pending.remove();
+    if (!res.ok) {
+      if (body.detail && body.detail.code === "conversation_expired") { expiredNotice(text, body.detail.message); return true; }
+      if (body.detail && /^access_code_(required|invalid)$/.test(body.detail.code)) { accessNotice(text, userEl, body.detail.code); return true; }
+      add(`<span class="err">${esc(errorText(res, body))}</span>`, "bot"); return true;
+    }
+    sessionId = body.session_id;
+    try { localStorage.setItem("wr_session", sessionId); } catch (e) {}
+    renderAnswer(body);
+  } catch (e) {
+    if (gen !== convGen || e.name === "AbortError") return true;
+    console.error(e);
+    pending.remove();
+    add(`<span class="err">Could not reach the server. Check your connection and try again.</span>`, "bot");
+  } finally {
+    if (gen === convGen) setBusy(false);
+  }
+  return true;
+}
+
+// ---------- atlas: map, ranking and hub card ----------
+const fullName = h => `${h.city}, ${h.state_name}`;          // "Houston, Texas"
+const marker = id => document.querySelector(`#markers .hub[data-id="${id}"]`);
+const rankRow = id => document.querySelector(`.rank-row[data-id="${id}"]`);
+
+function highlight(id, on) {  // ranking row <-> map marker, both ways
+  const m = marker(id), r = rankRow(id);
+  if (m) m.classList.toggle("hl", on);
+  if (r) r.classList.toggle("hl", on);
+  $("markers").classList.toggle("has-hl", !!document.querySelector("#markers .hub.hl"));
+}
+
+function askAbout(h, text, fromTyping = false) {
+  text = text.trim();
+  if (!text || busy) return false;
+  // Make the hub explicit unless the question already names it; the chat shows what is sent.
+  const msg = text.toLowerCase().includes(h.city.toLowerCase()) ? text : `About the ${fullName(h)} hub: ${text}`;
+  if (narrow()) chat.scrollIntoView({ behavior: "smooth", block: "start" });
+  ask(msg, { fromTyping });
+  return true;
+}
+
+function selectHub(id, opts = {}) {
+  const h = HUBS.find(x => x.id === id); if (!h) return;
+  document.querySelectorAll("#markers .hub").forEach(g => {
+    const on = g.dataset.id === id; g.classList.toggle("selected", on); g.setAttribute("aria-pressed", on ? "true" : "false"); });
+  document.querySelectorAll(".rank-row").forEach(b => b.setAttribute("aria-pressed", b.dataset.id === id ? "true" : "false"));
+  const question = `What drives ${h.city}'s ${h.tier.toLowerCase()} risk score?`;
+  const card = $("hubcard");
+  if (voice && card.contains(voice.input)) stopVoice(true);  // the card's box is about to be replaced
+  card.innerHTML = `
+    <h3 id="hub-name">${esc(fullName(h))}</h3>
+    <div class="meta">${esc(h.county)} County · ${esc(h.region)} region</div>
+    <div class="stats">Overall risk <b>${score(h.overall_score)}</b>
+      <span class="tier" style="color:var(--${esc(h.tier)}-text)">${esc(h.tier)}</span>
+      <span class="meta">· #${esc(h.rank)} of ${HUBS.length}</span></div>
+    <div class="suggest"><button type="button">${esc(question)}</button></div>
+    <form class="askbox" id="hubask"><input type="text" autocomplete="off" maxlength="2000"
+      aria-label="${esc(`Ask about ${fullName(h)}`)}" placeholder="Ask about this hub…"><button class="send">Ask</button></form>`;
+  const suggestion = card.querySelector(".suggest button");
+  suggestion.onclick = () => askAbout(h, question);
+  card.querySelector("#hubask").onsubmit = e => {
+    e.preventDefault(); const inp = e.target.querySelector("input");
+    if (askAbout(h, inp.value, true)) inp.value = ""; };     // keep the text if a request is running
+  attachMic(card.querySelector("#hubask"), card.querySelector("#hubask input"));
+  if (busy) card.querySelectorAll(".send, .suggest button").forEach(b => b.disabled = true);
+  if (stacked()) card.scrollIntoView({ behavior: "smooth", block: "nearest" });
+  if (opts.keyboard) suggestion.focus({ preventScroll: true });  // keyboard users land on the question
+}
+
+// Keep city labels readable: try right, left, right-below, below and above each marker, and take
+// the first spot that overlaps no other label or marker and stays on the map (else the least bad).
+function placeLabels() {
+  const hubs = [...document.querySelectorAll("#markers .hub")];
+  if (!hubs.length) return;
+  const u = labelUnits;
+  const at = g => g.transform.baseVal.consolidate().matrix;
+  const circles = hubs.map(g => { const m = at(g); return { x: m.e - 17, y: m.f - 17, width: 34, height: 34, g }; });
+  const area = (a, b) => Math.max(0, Math.min(a.x + a.width, b.x + b.width) - Math.max(a.x, b.x)) *
+                         Math.max(0, Math.min(a.y + a.height, b.y + b.height) - Math.max(a.y, b.y));
+  const spots = [{ x: 22, y: .35 * u, a: "start" }, { x: -22, y: .35 * u, a: "end" }, { x: 22, y: 14 + .85 * u, a: "start" },
+                 { x: 0, y: 18 + .9 * u, a: "middle" }, { x: 0, y: -20, a: "middle" }];
+  const placed = [];
+  for (const g of hubs) {
+    const t = g.querySelector("text"), m = at(g);
+    const boxFor = s => {
+      t.setAttribute("x", s.x); t.setAttribute("y", s.y); t.setAttribute("text-anchor", s.a);
+      const b = t.getBBox(), pad = 1.5;  // tolerate sub-pixel touching only (font metrics jitter)
+      return { x: m.e + b.x - 4, y: m.f + b.y + pad, width: b.width + 8, height: b.height - 2 * pad };
+    };
+    let best = null;
+    for (const s of spots) {
+      const box = boxFor(s);
+      const off = Math.max(0, -box.x) + Math.max(0, box.x + box.width - 975) + Math.max(0, -box.y) + Math.max(0, box.y + box.height - 610);
+      const cost = placed.reduce((n, p) => n + area(p, box), 0) + circles.reduce((n, c) => n + (c.g === g ? 0 : area(c, box)), 0) + off * 1e4;
+      if (!best || cost < best.cost) best = { s, box, cost };
+      if (cost === 0) break;
+    }
+    const final = boxFor(best.s);
+    placed.push(final);
+  }
+}
+
+function fitLabels() {  // label size in SVG units so that it is about 15-16 CSS px on screen
+  const w = $("map").getBoundingClientRect().width;
+  if (!w) return;
+  const units = Math.round(Math.min(48, Math.max(26, (w < 500 ? 15 : 16) * 975 / w)));
+  if (units === labelUnits && document.querySelector("#markers .hub text[x]")) return;
+  labelUnits = units;
+  $("markers").style.fontSize = units + "px";
+  placeLabels();
+}
+
+function drawMap(atlas) {
+  const states = $("states"), clip = $("land48"), grid = $("grid");
+  for (const s of atlas.states) {
+    const p = document.createElementNS(SVG, "path");
+    p.setAttribute("d", s.d); p.setAttribute("class", "state");
+    const t = document.createElementNS(SVG, "title"); t.textContent = s.name; p.appendChild(t);
+    states.appendChild(p);
+    if ((atlas.lower48 || []).includes(s.name)) {
+      const c = document.createElementNS(SVG, "path"); c.setAttribute("d", s.d); clip.appendChild(c); }
+  }
+  for (const d of atlas.graticule || []) {
+    const p = document.createElementNS(SVG, "path"); p.setAttribute("d", d); p.setAttribute("class", "grid"); grid.appendChild(p); }
+  const markers = $("markers");
+  for (const h of HUBS) {
+    const g = document.createElementNS(SVG, "g");
+    g.setAttribute("class", "hub"); g.dataset.id = h.id;
+    g.setAttribute("transform", `translate(${h.x} ${h.y})`);
+    g.setAttribute("tabindex", "0"); g.setAttribute("role", "button"); g.setAttribute("aria-pressed", "false");
+    g.setAttribute("aria-label", `${fullName(h)}, overall ${score(h.overall_score)}, ${h.tier}`);
+    const c = document.createElementNS(SVG, "circle");
+    c.setAttribute("r", "13"); c.setAttribute("fill", `var(--${h.tier})`);
+    const label = document.createElementNS(SVG, "text"); label.textContent = h.city;
+    const tip = document.createElementNS(SVG, "title"); tip.textContent = `${fullName(h)}: overall ${score(h.overall_score)} (${h.tier})`;
+    g.append(c, label, tip);
+    g.addEventListener("click", () => selectHub(h.id));
+    g.addEventListener("keydown", e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); selectHub(h.id, { keyboard: true }); } });
+    g.addEventListener("mouseenter", () => highlight(h.id, true));
+    g.addEventListener("mouseleave", () => highlight(h.id, false));
+    g.addEventListener("focus", () => highlight(h.id, true));
+    g.addEventListener("blur", () => highlight(h.id, false));
+    markers.appendChild(g);
+  }
+  fitLabels();
+  new ResizeObserver(fitLabels).observe($("map"));
+  $("legend").innerHTML = "<span>Overall risk tier:</span>" +
+    TIERS.map(t => `<span><i style="background:var(--${t})"></i>${t}</span>`).join("");
+  $("attrib").textContent = atlas.attribution;
+}
+
+function drawRanking() {
+  const ol = $("ranking");
+  ol.innerHTML = [...HUBS].sort((a, b) => a.rank - b.rank).map(h => `<li>
+    <button type="button" class="rank-row" data-id="${esc(h.id)}" aria-pressed="false">
+      <span class="n">${esc(h.rank)}.</span><span>${esc(h.city)}, ${esc(h.state)}</span>
+      <span><span class="sc">${score(h.overall_score)}</span> <span class="tier" style="color:var(--${esc(h.tier)}-text)">${esc(h.tier)}</span></span>
+    </button></li>`).join("");
+  ol.querySelectorAll(".rank-row").forEach(b => {
+    const id = b.dataset.id;
+    b.addEventListener("mouseenter", () => highlight(id, true));
+    b.addEventListener("mouseleave", () => highlight(id, false));
+    b.addEventListener("focus", () => highlight(id, true));
+    b.addEventListener("blur", () => highlight(id, false));
+    b.addEventListener("click", e => selectHub(id, { keyboard: e.detail === 0 }));  // detail 0 = Enter/Space
+  });
+}
+
+function mapUnavailable() {  // degrade the whole atlas, not just the card
+  HUBS = [];
+  ["states", "markers", "grid", "land48"].forEach(id => { const n = $(id); if (n) n.innerHTML = ""; });
+  $("map").style.display = "none"; $("map").setAttribute("aria-hidden", "true");
+  $("legend").hidden = true;
+  document.querySelector(".ranking-wrap").hidden = true;
+  document.querySelector(".welcome .hint").hidden = true;
+  $("hubcard").innerHTML = "<p class='meta'>The hub map could not be loaded. You can still ask questions in the chat.</p>";
+}
+
+const getJSON = u => fetch(u).then(r => { if (!r.ok) throw new Error(`${u} ${r.status}`); return r.json(); });
+Promise.all([getJSON("/static/us-states.json"), getJSON("/map/hubs")])
+  .then(([atlas, hubsOnMap]) => { HUBS = hubsOnMap; drawMap(atlas); drawRanking(); })
+  .catch(e => { console.warn(e); mapUnavailable(); });
+
+// ---------- voice input (the browser's own speech recognition) ----------
+// Click the mic, speak (English), and the words appear in the box as you talk. Nothing is sent:
+// the text stays editable until you press Ask. Shown only where the browser supports it
+// (Chrome, Edge, Safari); elsewhere the box works as before. The audio goes to the browser's
+// speech service, never to this app's server, which only receives the text you send.
+// Only offered in a secure context (HTTPS or localhost): elsewhere the browser refuses the mic.
+const SpeechRec = window.isSecureContext ? (window.SpeechRecognition || window.webkitSpeechRecognition) : null;
+let voice = null;  // the one running dictation: {rec, input, button, hint, base, final, error}
+const MIC_SVG = `<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path fill="currentColor"
+  d="M12 14a3 3 0 0 0 3-3V5a3 3 0 0 0-6 0v6a3 3 0 0 0 3 3zm5-3a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.92V21h2v-3.08A7 7 0 0 0 19 11h-2z"/></svg>`;
+const VOICE_ERRORS = {
+  "not-allowed": "Microphone access is blocked. Allow it for this site in the browser's settings, then try again.",
+  "service-not-allowed": "This browser doesn't allow speech recognition here. You can still type your question.",
+  "audio-capture": "No microphone was found. You can still type your question.",
+  "network": "Speech recognition needs a network connection. You can still type your question.",
+  "no-speech": "Didn't catch that. Click the mic and try again.",
+  "language-not-supported": "English speech recognition isn't available in this browser.",
+};
+
+// A toggle button: one fixed name, the state is aria-pressed (screen readers say "pressed");
+// the tooltip says what a click does now.
+function setMicState(btn, on) {
+  btn.setAttribute("aria-pressed", on ? "true" : "false");
+  btn.title = on ? "Stop listening" : "Speak your question (English)";
+}
+function clearVoiceHints() { document.querySelectorAll(".voice-hint").forEach(h => { h.hidden = true; }); }
+
+function attachMic(form, input) {
+  if (!SpeechRec || !form || !input || form.querySelector(".mic")) return;
+  const btn = document.createElement("button");
+  btn.type = "button"; btn.className = "mic"; btn.innerHTML = MIC_SVG;
+  btn.setAttribute("aria-label", "Speak your question (English)");
+  setMicState(btn, false);
+  const hint = document.createElement("p");
+  hint.className = "meta voice-hint"; hint.setAttribute("role", "status"); hint.hidden = true;
+  form.insertBefore(btn, form.querySelector(".send"));
+  form.after(hint);
+  btn.onclick = () => (voice && voice.button === btn) ? stopVoice() : startVoice(input, btn, hint);
+  // Typing takes over from dictation; sending stops it (capture: before the form's own handler).
+  input.addEventListener("input", () => { if (voice && voice.input === input) stopVoice(true); });
+  form.addEventListener("submit", () => { if (voice && voice.input === input) stopVoice(true); }, true);
+}
+
+function startVoice(input, btn, hint) {
+  stopVoice(true);                                    // one microphone at a time
+  let rec;
+  try { rec = new SpeechRec(); } catch (e) { rec = null; }
+  if (!rec) { hint.textContent = "Speech recognition isn't available here. You can still type your question."; hint.hidden = false; return; }
+  rec.lang = "en-US"; rec.interimResults = true; rec.continuous = false; rec.maxAlternatives = 1;
+  const v = voice = { rec, input, button: btn, hint, base: input.value.trim(), final: "", error: null };
+  hint.hidden = true;
+  rec.onresult = ev => {
+    if (voice !== v) return;                          // stopped or replaced meanwhile
+    let interim = "";
+    for (let i = ev.resultIndex; i < ev.results.length; i++) {
+      const r = ev.results[i];
+      if (r.isFinal) v.final += r[0].transcript; else interim += r[0].transcript;
+    }
+    const spoken = (v.final + interim).replace(/\s+/g, " ").trim();
+    const max = input.maxLength > 0 ? input.maxLength : 2000;
+    input.value = [v.base, spoken].filter(Boolean).join(" ").slice(0, max);  // added to what was typed
+    const n = input.value.length; try { input.setSelectionRange(n, n); } catch (e) {}  // keep typing at the end
+  };
+  rec.onerror = ev => { if (voice === v) v.error = ev.error; };
+  rec.onend = () => {
+    if (voice !== v) return;
+    voice = null; setMicState(btn, false);
+    if (v.error && v.error !== "aborted") {
+      hint.textContent = VOICE_ERRORS[v.error] || "Speech recognition stopped. You can still type your question.";
+      hint.hidden = false;
+    }
+    // Ready to edit before pressing Ask, unless the user has moved on to something else (the
+    // recognizer can end on its own a few seconds later, e.g. after a pause or no speech).
+    const a = document.activeElement;
+    if (!a || a === document.body || a === btn || a === input) {
+      input.focus({ preventScroll: true });
+      const n = input.value.length; try { input.setSelectionRange(n, n); } catch (e) {}
+    }
+  };
+  try { rec.start(); }
+  catch (e) { voice = null; hint.textContent = "Speech recognition couldn't start. You can still type your question."; hint.hidden = false; return; }
+  setMicState(btn, true);
+}
+
+// Moving to another text field (another question box, the access-code field) ends dictation, so
+// words never keep arriving in a box the user has left.
+document.addEventListener("focusin", e => {
+  if (voice && e.target !== voice.input && e.target.matches && e.target.matches("input, textarea")) stopVoice(true);
+});
+
+// stop(): finish and keep what was heard (the mic button). abort: drop pending audio at once
+// (typing, sending, a new conversation, another mic); the text already in the box stays.
+function stopVoice(abort = false) {
+  if (!voice) return;
+  const v = voice;
+  if (abort) { voice = null; setMicState(v.button, false); try { v.rec.abort(); } catch (e) {} }
+  else { try { v.rec.stop(); } catch (e) {} }
+}
+
+// ---------- chat controls ----------
+const ex = $("examples");
+EXAMPLES.forEach(t => { const b = document.createElement("button"); b.type = "button"; b.textContent = t; b.onclick = () => ask(t); ex.appendChild(b); });
+for (const [formId, inputId] of [["f0", "q0"], ["f", "q"]]) {
+  attachMic($(formId), $(inputId));
+  $(formId).onsubmit = e => {
+    e.preventDefault(); const q = $(inputId);
+    if (busy || !q.value.trim()) return;                    // keep the text if a request is running
+    const v = q.value; q.value = ""; ask(v, { fromTyping: true });
+  };
+}
+function forgetSession() {
+  sessionId = null;
+  try { localStorage.removeItem("wr_session"); } catch (err) {}
+}
+
+function resetConversation(prefill = "") {  // back to the opening screen, optionally with a question ready
+  stopVoice(true); clearVoiceHints();
+  expired = false;
+  convGen++;                                                // late answers of the old conversation are dropped
+  if (inflight) inflight.abort();
+  setBusy(false);
+  forgetSession();
+  log.innerHTML = ""; chat.classList.add("empty");
+  const q0 = $("q0"); q0.value = prefill; q0.focus();
+}
+$("newchat").onclick = () => resetConversation();
+
+// A conversation stored before an app update can't be continued (its saved reasoning no longer
+// validates). Say so briefly and offer a fresh start with the same question ready to send.
+function expiredNotice(question, message) {
+  forgetSession();
+  expired = true;
+  const el = add(`<p>${esc(message || "This conversation can't be continued.")}</p>
+    <button type="button" class="send restart">Start a new conversation</button>`, "bot notice");
+  el.querySelector(".restart").onclick = () => resetConversation(question);
+}
+
+// The server needs a reviewer access code (missing or not accepted): ask for it here, keep the
+// question, and send it again once a code is entered.
+function accessNotice(question, userEl, reason) {
+  const invalid = reason === "access_code_invalid";
+  if (invalid) saveAccessCode(null);
+  // One prompt at a time: an earlier, unanswered prompt (and its question) gives way to this one.
+  log.querySelectorAll(".msg.notice .access-form").forEach(f => {
+    const old = f.closest(".msg"); if (old._question) old._question.remove(); old.remove();
+  });
+  const el = add(`<p>${invalid ? "That access code wasn't accepted. Check it and try again."
+                              : "This chat needs a reviewer access code."}</p>
+    <form class="askbox access-form">
+      <input type="password" autocomplete="off" maxlength="200" aria-label="Reviewer access code" placeholder="Reviewer access code">
+      <button type="submit" class="send">Continue</button>
+    </form><p class="meta access-hint" hidden></p>`, "bot notice");
+  el._question = userEl;
+  const input = el.querySelector("input"), hint = el.querySelector(".access-hint");
+  el.querySelector("form").onsubmit = ev => {
+    ev.preventDefault();
+    const code = input.value.trim();
+    if (!code) { input.focus(); return; }
+    if (/[^\x20-\x7E]/.test(code)) {  // HTTP header values: printable ASCII only
+      hint.textContent = "Use the code exactly as given (letters, digits and symbols)."; hint.hidden = false; return;
+    }
+    saveAccessCode(code);
+    el.remove(); userEl.remove();      // ask() shows the question again
+    ask(question);
+  };
+  if (!window.matchMedia("(pointer: coarse)").matches) input.focus({ preventScroll: true });
+}
+
+// ---------- light / dark switch (remembered; follows the system until you choose) ----------
+const THEME_KEY = "wr_theme", systemDark = window.matchMedia("(prefers-color-scheme: dark)");
+const storedTheme = () => { try { const t = localStorage.getItem(THEME_KEY); return t === "light" || t === "dark" ? t : null; } catch (e) { return null; } };
+function applyTheme(t) {
+  document.documentElement.dataset.theme = t;
+  $("theme").setAttribute("aria-checked", t === "dark" ? "true" : "false");
+}
+let chosenTheme = storedTheme();  // also kept in memory, in case storage is blocked
+applyTheme(chosenTheme || (systemDark.matches ? "dark" : "light"));
+systemDark.addEventListener("change", e => { if (!(chosenTheme || storedTheme())) applyTheme(e.matches ? "dark" : "light"); });
+$("theme").onclick = () => {
+  const t = document.documentElement.dataset.theme === "dark" ? "light" : "dark";
+  chosenTheme = t;
+  try { localStorage.setItem(THEME_KEY, t); } catch (e) {}
+  applyTheme(t);
+};
+// Panels fill the window below the header; measure the header instead of assuming its height.
+new ResizeObserver(([entry]) => document.documentElement.style.setProperty(
+  "--mh", Math.ceil(entry.target.getBoundingClientRect().height) + "px")).observe(document.querySelector(".masthead"));
+</script>
+</body>
+</html>

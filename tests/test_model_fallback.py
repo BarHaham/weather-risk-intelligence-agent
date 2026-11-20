@@ -1,0 +1,496 @@
+"""Simulated outages: Sonnet 5.5 is the primary, Haiku 5.5 is tried once when Sonnet is
+temporarily unavailable, and the result always says which model actually answered."""
+import json
+import uuid
+
+import anthropic
+import httpx2
+import pytest
+from anthropic.types import TextBlock, ToolUseBlock
+from fastapi import HTTPException
+
+from app import agent, main, store
+from app.config import settings
+from evals import run as eval_run
+from tests.fakes import (HAIKU, REQUEST, SONNET, FakeClient, answer_json, api_error, msg,
+                         overloaded)
+
+RETRIES = settings()["llm"]["max_retries"]
+
+
+def setup_module():
+    store.build_from_cache()
+
+
+def text(t):
+    return TextBlock(type="text", text=t, citations=None)
+
+
+def tool_use(name, args, id_="t1"):
+    return ToolUseBlock(type="tool_use", id=id_, name=name, input=args)
+
+
+def final():
+    return msg([text(answer_json())], "end_turn")
+
+
+def sid():
+    return uuid.uuid4().hex
+
+
+# ---------- the switch ----------
+
+def test_config_defaults_to_sonnet_with_haiku_fallback():
+    llm = settings()["llm"]
+    assert (llm["model"], llm["fallback_model"]) == (SONNET, HAIKU)
+    assert "refusal_fallback" not in llm
+
+
+def test_overloaded_sonnet_falls_back_to_haiku_once():
+    fake = FakeClient([overloaded(), final()])
+    out = agent.chat("q", sid(), client=fake)
+    assert fake.models == [SONNET, HAIKU]
+    assert [r["max_retries"] for r in fake.requests] == [RETRIES, 0]  # Haiku: a single attempt
+    idle = settings()["llm"]["stream_idle_timeout_s"]
+    assert all(r["timeout"].read == idle for r in fake.requests)  # idle gap, not total time
+    m = out["models"]
+    assert m["requested"] == SONNET and m["answered_by"] == HAIKU and m["calls"] == [HAIKU]
+    assert m["fallback"]["from"] == SONNET and m["fallback"]["to"] == HAIKU
+    assert m["fallback"]["reason"].startswith("OverloadedError 529 overloaded_error: Overloaded")
+    assert m["fallback"]["simulated"] is False
+
+
+def test_outage_mid_turn_switches_and_stays_on_haiku():
+    fake = FakeClient([
+        msg([tool_use("rank_hubs", {"hazard": "overall", "region": None})], "tool_use"),
+        overloaded(),
+        msg([tool_use("get_score_breakdown", {"hub_id": "dallas"}, "t2")], "tool_use"),
+        final(),
+    ])
+    out = agent.chat("q", sid(), client=fake)
+    assert fake.models == [SONNET, SONNET, HAIKU, HAIKU]
+    assert [r["max_retries"] for r in fake.requests] == [RETRIES, RETRIES, 0, RETRIES]
+    assert out["models"]["calls"] == [SONNET, HAIKU, HAIKU]
+    assert out["models"]["fallback"]["at_call"] == 2
+    # The retried request is identical, and system/tools never change between models
+    # (changing them would invalidate replayed thinking blocks).
+    assert fake.requests[1]["messages"] == fake.requests[2]["messages"]
+    assert len({json.dumps(r["system"]) for r in fake.requests}) == 1
+    assert len({json.dumps(r["tools"], sort_keys=True) for r in fake.requests}) == 1
+
+
+def test_next_turn_starts_on_sonnet_again():
+    s = sid()
+    agent.chat("first", s, client=FakeClient([overloaded(), final()]))
+    fake = FakeClient([final()])
+    out = agent.chat("and Detroit?", s, client=fake)
+    assert fake.models == [SONNET]
+    assert out["models"]["fallback"] is None
+
+
+@pytest.mark.parametrize("err", [
+    api_error(anthropic.RateLimitError, 429, "rate_limit_error", "Too many requests"),
+    api_error(anthropic.ServiceUnavailableError, 503, "api_error", "Service unavailable"),
+    api_error(anthropic.InternalServerError, 500, "api_error", "Internal error"),
+    api_error(anthropic.RequestTimeoutError, 408, "timeout_error", "Request timeout"),
+    anthropic.APIConnectionError(request=REQUEST),
+    anthropic.APITimeoutError(request=REQUEST),
+], ids=["429", "503", "500", "408", "connection", "timeout"])
+def test_temporarily_unavailable_errors_trigger_fallback(err):
+    fake = FakeClient([err, final()])
+    out = agent.chat("q", sid(), client=fake)
+    assert fake.models == [SONNET, HAIKU] and out["models"]["answered_by"] == HAIKU
+
+
+@pytest.mark.parametrize("err", [
+    api_error(anthropic.BadRequestError, 400, "invalid_request_error", "bad"),
+    api_error(anthropic.AuthenticationError, 401, "authentication_error", "invalid x-api-key"),
+    api_error(anthropic.PermissionDeniedError, 403, "permission_error", "no access"),
+    api_error(anthropic.NotFoundError, 404, "not_found_error", "model not found"),
+    api_error(anthropic.HTTPNotImplementedError, 501, "api_error", "not implemented"),
+], ids=["400", "401", "403", "404", "501"])
+def test_other_errors_do_not_fall_back(err):
+    fake = FakeClient([err])
+    with pytest.raises(type(err)):
+        agent.chat("q", sid(), client=fake)
+    assert fake.models == [SONNET]
+
+
+# ---------- when Haiku fails too: keep both real errors ----------
+
+def test_both_down_raises_with_both_errors_and_stores_nothing():
+    s = sid()
+    fake = FakeClient([overloaded(), overloaded("Haiku overloaded too")])
+    with pytest.raises(agent.FallbackFailedError) as exc:
+        agent.chat("q", s, client=fake)
+    e = exc.value
+    assert fake.models == [SONNET, HAIKU]  # Haiku tried exactly once
+    assert isinstance(e.primary_error, anthropic.OverloadedError)
+    assert isinstance(e.fallback_error, anthropic.OverloadedError)
+    assert e.__cause__ is e.fallback_error and e.fallback_unavailable
+    assert "Haiku overloaded too" in e.describe()
+    assert store.load_messages(s) == []  # a failed turn leaves no partial history
+
+
+def test_haiku_permission_error_is_kept_distinct_from_an_outage():
+    fake = FakeClient([overloaded(), api_error(anthropic.PermissionDeniedError, 403,
+                                               "permission_error",
+                                               "Your API key does not have access to claude-haiku-5-5")])
+    with pytest.raises(agent.FallbackFailedError) as exc:
+        agent.chat("q", sid(), client=fake)
+    e = exc.value
+    assert isinstance(e.fallback_error, anthropic.PermissionDeniedError)
+    assert e.fallback_error.status_code == 403 and not e.fallback_unavailable
+    assert ("claude-haiku-5-5 fallback failed: PermissionDeniedError 403 permission_error: "
+            "Your API key does not have access to claude-haiku-5-5") in e.describe()
+    assert "claude-sonnet-5-5 unavailable (OverloadedError 529" in e.describe()
+
+
+def test_haiku_failing_later_in_the_turn_reports_both_errors():
+    fake = FakeClient([overloaded(),
+                       msg([tool_use("rank_hubs", {"hazard": "overall", "region": None})], "tool_use"),
+                       api_error(anthropic.ServiceUnavailableError, 503, "api_error", "down")])
+    with pytest.raises(agent.FallbackFailedError) as exc:
+        agent.chat("q", sid(), client=fake)
+    assert isinstance(exc.value.primary_error, anthropic.OverloadedError)
+    assert isinstance(exc.value.fallback_error, anthropic.ServiceUnavailableError)
+
+
+@pytest.mark.parametrize("fallback_err,status", [
+    (overloaded("still down"), 503),
+    (api_error(anthropic.PermissionDeniedError, 403, "permission_error", "no access"), 502),
+    (api_error(anthropic.NotFoundError, 404, "not_found_error", "model not found"), 502),
+])
+def test_chat_endpoint_status_follows_the_fallback_error(monkeypatch, fallback_err, status):
+    def boom(message, session_id):
+        raise agent.FallbackFailedError(SONNET, overloaded(), HAIKU, fallback_err)
+    monkeypatch.setattr(agent, "chat", boom)
+    with pytest.raises(HTTPException) as exc:
+        main.chat(main.ChatRequest(message="hi"))
+    assert exc.value.status_code == status
+    assert type(fallback_err).__name__ in exc.value.detail and "OverloadedError 529" in exc.value.detail
+
+
+# ---------- simulated outage switch (WRIA_SIMULATE_OUTAGE) ----------
+
+def test_simulated_outage_env_forces_the_fallback(monkeypatch):
+    monkeypatch.setenv(agent.SIMULATE_ENV, SONNET)
+    fake = FakeClient([final()])
+    out = agent.chat("q", sid(), client=fake)
+    assert fake.models == [HAIKU]  # Sonnet was never called
+    fb = out["models"]["fallback"]
+    assert fb["simulated"] is True and fb["reason"].endswith("[simulated]")
+    assert "OverloadedError 529" in fb["reason"]
+
+
+@pytest.mark.parametrize("value", ["", "  ", ","])
+def test_empty_simulation_value_means_off(monkeypatch, value):
+    monkeypatch.setenv(agent.SIMULATE_ENV, value)
+    fake = FakeClient([final()])
+    agent.chat("q", sid(), client=fake)
+    assert fake.models == [SONNET]
+
+
+# ---------- refusals and cut-offs are not stored ----------
+
+@pytest.mark.parametrize("stop,content,status", [
+    ("refusal", [], "refused"),
+    ("max_tokens", [tool_use("rank_hubs", {"hazard": "overall", "region": None})], "cut_off"),
+])
+def test_refusal_and_max_tokens_messages_are_not_stored(stop, content, status):
+    s = sid()
+    out = agent.chat("q", s, client=FakeClient([msg(content, stop)]))
+    # a harness message, not an answer: the question is not labelled out of scope
+    assert out["answer"]["in_scope"] is None and out["status"] == status
+    assert [m["role"] for m in store.load_messages(s)] == ["user"]
+    # the next turn sends a valid history: no empty assistant turn, no dangling tool_use
+    fake = FakeClient([final()])
+    agent.chat("again", s, client=fake)
+    assert all(m["role"] == "user" for m in fake.requests[0]["messages"])
+
+
+# ---------- the real SDK HTTP path (MockTransport, no sockets) ----------
+
+def sdk_client(handler):
+    return anthropic.Anthropic(api_key="test-key", base_url="http://stub.invalid",
+                               http_client=anthropic.DefaultHttpxClient(
+                                   transport=httpx2.MockTransport(handler)))
+
+
+def sse_response(model, text, stop="end_turn"):
+    """A streamed (SSE) Messages response, as the real API sends it."""
+    events = [
+        {"type": "message_start", "message": {
+            "id": "msg_test", "type": "message", "role": "assistant", "model": model,
+            "content": [], "stop_reason": None, "stop_sequence": None,
+            "usage": {"input_tokens": 12, "output_tokens": 1}}},
+        {"type": "content_block_start", "index": 0, "content_block": {"type": "text", "text": ""}},
+        {"type": "ping"},
+        {"type": "content_block_delta", "index": 0, "delta": {"type": "text_delta", "text": text}},
+        {"type": "content_block_stop", "index": 0},
+        {"type": "message_delta", "delta": {"stop_reason": stop, "stop_sequence": None},
+         "usage": {"output_tokens": 7}},
+        {"type": "message_stop"},
+    ]
+    body = "".join(f"event: {e['type']}\ndata: {json.dumps(e)}\n\n" for e in events)
+    return httpx2.Response(200, headers={"content-type": "text/event-stream"},
+                           content=body.encode())
+
+
+def overloaded_response():
+    return httpx2.Response(529, headers={"retry-after-ms": "1", "x-should-retry": "true"},
+                           json={"type": "error", "error": {"type": "overloaded_error",
+                                                            "message": "Overloaded"}})
+
+
+def test_sdk_http_outage_retries_sonnet_then_tries_haiku_once():
+    hits = {SONNET: 0, HAIKU: 0}
+
+    def handler(request):
+        body = json.loads(request.content)
+        assert body["stream"] is True  # calls are streamed
+        # SDK 2.x sends the API key as a bearer token
+        assert request.headers.get("authorization") == "Bearer test-key"
+        assert "fallbacks" not in body and "anthropic-beta" not in request.headers
+        hits[body["model"]] += 1
+        if body["model"] == SONNET:
+            return overloaded_response()
+        return sse_response(HAIKU, answer_json())
+
+    out = agent.chat("q", sid(), client=sdk_client(handler))
+    assert hits == {SONNET: RETRIES + 1, HAIKU: 1}  # SDK retried Sonnet, then one Haiku attempt
+    assert out["models"]["answered_by"] == HAIKU
+    assert out["models"]["fallback"]["reason"] == "OverloadedError 529 overloaded_error: Overloaded"
+
+
+def test_sdk_http_both_down_tries_haiku_exactly_once():
+    hits = {SONNET: 0, HAIKU: 0}
+
+    def handler(request):
+        hits[json.loads(request.content)["model"]] += 1
+        return overloaded_response()
+
+    with pytest.raises(agent.FallbackFailedError) as exc:
+        agent.chat("q", sid(), client=sdk_client(handler))
+    assert hits == {SONNET: RETRIES + 1, HAIKU: 1}
+    assert isinstance(exc.value.fallback_error, anthropic.OverloadedError)
+
+
+# ---------- eval results show which model answered ----------
+
+DENVER_CASE = {"id": "denver_snow_last_year",
+               "turns": ["What percentage of days in Denver last year had snowfall?"],
+               "tools": ["weather_stat"], "in_scope": True,
+               "figure": {"hub_id": "denver", "metric": "snowfall", "year": 2025,
+                          "threshold": None, "field": "percent_of_days", "tol": 0.5}}
+
+
+def test_eval_case_reports_haiku_after_simulated_outage(monkeypatch, tmp_path):
+    monkeypatch.setenv(agent.SIMULATE_ENV, SONNET)
+    fake = FakeClient([
+        msg([tool_use("weather_stat", {"hub_id": "denver", "metric": "snowfall",
+                                       "year": 2025, "threshold": None})], "tool_use"),
+        msg([text(answer_json(
+            answer="11.8% of days (43 of 365) in 2025 had snowfall.",
+            figures=[{"label": "Denver 2025 snow days", "value": 11.8, "unit": "%",
+                      "source_tool": "weather_stat", "role": "headline"}]))], "end_turn"),
+    ])
+    monkeypatch.setattr(agent, "_client", lambda: fake)
+    monkeypatch.setattr(eval_run, "HERE", tmp_path)  # never touch evals/results/latest.json
+    r = eval_run.run_case(DENVER_CASE)
+    assert r["passed"], r["checks"]
+    assert r["answered_by"] == HAIKU and fake.models == [HAIKU, HAIKU]
+    line = eval_run.format_case_line(r)
+    assert line.startswith("PASS  denver_snow_last_year")
+    assert ("answered_by=claude-haiku-5-5 [fallback from claude-sonnet-5-5: OverloadedError 529 "
+            "overloaded_error: Simulated outage") in line
+    assert line.isascii()
+
+
+def test_summary_line_counts_models_and_names_fallback_cases():
+    results = [
+        {"id": "a", "answered_by": SONNET, "models": [{"fallback": None}]},
+        {"id": "b", "answered_by": HAIKU, "models": [{"fallback": {"from": SONNET}}]},
+        {"id": "c", "answered_by": SONNET, "models": [{"fallback": None}]},
+        {"id": "d", "answered_by": None, "models": []},
+    ]
+    assert eval_run.summary_line(results) == (
+        "Answered by: claude-sonnet-5-5 x2, claude-haiku-5-5 x1, no answer x1 (fallback: b)")
+
+
+def test_failed_case_keeps_both_errors_in_the_report():
+    e = agent.FallbackFailedError(SONNET, overloaded(), HAIKU,
+                                  api_error(anthropic.PermissionDeniedError, 403,
+                                            "permission_error", "no access"))
+    r = eval_run.failed_case({"id": "x"}, e.describe())
+    line = eval_run.format_check_lines(r)[0]
+    assert "PermissionDeniedError 403 permission_error: no access" in line
+    assert "OverloadedError 529" in line
+
+
+# ---------- review follow-ups ----------
+
+def test_fallback_turn_history_is_replayed_unchanged_next_turn():
+    """Thinking blocks (with signatures) from a fallback turn are stored and replayed exactly:
+    the next request starts with the previous request as an exact prefix (append-only)."""
+    from anthropic.types import ThinkingBlock
+    s = sid()
+    f1 = FakeClient([
+        overloaded(),
+        msg([ThinkingBlock(type="thinking", thinking="", signature="sig-abc"),
+             tool_use("rank_hubs", {"hazard": "overall", "region": None})], "tool_use"),
+        msg([ThinkingBlock(type="thinking", thinking="x", signature="sig2"),
+             text(answer_json())], "end_turn"),
+    ])
+    agent.chat("first", s, client=f1)
+    prev = f1.requests[-1]["messages"]
+    f2 = FakeClient([final()])
+    agent.chat("and Detroit?", s, client=f2)
+    sent = f2.requests[0]["messages"]
+    assert f2.models == [SONNET]
+    assert sent[:len(prev)] == prev
+    assert sent[1]["content"][0] == {"type": "thinking", "thinking": "", "signature": "sig-abc"}
+    assert sent[3]["content"][0]["signature"] == "sig2"
+
+
+def test_no_fallback_model_configured_raises_the_original_error(monkeypatch):
+    llm = dict(settings()["llm"], fallback_model=None)
+    monkeypatch.setitem(settings(), "llm", llm)
+    fake = FakeClient([overloaded()])
+    with pytest.raises(anthropic.OverloadedError):
+        agent.chat("q", sid(), client=fake)
+    assert fake.models == [SONNET]
+
+
+def test_connection_error_reports_its_real_cause():
+    """An SSL failure behind a corporate proxy must not read as a bare 'Connection error.'."""
+    def handler(request):
+        raise httpx2.ConnectError("[SSL: CERTIFICATE_VERIFY_FAILED] self-signed certificate "
+                                  "in certificate chain", request=request)
+    with pytest.raises(agent.FallbackFailedError) as exc:
+        agent.chat("q", sid(), client=sdk_client(handler))
+    assert "CERTIFICATE_VERIFY_FAILED" in exc.value.describe()
+    assert "ConnectError" in exc.value.describe()
+
+
+def test_proxy_text_error_page_is_kept():
+    resp = httpx2.Response(403, request=REQUEST, headers={"content-type": "text/plain"},
+                           content=b"Blocked by corporate policy")
+    err = anthropic.PermissionDeniedError("Blocked by corporate policy", response=resp,
+                                          body="Blocked by corporate policy")
+    assert agent.describe_error(err) == "PermissionDeniedError 403: Blocked by corporate policy"
+
+
+def test_stalled_sonnet_stream_falls_back_with_timeout_reason():
+    hits = {SONNET: 0, HAIKU: 0}
+
+    def handler(request):
+        model = json.loads(request.content)["model"]
+        hits[model] += 1
+        if model == SONNET:
+            raise httpx2.ReadTimeout("no data received", request=request)
+        return sse_response(HAIKU, answer_json())
+
+    out = agent.chat("q", sid(), client=sdk_client(handler))
+    assert hits == {SONNET: RETRIES + 1, HAIKU: 1}
+    assert out["models"]["fallback"]["reason"].startswith("APITimeoutError: ")
+    assert "ReadTimeout" in out["models"]["fallback"]["reason"]
+
+
+def test_eval_output_lines_are_ascii_even_with_non_ascii_errors():
+    reason = "OverloadedError 529 — “busy” 中"
+    r = {"id": "case_é", "passed": False, "seconds": 0, "answered_by": HAIKU,
+         "models": [{"fallback": {"from": SONNET, "reason": reason}}],
+         "checks": [("api call", False, "err — 中"), ("figure", None, "≈ 11.8%")]}
+    line = eval_run.format_case_line(r)
+    assert line.isascii() and "fallback from claude-sonnet-5-5" in line
+    assert all(x.isascii() for x in eval_run.format_check_lines(r))
+    assert eval_run.summary_line([r]).isascii()
+
+
+def test_eval_main_reports_both_errors_and_keeps_going(monkeypatch, tmp_path, capsys):
+    fake = FakeClient([overloaded(), api_error(anthropic.PermissionDeniedError, 403,
+                                               "permission_error", "no access to haiku")])
+    monkeypatch.setattr(agent, "_client", lambda: fake)
+    monkeypatch.setattr(eval_run.config, "load_env_file", lambda *a, **k: {})  # never the real .env
+    monkeypatch.setattr(eval_run, "HERE", tmp_path)
+    (tmp_path / "cases.yaml").write_text(json.dumps([DENVER_CASE]), encoding="utf-8")
+    monkeypatch.setattr("sys.argv", ["evals.run"])
+    eval_run.main()
+    out = capsys.readouterr().out
+    assert "FAIL  denver_snow_last_year" in out
+    assert "PermissionDeniedError 403 permission_error: no access to haiku" in out
+    assert "Answered by: no answer x1 (fallback: denver_snow_last_year)" in out
+    saved = json.loads((tmp_path / "results" / "latest.json").read_text(encoding="utf-8"))
+    fb = saved[0]["models"][0]["fallback"]
+    assert fb["fallback_error"].startswith("PermissionDeniedError 403")
+
+
+def test_health_reports_models_simulation_and_key_source_but_not_the_key(monkeypatch):
+    monkeypatch.setenv(agent.SIMULATE_ENV, SONNET)
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-secret-value-000000000000000")
+    monkeypatch.setattr(main.config, "api_key_source", "environment")
+    h = main.health()
+    assert h["llm"] == {"model": SONNET, "fallback_model": HAIKU, "simulated_outage": [SONNET]}
+    assert h["api_key_source"] == "environment"
+    assert "sk-ant-secret" not in json.dumps(h)
+
+
+# ---------- snowfall threshold: exact tool input, API rule, wording ----------
+
+TOOL_SPEC = {"tool": "weather_stat", "threshold": 1.0}  # as in evals/cases.yaml
+
+
+def call(threshold):
+    return {"tool": "weather_stat", "is_error": False,
+            "input": {"hub_id": "denver", "metric": "snowfall", "year": 2025,
+                      "threshold": threshold}}
+
+
+@pytest.mark.parametrize("thresholds,ok", [
+    ([1], True), ([1.0], True), ([1, 1.0], True),
+    ([0.99], False),
+    ([1, 0.99], False),   # the browser-test case: tried both, even if the count is right
+    ([0.99, 1], False),
+    ([], False),          # no call at all
+])
+def test_tool_input_check_requires_every_call_to_use_exactly_1(thresholds, ok):
+    name, passed, detail = eval_run.check_tool_input(TOOL_SPEC, [call(t) for t in thresholds])
+    assert passed is ok
+    if thresholds:
+        assert all(str(t) in detail for t in thresholds)
+
+
+def test_threshold_case_fails_when_agent_tries_0_99_even_with_the_right_count():
+    case = {"id": "denver_snow_threshold", "turns": ["q"], "tools": ["weather_stat"],
+            "in_scope": True, "tool_input": TOOL_SPEC,
+            "figure": {"hub_id": "denver", "metric": "snowfall", "year": 2025, "threshold": 1.0,
+                       "field": "days_meeting_condition", "tol": 0}}
+    want = eval_run.expected_figure(case["figure"])[0]
+    result = {"tool_calls": [call(1), call(0.99)],
+              "answer": json.loads(answer_json(figures=[{
+                  "label": "daily snowfall >= 1 cm (at least 1 cm)", "value": want,
+                  "unit": "days", "source_tool": "weather_stat", "role": "headline"}]))}
+    checks = {name: ok for name, ok, _ in eval_run.check_case(case, result)}
+    assert checks[next(n for n in checks if n.startswith("figure 17"))] is True  # the count is right...
+    assert checks[next(n for n in checks if n.startswith("weather_stat input"))] is False
+
+
+def test_weather_endpoint_rejects_negative_snowfall_threshold_with_400():
+    with pytest.raises(HTTPException) as exc:
+        main.hub_weather("denver", metric="snowfall", year=2025, threshold=-1)
+    assert exc.value.status_code == 400 and "0 or more" in exc.value.detail
+    ok = main.hub_weather("denver", metric="hard_freeze", year=2025, threshold=-12)
+    assert ok["condition"] == "daily minimum temperature <= -12 °C"
+    at_least = main.hub_weather("denver", metric="snowfall", year=2025, threshold=1)
+    assert at_least["condition"] == "daily snowfall >= 1 cm (at least 1 cm)"
+
+
+def test_tool_text_states_the_rule_and_no_era5_claim():
+    from app import tools
+    desc = next(t for t in tools.TOOL_DEFS if t["name"] == "weather_stat")["description"]
+    assert "at least threshold cm (>= threshold)" in desc and "any snowfall (> 0 cm)" in desc
+    assert "negative snowfall threshold is rejected" in desc
+    everything = json.dumps(tools.TOOL_DEFS) + json.dumps(tools.get_methodology()) + agent._system_prompt()
+    assert "ERA5" not in everything and "10 km" not in everything
+    assert "never 0.99" in agent._system_prompt()
