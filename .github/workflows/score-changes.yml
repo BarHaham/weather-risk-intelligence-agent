@@ -1,0 +1,91 @@
+# Opens an issue when a hub's overall risk score changes on the deploy branch.
+#
+# Scores come only from committed files (data/cache, config.yaml, scoring code), so the commit
+# before the push and the pushed commit are both re-scored exactly; no API key or network is
+# needed. A tier change (e.g. Dallas Low -> Moderate) is highlighted and labelled tier-change.
+#
+# - Deploy branch: main, or the repository variable DEPLOY_BRANCH.
+# - Re-running the same push never opens a second issue (marker in the issue body).
+# - Skipped (with a note) only when there is no earlier version to score: the push created the
+#   branch, or the earlier commit has no app (e.g. the first merge into an empty main). If an
+#   earlier version exists but its scores can't be calculated, the run fails.
+# - Manual run: Actions -> Score changes -> Run workflow, with `before` = a commit or branch;
+#   `dry_run` (default on) only writes the job summary.
+name: Score changes
+
+on:
+  push:
+  workflow_dispatch:
+    inputs:
+      before:
+        description: Commit or branch to compare against
+        required: true
+        type: string
+      dry_run:
+        description: Only write the job summary (don't open an issue)
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: score-changes-${{ github.event.before || inputs.before }}-${{ github.sha }}
+  cancel-in-progress: false
+
+jobs:
+  compare:
+    if: github.event_name == 'workflow_dispatch' || github.ref_name == (vars.DEPLOY_BRANCH || 'main')
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+
+      - name: Install dependencies
+        run: python -m pip install -r requirements.txt
+
+      - name: Scores before
+        id: before
+        env:
+          BEFORE: ${{ github.event_name == 'workflow_dispatch' && inputs.before || github.event.before }}
+        run: python scripts/score_changes.py baseline --before "$BEFORE" --out "$RUNNER_TEMP/before.json"
+
+      - name: Scores after
+        if: steps.before.outputs.status == 'scored'
+        env:
+          PYTHONPATH: ${{ github.workspace }}
+        run: python scripts/score_changes.py snapshot --out "$RUNNER_TEMP/after.json"
+
+      - name: Compare
+        id: compare
+        if: steps.before.outputs.status == 'scored'
+        env:
+          BEFORE_SHA: ${{ steps.before.outputs.sha }}
+          BRANCH: ${{ github.ref_name }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: >-
+          python scripts/score_changes.py compare
+          "$RUNNER_TEMP/before.json" "$RUNNER_TEMP/after.json"
+          --before "$BEFORE_SHA" --after "$GITHUB_SHA" --branch "$BRANCH"
+          --repo "$GITHUB_REPOSITORY" --run-url "$RUN_URL"
+          --title-file "$RUNNER_TEMP/title.txt" --body-file "$RUNNER_TEMP/body.md"
+
+      - name: Open issue
+        if: steps.compare.outputs.changed == 'true' && !(github.event_name == 'workflow_dispatch' && inputs.dry_run)
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          MARKER: ${{ steps.compare.outputs.marker }}
+          TIER_CHANGED: ${{ steps.compare.outputs.tier_changed }}
+        run: >-
+          python scripts/score_changes.py publish --marker "$MARKER"
+          --title-file "$RUNNER_TEMP/title.txt" --body-file "$RUNNER_TEMP/body.md"
+          --tier-changed "$TIER_CHANGED"
