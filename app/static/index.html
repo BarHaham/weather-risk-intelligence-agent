@@ -116,6 +116,9 @@
                    border:1px solid var(--accent); background:transparent; color:var(--accent); cursor:pointer; text-align:left; }
   .follow button:active, .suggest button:active { background:var(--hl); }
   .err { color:var(--High-text); }
+  .status-note { margin:8px 0 4px; padding:6px 10px; border-left:3px solid var(--accent); background:var(--hl);
+                 border-radius:4px; font-size:14px; }
+  .status-note p { margin:2px 0; }
   /* ---------- atlas ---------- */
   .atlas-panel { padding:16px 18px 14px; }
   @media (min-width: 900px) {  /* same height as the chat; the atlas scrolls inside itself if needed */
@@ -280,18 +283,25 @@ function breakdownHtml(figures) {
   </table></div></details>`;
 }
 
+// chat() statuses whose answer is a short harness message, not the model's answer
+const NO_ANSWER = { tool_limit: "stopped at the tool-round limit", cut_off: "cut off",
+                    refused: "refused", invalid_answer: "invalid response" };
+
 function renderAnswer(r) {
-  const a = r.answer;
+  const a = r.answer, status = r.status || "answered", noAnswer = NO_ANSWER[status];
   const list = xs => xs.length ? `<ul>${xs.map(x => `<li>${esc(x)}</li>`).join("")}</ul>` : "<p class='meta'>none</p>";
   const chips = a.hubs.map(h => `<span class="chip">${esc(h.hub_id)} · ${esc(h.hazard)} ${esc(h.score)}</span>`).join("");
-  const tools = r.tool_calls.map(t => `<li><code>${esc(t.tool)}</code> ${esc(JSON.stringify(t.input))}${t.is_error ? " <span class='err'>(error)</span>" : ""}</li>`).join("");
+  const tools = r.tool_calls.map(t => `<li><code>${esc(t.tool)}</code> ${esc(JSON.stringify(t.input))}${t.is_error ? " <span class='err'>(error)</span>" : ""}${t.repeated ? ` <span class='meta'>(repeat${t.same_as_call ? ` of call ${esc(t.same_as_call)}` : ""}: not run again)</span>` : ""}</li>`).join("");
   const follow = a.follow_up_suggestions.map(s => `<button type="button">${esc(s)}</button>`).join("");
+  // Reaching the tool-round limit is reported as such, never as an out-of-scope question.
+  const limitNote = status === "answered_at_tool_limit"
+    ? `<p class="status-note" role="note">Reached the ${esc(r.max_tool_rounds ?? "")}-round tool limit. Answered from the data already gathered, with tools turned off for the final reply.</p>` : "";
   const el = add(`
-    <div class="ans">${md(a.answer)}</div>
+    ${noAnswer ? `<div class="ans status-note" role="note">${md(a.answer)}</div>` : `<div class="ans">${md(a.answer)}</div>${limitNote}`}
     ${chips ? `<div class="chips">${chips}</div>` : ""}
     ${breakdownHtml(a.figures)}
-    <div class="meta">Confidence: <b>${esc(a.confidence)}</b>${a.in_scope ? "" : " · out of scope"}
-      · Answered by <b>${esc(r.models?.answered_by || "?")}</b>${r.models?.fallback
+    <div class="meta">${noAnswer ? `No answer: <b>${esc(noAnswer)}</b>` : `Confidence: <b>${esc(a.confidence)}</b>${a.in_scope === false ? " · out of scope" : ""}`}
+      · ${noAnswer ? "Model" : "Answered by"} <b>${esc(r.models?.answered_by || "?")}</b>${r.models?.fallback
         ? ` <span class="err">(fallback from ${esc(r.models.fallback.from)}: ${esc(r.models.fallback.reason)})</span>` : ""}</div>
     <details><summary>Reasoning, sources &amp; assumptions</summary>
       <b>Reasoning steps</b>${list(a.reasoning_steps)}

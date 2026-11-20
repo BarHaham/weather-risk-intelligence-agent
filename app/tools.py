@@ -83,8 +83,11 @@ TOOL_DEFS: list[dict] = [
     {
         "name": "get_methodology",
         "description": "The scoring method: data sources, hazard components, weights, "
-                       "normalisation caps, thresholds and tiers. Use for 'how is the score "
-                       "calculated' or when you need to state assumptions.",
+                       "normalisation caps, thresholds, tiers and what the score leaves out. "
+                       "Use for questions about how the score is calculated, its weights, "
+                       "caps, thresholds or tiers, or what it does not cover. Other answers "
+                       "don't need it: the other tools' results already include their own "
+                       "conditions, sources and caveats.",
         "input_schema": _obj({}),
     },
 ]

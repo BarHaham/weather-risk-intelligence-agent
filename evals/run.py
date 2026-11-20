@@ -184,11 +184,19 @@ def check_case(case: dict, result: dict) -> list[tuple[str, bool, str]]:
     return checks
 
 
+def turn_info(result: dict) -> dict:
+    """How one turn ended: agent status, tool rounds used and repeated identical calls."""
+    return {"status": result.get("status", agent.ANSWERED),
+            "tool_rounds": result.get("tool_rounds", 0),
+            "max_tool_rounds": result.get("max_tool_rounds"),
+            "repeated_calls": sum(1 for t in result.get("tool_calls", []) if t.get("repeated"))}
+
+
 def run_case(case: dict) -> dict:
     sid = f"eval-{case['id']}-{uuid.uuid4().hex[:8]}"
     t0 = time.time()
     result = None
-    turn_models = []
+    turn_models, turns = [], []
     for turn in case["turns"]:
         try:
             result = agent.chat(turn, sid)
@@ -196,19 +204,22 @@ def run_case(case: dict) -> dict:
             e.turn_models = turn_models  # models of the turns that did complete
             raise
         turn_models.append(result["models"])
+        turns.append(turn_info(result))
     checks = check_case(case, result)
     decided = [c for c in checks if c[1] is not None]
     return {"id": case["id"], "passed": all(c[1] for c in decided),
             "skipped": len(decided) < len(checks), "seconds": round(time.time() - t0, 1),
             "checks": checks, "answered_by": result["models"]["answered_by"],
-            "models": turn_models, "answer": result["answer"],
+            "models": turn_models, "status": turns[-1]["status"],
+            "tool_rounds": turns[-1]["tool_rounds"], "turns": turns, "answer": result["answer"],
             "tool_calls": result["tool_calls"], "usage": result["usage"]}
 
 
 def failed_case(case: dict, reason: str, models: list | None = None) -> dict:
     return {"id": case["id"], "passed": False, "skipped": False, "seconds": 0,
             "checks": [("api call", False, reason)], "answered_by": None,
-            "models": models or [], "answer": None, "tool_calls": [],
+            "models": models or [], "status": None, "tool_rounds": 0, "turns": [],
+            "answer": None, "tool_calls": [],
             "usage": {"input_tokens": 0, "output_tokens": 0}}
 
 
@@ -226,6 +237,16 @@ def format_case_line(r: dict) -> str:
         if fb:
             where = f" (turn {i})" if len(turns) > 1 else ""
             line += f" [fallback from {fb['from']}{where}: {fb['reason']}]"
+    infos = r.get("turns") or []
+    for i, t in enumerate(infos, 1):
+        where = f"turn {i}: " if len(infos) > 1 else ""
+        repeats = (f", {t['repeated_calls']} repeated call{'s' if t['repeated_calls'] != 1 else ''}"
+                   if t.get("repeated_calls") else "")
+        if t["status"] != agent.ANSWERED:  # e.g. answered only after the tool-round limit
+            line += (f" [{where}status={t['status']} ({t['tool_rounds']} of "
+                     f"{t.get('max_tool_rounds')} tool rounds{repeats})]")
+        elif repeats:
+            line += f" [{where}{repeats[2:]}]"
     return _ascii(line)
 
 
@@ -246,6 +267,10 @@ def summary_line(results: list[dict]) -> str:
     fallback_ids = [r["id"] for r in results if any(m.get("fallback") for m in r.get("models") or [])]
     if fallback_ids:
         text += f" (fallback: {', '.join(fallback_ids)})"
+    limit_ids = [r["id"] for r in results if any(
+        t["status"] in (agent.ANSWERED_AT_TOOL_LIMIT, agent.TOOL_LIMIT) for t in r.get("turns") or [])]
+    if limit_ids:
+        text += f"; reached the tool-round limit: {', '.join(limit_ids)}"
     return _ascii(text)
 
 

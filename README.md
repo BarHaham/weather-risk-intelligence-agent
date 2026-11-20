@@ -130,6 +130,19 @@ Haiku.
   request or the key, so they are raised directly.
 - **Refusals** are not retried on another model. The answer says the request can't be handled.
 
+## Tool-round limit
+
+A turn may use up to `llm.max_tool_rounds` (8) rounds of tool calls.
+- **Repeated calls:** a call that repeats an earlier one in the same turn (same tool, same input)
+  isn't run again. Its result points to the earlier one.
+- **After the 8th round:** Claude gets one more request with tools turned off and is told to
+  answer from the data it has already gathered.
+- **What you see:** such an answer shows "Reached the 8-round tool limit …". If even that reply
+  isn't a valid answer, the chat says it stopped at the limit. Neither case is labelled "out of
+  scope".
+- **In the evals:** each line shows the status (e.g. `status=answered_at_tool_limit (8 of 8 tool
+  rounds, 6 repeated calls)`), and `evals/results/latest.json` has every call.
+
 **Light/dark mode:** use the **Dark mode** switch in the header. The choice is remembered in
 this browser; until you choose, the page follows your system setting.
 
@@ -156,7 +169,7 @@ python -m evals.run                       # 10 cases against the live agent (use
 
 | Method | Path | Purpose |
 |---|---|---|
-| POST | `/chat` | `{message, session_id?}` → `{session_id, answer (AgentAnswer), tool_calls, models, usage}`. `models` = `{requested, answered_by, calls, fallback}` |
+| POST | `/chat` | `{message, session_id?}` → `{session_id, answer (AgentAnswer), status, tool_rounds, max_tool_rounds, tool_calls, models, usage}`. `models` = `{requested, answered_by, calls, fallback}`. `status` = `answered`, `answered_at_tool_limit`, `tool_limit`, `cut_off`, `refused` or `invalid_answer` |
 | GET | `/rankings?hazard=&region=` | Deterministic ranking (overall or one hazard) |
 | GET | `/hubs/{id}/score` | Full score breakdown for one hub |
 | GET | `/hubs/{id}/weather?metric=&year=&threshold=` | Day counts from Open-Meteo's gridded estimates. Snowfall: no threshold or 0 = any snowfall (> 0 cm); a positive threshold X = at least X cm (>= X); a negative snowfall threshold is rejected with 400 |

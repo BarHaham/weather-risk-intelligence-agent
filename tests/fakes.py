@@ -60,7 +60,7 @@ class _Final:
 class FakeClient:
     """Scripted stand-in for anthropic.Anthropic (streaming interface). Each script item is a
     response or an exception to raise. Records every request (model, retries, timeout,
-    messages, system, tools)."""
+    messages, system, tools, tool_choice)."""
 
     def __init__(self, script):
         self.script = list(script)
@@ -79,7 +79,7 @@ class FakeClient:
         self.requests.append({
             "model": kwargs["model"], "max_retries": self._options.get("max_retries"),
             "timeout": self._options.get("timeout"), "system": kwargs["system"],
-            "tools": kwargs["tools"],
+            "tools": kwargs["tools"], "tool_choice": kwargs.get("tool_choice"),
             "messages": json.loads(json.dumps(kwargs["messages"], default=str))})
         item = self.script.pop(0)
         if isinstance(item, BaseException):

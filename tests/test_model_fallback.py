@@ -193,14 +193,15 @@ def test_empty_simulation_value_means_off(monkeypatch, value):
 
 # ---------- refusals and cut-offs are not stored ----------
 
-@pytest.mark.parametrize("stop,content", [
-    ("refusal", []),
-    ("max_tokens", [tool_use("rank_hubs", {"hazard": "overall", "region": None})]),
+@pytest.mark.parametrize("stop,content,status", [
+    ("refusal", [], "refused"),
+    ("max_tokens", [tool_use("rank_hubs", {"hazard": "overall", "region": None})], "cut_off"),
 ])
-def test_refusal_and_max_tokens_messages_are_not_stored(stop, content):
+def test_refusal_and_max_tokens_messages_are_not_stored(stop, content, status):
     s = sid()
     out = agent.chat("q", s, client=FakeClient([msg(content, stop)]))
-    assert out["answer"]["in_scope"] is False
+    # a harness message, not an answer: the question is not labelled out of scope
+    assert out["answer"]["in_scope"] is None and out["status"] == status
     assert [m["role"] for m in store.load_messages(s)] == ["user"]
     # the next turn sends a valid history: no empty assistant turn, no dangling tool_use
     fake = FakeClient([final()])

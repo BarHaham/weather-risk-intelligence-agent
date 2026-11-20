@@ -56,7 +56,8 @@ explains the results. It never produces scores itself.
   model can't request an unknown hub. A tool error comes back as `is_error` and the model explains it.
 - **Final answer:** enforced with `output_config.format` (JSON schema `AgentAnswer` in
   `app/schemas.py`), then re-validated with Pydantic. Fields:
-  - `in_scope`, `answer` (markdown)
+  - `in_scope`, `answer` (markdown). `in_scope` is `null` only in the harness's own short
+    messages when there is no answer (see the tool-round limit below).
   - `hubs[{hub_id, hazard, score}]`, `figures[{label, value, unit, source_tool}]`
   - `reasoning_steps`, `data_sources`, `assumptions`, `confidence`, `follow_up_suggestions`
 - **Change from the plan:** the plan used a forced `submit_answer` tool. The current Claude models
@@ -81,6 +82,47 @@ explains the results. It never produces scores itself.
   A refusal is not retried on another model: the earlier server-side refusal fallback was replaced
   by the availability fallback below. The refused (or cut-off) assistant message is not stored, so
   an empty turn or a dangling `tool_use` can't break later requests in the session.
+- **Tool-round limit (`llm.max_tool_rounds`, 8):**
+  - **What went wrong:** in one live eval run, `denver_snow_last_year` called `get_methodology`
+    seven times and `dallas_why` kept calling `get_score_breakdown`. Both stopped at the limit
+    with no answer. The replay was checked and is not the cause: streamed tool calls (including a
+    no-input call) and their results go back to the API unchanged, and a mock-transport test
+    keeps that checked. The causes were in the prompt and the loop:
+    - `get_methodology` was described as the tool to call "when you need to state assumptions",
+      and every answer has an `assumptions` field.
+    - Nothing said that tool results are deterministic.
+    - The Dallas question assumes the hub is "high". The model scores it Low (34.9, just under
+      Moderate at 35), while FEMA's context ratings say "Very High", and the prompt didn't say
+      how to handle a premise the data doesn't support.
+    - Every request allowed tools, so a model that kept checking never had to answer.
+  - **Prompt:** tool results are deterministic and complete, so a call isn't repeated.
+    Assumptions come from the conditions and caveats already returned. For "why is X high", call
+    `get_score_breakdown` once per hub, and if the premise doesn't match the model, say so and
+    give the actual score and tier. `get_methodology` is for questions about the method itself.
+    Nothing tells the model to use fewer tools: Sonnet 5.5 follows such wording literally and
+    may then skip a needed call.
+  - **Repeated identical calls:** within one turn, a call with the same tool and the same input
+    as an earlier call isn't run again. Its result says it repeats call *n* and that the earlier
+    result is unchanged. The trace marks it `repeated` (and `same_as_call`).
+  - **Finishing at the limit:** after 8 tool rounds, one more request is sent with
+    `tool_choice: {"type": "none"}` and a mid-conversation system message saying the limit was
+    reached and to answer from the results above. `system` and `tools` stay the same, so replayed
+    thinking blocks stay valid; changing `tool_choice` only costs the messages cache for that one
+    request. The reply is validated like any answer (with the one repair attempt, tools still off).
+    The notice stays in the stored history, followed by the answer, so the history remains
+    append-only. If that final reply is dropped (refusal, cut-off), the notice is dropped with it
+    so the next request is still valid.
+  - **Reporting:** `/chat` returns `status`, `tool_rounds` and `max_tool_rounds`:
+    - `answered`: the normal case.
+    - `answered_at_tool_limit`: answered by the tools-off final reply. The UI shows "Reached the
+      8-round tool limit …" under the answer.
+    - `tool_limit`: no valid answer even then.
+    - `cut_off`, `refused` and `invalid_answer`: the other early stops.
+
+    The early stops carry a short message with `in_scope: null` (not judged), so the UI and the
+    evals no longer report them as out-of-scope questions. Eval lines show any status other than
+    `answered` and the number of repeated calls, and the summary lists the cases that reached
+    the limit. The eval checks themselves are unchanged.
 
 ### Models and availability fallback
 - **Primary:** `claude-sonnet-5-5` at effort `medium`, Sonnet 5.5's recommended start for multistep

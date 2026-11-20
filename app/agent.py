@@ -45,10 +45,14 @@ Hubs covered (no others):
 How to work:
 - Every number you state must come from a tool result in this conversation. Never estimate, \
 recall or invent figures. If a tool returns an error or no data, say so plainly.
+- Tool results are deterministic and complete for their inputs: calling a tool again with the \
+same input returns the same data. Don't repeat a call; use the result you already have.
 - Scores come from a deterministic model (rank_hubs, compare_hubs, get_score_breakdown). \
 Report them; do not re-weight or re-rank them yourself.
-- For explanations ("why is X high"), name the hazards that contribute the most points and \
-the raw inputs behind them.
+- For explanations ("why is X high/low"), call get_score_breakdown once per hub and name the \
+hazards that contribute the most points, with the raw inputs behind them. If the question's \
+premise doesn't match the model (e.g. it says "high" but the tier is Low), say so first and give the \
+actual score and tier. FEMA "Very High" ratings are exposure context, not the score.
 - For day-count questions use weather_stat. State the exact condition, the count and the \
 denominator (e.g. "43 of 365 days"). "Last year" means calendar year {last_year}, the latest \
 full year of data. The default snow day is any snowfall (> 0 cm); use another threshold only \
@@ -70,7 +74,8 @@ answer text; they belong in figures as "detail" and would otherwise appear twice
 - figures: each other number with its source tool. role "headline" for the 1-3 numbers the \
 answer text states; role "detail" for breakdown rows (e.g. one per month).
 - reasoning_steps: short steps you took, e.g. which tools and why.
-- data_sources, assumptions (thresholds, weights, data caveats), confidence.
+- data_sources, assumptions (thresholds, weights, data caveats), confidence. Take the \
+assumptions from the conditions, thresholds and caveats in the tool results you already have.
 - follow_up_suggestions: up to 3 useful next questions."""
 
 
@@ -181,7 +186,8 @@ def _simulated_overload(model: str) -> anthropic.OverloadedError:
 
 # ---------- API call ----------
 
-def _create(client, messages: list[dict], model: str, max_retries: int):
+def _create(client, messages: list[dict], model: str, max_retries: int,
+            tool_choice: dict | None = None):
     if model in simulated_outage_models():
         raise _simulated_overload(model)
     cfg = settings()["llm"]
@@ -191,8 +197,10 @@ def _create(client, messages: list[dict], model: str, max_retries: int):
     # strict: true keeps the server-side schema validation of tool arguments.)
     timeout = httpx2.Timeout(connect=10.0, read=float(cfg["stream_idle_timeout_s"]),
                              write=30.0, pool=30.0)
-    # system and tools are identical for every model: changing them would invalidate the
-    # thinking blocks replayed from earlier turns.
+    # system and tools are identical for every model and every request: changing them would
+    # invalidate the thinking blocks replayed from earlier turns. tool_choice is outside that
+    # check, so the final reply after the tool-round limit can turn tools off (see chat()).
+    extra = {"tool_choice": tool_choice} if tool_choice else {}
     with client.with_options(max_retries=max_retries, timeout=timeout).messages.stream(
             model=model,
             max_tokens=cfg["max_tokens"],
@@ -202,6 +210,7 @@ def _create(client, messages: list[dict], model: str, max_retries: int):
             cache_control={"type": "ephemeral"},
             output_config={"effort": cfg["effort"],
                            "format": {"type": "json_schema", "schema": answer_json_schema()}},
+            **extra,
     ) as stream:
         return stream.get_final_message()
 
@@ -219,27 +228,29 @@ class _Turn:
         self.fallback: dict | None = None
         self.calls: list[str] = []
 
-    def call(self, messages: list[dict]):
+    def call(self, messages: list[dict], tool_choice: dict | None = None):
         try:
-            resp = _create(self.client, messages, self.active, self.max_retries)
+            resp = _create(self.client, messages, self.active, self.max_retries, tool_choice)
         except anthropic.APIError as e:
             if self.active != self.primary:  # already on the fallback: report both errors
                 raise FallbackFailedError(self.primary, self.primary_error,
                                           self.active, e) from e
             if not self.fallback_model or not is_unavailable(e):
                 raise
-            resp = self._switch(messages, e)
+            resp = self._switch(messages, e, tool_choice)
         self.calls.append(resp.model)
         return resp
 
-    def _switch(self, messages: list[dict], primary_error: BaseException):
+    def _switch(self, messages: list[dict], primary_error: BaseException,
+                tool_choice: dict | None = None):
         self.primary_error = primary_error
         self.fallback = {"from": self.primary, "to": self.fallback_model,
                          "reason": describe_error(primary_error),
                          "simulated": bool(getattr(primary_error, "simulated", False)),
                          "at_call": len(self.calls) + 1}
         try:  # "try once": a single attempt, no SDK retries
-            resp = _create(self.client, messages, self.fallback_model, max_retries=0)
+            resp = _create(self.client, messages, self.fallback_model, max_retries=0,
+                           tool_choice=tool_choice)
         except anthropic.APIError as e:
             raise FallbackFailedError(self.primary, primary_error, self.fallback_model, e) from e
         self.active = self.fallback_model  # rest of this turn stays on the fallback
@@ -251,13 +262,60 @@ class _Turn:
                 "calls": self.calls, "fallback": self.fallback}
 
 
+# ---------- one user turn ----------
+
+# chat() status values. Only "answered" and "answered_at_tool_limit" carry the model's answer;
+# the others carry a short harness message whose in_scope is None (not determined), so a turn
+# that stopped early is never reported as an out-of-scope question.
+ANSWERED = "answered"
+ANSWERED_AT_TOOL_LIMIT = "answered_at_tool_limit"  # valid answer from the tools-off final reply
+TOOL_LIMIT = "tool_limit"            # limit reached and the final reply was not a valid answer
+CUT_OFF = "cut_off"                  # stop_reason max_tokens
+REFUSED = "refused"                  # stop_reason refusal (not retried on another model)
+INVALID_ANSWER = "invalid_answer"    # final JSON failed validation twice
+
+NO_TOOLS = {"type": "none"}
+
+
 def _out_of_band_answer(text: str) -> AgentAnswer:
-    return AgentAnswer(in_scope=False, answer=text, hubs=[], figures=[], reasoning_steps=[],
+    """A harness message in place of the model's answer. in_scope=None: the question was not
+    judged, so it must not be shown or scored as out of scope."""
+    return AgentAnswer(in_scope=None, answer=text, hubs=[], figures=[], reasoning_steps=[],
                        data_sources=[], assumptions=[], confidence="low",
                        follow_up_suggestions=[])
 
 
+def _limit_notice(max_rounds: int) -> dict:
+    # A mid-conversation system message: the operator channel for harness notices (text in the
+    # tool-result message could be read as part of the tool output). It follows the last tool
+    # results and is followed by the model's reply, so the stored history stays append-only.
+    return {"role": "system", "content":
+            f"Tool limit reached: this turn has used all {max_rounds} tool rounds, so tools are "
+            "off for this reply. Give your final answer now from the tool results above. If "
+            "they are not enough to answer fully, say what is missing and lower your "
+            "confidence."}
+
+
+def _call_key(name: str, args: dict) -> str:
+    return name + json.dumps(args, sort_keys=True, default=str)
+
+
+def _repeat_result(call_no: int) -> str:
+    return json.dumps({
+        "repeated_call": True, "same_as_call": call_no,
+        "note": f"Same tool and input as call {call_no} in this turn. Tools are deterministic, "
+                "so that result (above) is unchanged. Use it rather than calling again."})
+
+
 def chat(message: str, session_id: str | None = None, client=None) -> dict:
+    """Run one user turn. Returns {session_id, answer, status, tool_rounds, max_tool_rounds,
+    tool_calls, models, usage}; see the status constants above.
+
+    Tool rounds are capped at llm.max_tool_rounds. After the last allowed round, one more
+    request is sent with tools turned off (tool_choice none) and a notice, so the model answers
+    from the data it already has instead of stopping without an answer. An identical repeated
+    call (same tool, same input) in the same turn is not run again: its result points to the
+    earlier one."""
     client = client or _client()
     session_id = session_id or uuid.uuid4().hex
     history = store.load_messages(session_id)
@@ -265,24 +323,39 @@ def chat(message: str, session_id: str | None = None, client=None) -> dict:
     trace: list[dict] = []
     usage = {"input_tokens": 0, "output_tokens": 0, "cache_read_input_tokens": 0}
     answer: AgentAnswer | None = None
+    status = ""
     turn = _Turn(client)
     max_rounds = settings()["llm"]["max_tool_rounds"]
-    repaired = False
+    limit_text = (f"Stopped after {max_rounds} tool rounds without a final answer. Try asking "
+                  "again, or narrow the question.")
+    rounds = 0           # tool rounds run this turn (pause_turn counts too, to stay bounded)
+    seen: dict[str, int] = {}  # call key -> 1-based number of its first call in this turn
+    repaired = notice_sent = False
 
-    for _ in range(max_rounds + 1):
-        resp = turn.call(history + new)  # raises on failure: nothing of this turn is stored
-        for k in usage:
+    while True:
+        final = rounds >= max_rounds
+        if final and not notice_sent:
+            new.append(_limit_notice(max_rounds))
+            notice_sent = True
+        resp = turn.call(history + new, NO_TOOLS if final else None)  # raises on failure:
+        for k in usage:                                               # nothing is stored
             usage[k] += getattr(resp.usage, k, 0) or 0
 
         # A refusal can have empty content and a max_tokens cut-off can end in a tool_use with
         # no result; storing either would make every later request in the session a 400.
         # Dropping this last message keeps the history append-only and valid.
         if resp.stop_reason == "refusal":
-            answer = _out_of_band_answer("I can't help with that request.")
+            answer, status = _out_of_band_answer("I can't help with that request."), REFUSED
             break
         if resp.stop_reason == "max_tokens":
             answer = _out_of_band_answer("The answer was cut off (max_tokens). Please narrow "
                                          "the question.")
+            status = CUT_OFF
+            break
+        if final and resp.stop_reason in ("tool_use", "pause_turn"):
+            # Tools are off for this request, so this should not happen; a tool_use without
+            # its result must not be stored either way.
+            answer, status = _out_of_band_answer(limit_text), TOOL_LIMIT
             break
 
         new.append({"role": "assistant", "content": _blocks_to_dicts(resp.content)})
@@ -293,32 +366,53 @@ def chat(message: str, session_id: str | None = None, client=None) -> dict:
                 if block.type != "tool_use":
                     continue
                 args = block.input if isinstance(block.input, dict) else json.loads(block.input)
-                output, is_error = tools.execute(block.name, args)
-                trace.append({"tool": block.name, "input": args, "is_error": is_error})
+                key = _call_key(block.name, args)
+                if key in seen:
+                    output, is_error = _repeat_result(seen[key]), False
+                    trace.append({"tool": block.name, "input": args, "is_error": False,
+                                  "repeated": True, "same_as_call": seen[key]})
+                else:
+                    output, is_error = tools.execute(block.name, args)
+                    trace.append({"tool": block.name, "input": args, "is_error": is_error})
+                    seen[key] = len(trace)
                 results.append({"type": "tool_result", "tool_use_id": block.id,
                                 "content": output, "is_error": is_error})
             new.append({"role": "user", "content": results})  # all results in one message
+            rounds += 1
             continue
 
         if resp.stop_reason == "pause_turn":
+            rounds += 1
             continue
 
         text = "".join(b.text for b in resp.content if b.type == "text")
         try:
             answer = AgentAnswer.model_validate_json(text)
+            status = ANSWERED_AT_TOOL_LIMIT if final else ANSWERED
             break
         except ValidationError as e:
             if repaired:
-                answer = _out_of_band_answer("The agent returned an invalid response. "
-                                             f"Validation error: {e.errors()[:2]}")
+                detail = f"Validation error: {e.errors()[:2]}"
+                if final:
+                    answer = _out_of_band_answer(f"{limit_text} (The final reply did not match "
+                                                 f"the answer format. {detail})")
+                    status = TOOL_LIMIT
+                else:
+                    answer = _out_of_band_answer(f"The agent returned an invalid response. "
+                                                 f"{detail}")
+                    status = INVALID_ANSWER
                 break
-            repaired = True  # one repair attempt
+            repaired = True  # one repair attempt (tools stay off if the limit was reached)
             new.append({"role": "user", "content":
                         f"Your final answer did not validate against the schema: {e}. "
                         "Reply again with only the corrected JSON."})
-    else:
-        answer = _out_of_band_answer("Stopped after too many tool rounds.")
 
+    # A system message must be followed by an assistant turn (or be last in the request).
+    # If the reply after the limit notice was dropped (refusal, cut-off), drop the notice too
+    # so the next turn's request stays valid; nothing was generated after it.
+    if new[-1]["role"] == "system":
+        new.pop()
     store.append_messages(session_id, new)
-    return {"session_id": session_id, "answer": answer.model_dump(), "tool_calls": trace,
+    return {"session_id": session_id, "answer": answer.model_dump(), "status": status,
+            "tool_rounds": rounds, "max_tool_rounds": max_rounds, "tool_calls": trace,
             "models": turn.report(), "usage": usage}

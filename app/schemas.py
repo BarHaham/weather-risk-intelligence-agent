@@ -67,7 +67,7 @@ class Figure(BaseModel):
 
 class AgentAnswer(BaseModel):
     model_config = ConfigDict(extra="forbid")
-    in_scope: bool
+    in_scope: bool | None  # None only in harness messages (no answer); the schema requires a bool
     answer: str
     hubs: list[HubRef]
     figures: list[Figure]
