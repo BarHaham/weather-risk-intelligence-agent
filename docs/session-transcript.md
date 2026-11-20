@@ -14814,118 +14814,976 @@ a918df7 Review fixes: clean restart after an expired chat, text units in evals, 
 }
 ```
 
+<details><summary>Tool result</summary>
+
+```
+wrote /home/user/weather-risk-intelligence-agent/docs/session-transcript.md (1,034,858 chars)
+1037046 docs/session-transcript.md
+8
+14812: "command": "python -m scripts.export_transcript --plan /root/.claude/plans/root-claude-uploads-054feb9f-992e-53ec-fuzzy-deer.md 2>&1 | tail -3; wc -c docs/session-transcript.md; grep -c \"@gmail\\|sk-ant-[A-Za-z0-9_-]\\{20,\\}\" docs/session-transcript.md; grep -n \"too many tool rounds\" docs/session-transcript.md | tail -2",
+14825:In the user's saved eval results, `denver_snow_last_year` and `dallas_why` both ended with "Stopped after too many tool rounds."
+```
+</details>
+
+### 🤖 Claude
+
+The privacy check found 8 matches. I'm looking at them before committing anything:
+
+**Tool call:** `Bash`
+
+```json
+{
+ "command": "grep -n -o \".\\{60\\}\\(@gmail\\|sk-ant-[A-Za-z0-9_-]\\{20,\\}\\).\\{30\\}\" docs/session-transcript.md | head -12",
+ "description": "Inspect the email/key pattern matches in the transcript"
+}
+```
+
+<details><summary>Tool result</summary>
+
+```
+2709:loads-054feb9f-992e-53ec-fuzzy-deer.md && grep -c \"gmail\\|@gmail\" docs/session-transcript.md;
+2721:loads-054feb9f-992e-53ec-fuzzy-deer.md && grep -c \"gmail\\|@gmail\" docs/session-transcript.md;
+4165:eb9f-992e-53ec-fuzzy-deer.md && grep -cE \"[A-Za-z0-9._%+-]+@gmail\\.com\" docs/session-transcri
+6408:uzzy-deer.md && echo \"emails: $(grep -cE '[A-Za-z0-9._%+-]+@gmail\\.com' docs/session-transcrip
+7215:uzzy-deer.md && echo \"emails: $(grep -cE '[A-Za-z0-9._%+-]+@gmail\\.com' docs/session-transcrip
+8394:uzzy-deer.md && echo \"emails: $(grep -cE '[A-Za-z0-9._%+-]+@gmail\\.com' docs/session-transcrip
+10474:uzzy-deer.md && echo \"emails: $(grep -cE '[A-Za-z0-9._%+-]+@gmail\\.com' docs/session-transcrip
+14812:2>&1 | tail -3; wc -c docs/session-transcript.md; grep -c \"@gmail\\|sk-ant-[A-Za-z0-9_-]\\{20,\
+```
+</details>
+
+**Tool call:** `Bash`
+
+```json
+{
+ "command": "echo \"real emails: $(grep -cE '[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+\\.[A-Za-z]{2,}' docs/session-transcript.md)\"; echo \"real keys: $(grep -cE 'sk-ant-[A-Za-z0-9_-]{20,}' docs/session-transcript.md)\"; grep -oE '[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+\\.[A-Za-z]{2,}' docs/session-transcript.md | sort -u | head",
+ "description": "Confirm no real email addresses or keys remain"
+}
+```
+
+<details><summary>Tool result</summary>
+
+```
+real emails: 0
+real keys: 0
+```
+</details>
+
+### 🤖 Claude
+
+The matches are only the search patterns in my own earlier commands. There are no real email addresses or keys. Committing the transcript:
+
+**Tool call:** `Bash`
+
+```json
+{
+ "command": "git add docs/session-transcript.md && git commit -q -m \"Update session transcript (tool-round limit work)\n\nCo-Authored-By: Claude Opus 5.5 <[email redacted]>\nClaude-Session: https://claude.ai/code/session_01QeytEnYwkmv4kKHhrzkAmw\" && for i in 1 2 3 4; do git push -u origin claude/lucid-thompson-42z611 2>&1 | tail -1 && break; sleep $((2**i)); done; git status --short | wc -l; git log --oneline -1",
+ "description": "Commit and push the updated transcript"
+}
+```
+
+<details><summary>Tool result</summary>
+
+```
+branch 'claude/lucid-thompson-42z611' set up to track 'origin/claude/lucid-thompson-42z611'.
+0
+007b1ac Update session transcript (tool-round limit work)
+```
+</details>
+
+### 🤖 Claude
+
+Now the PR description:
+
+**Tool call:** `mcp__github__update_pull_request`
+
+```json
+{
+ "owner": "BarHaham",
+ "repo": "weather-risk-intelligence-agent",
+ "pullNumber": 1,
+ "body": "## Summary\nAn AI agent that helps analysts decide which of 7 US distribution hubs are most exposed to weather disruption.\n- A **deterministic Python risk model** scores each hub from public data: Open-Meteo daily gridded estimates (default Best Match model selection) and FEMA National Risk Index frequencies.\n- **Claude Sonnet 5.5** answers chat questions by calling that model through 6 strict tools, and returns a **JSON-schema-enforced** answer (`AgentAnswer`) that the UI renders.\n- If Sonnet is temporarily unavailable, the request is tried **once on Claude Haiku 5.5**, and every answer reports which model actually answered.\n- The **browser UI is a weather atlas**: a clickable US hub map and the chat share the screen; light/dark mode is switchable from the header.\n- Design, architecture, storage choice and assumptions: `docs/DESIGN.md`. Run instructions (including Windows/PowerShell): `README.md`. AI session transcript: `docs/session-transcript.md`.\n\n## What's included\n- `app/sources/`: Open-Meteo and FEMA NRI clients. Raw responses are cached in `data/cache/` (committed), and S
+… [truncated, 8901 more chars]
+```
+
+<details><summary>Tool result</summary>
+
+```
+{"id":"5411194102","url":"https://github.com/BarHaham/weather-risk-intelligence-agent/pull/1"}
+```
+</details>
+
+**Tool call:** `TaskUpdate`
+
+```json
+{
+ "taskId": "26",
+ "status": "completed"
+}
+```
+
+<details><summary>Tool result</summary>
+
+```
+Updated task #26 status
+```
+</details>
+
+**Tool call:** `SendUserFile`
+
+```json
+{
+ "files": [
+  "/tmp/claude-0/-home-user-weather-risk-intelligence-agent/054feb9f-992e-53ec-86ec-b86ccf98458a/scratchpad/ui3/limit-answer-light.png",
+  "/tmp/claude-0/-home-user-weather-risk-intelligence-agent/054feb9f-992e-53ec-86ec-b86ccf98458a/scratchpad/ui3/limit-stopped-dark.png"
+ ],
+ "caption": "Mocked responses: an answer given at the tool limit with the notice and repeat markers (light), and a turn that stopped without an answer (dark). Neither is labelled out of scope.",
+ "status": "normal",
+ "display": "render"
+}
+```
+
+<details><summary>Tool result</summary>
+
+```
+2 files delivered to user.
+  /tmp/claude-0/-home-user-weather-risk-intelligence-agent/054feb9f-992e-53ec-86ec-b86ccf98458a/scratchpad/ui3/limit-answer-light.png → file_uuid: 3c02da83-3a3c-46eb-b4c6-78e3eb85774a
+  /tmp/claude-0/-home-user-weather-risk-intelligence-agent/054feb9f-992e-53ec-86ec-b86ccf98458a/scratchpad/ui3/limit-stopped-dark.png → file_uuid: a9d14c52-a871-4e0d-817a-45abbed5248e
+```
+</details>
+
+### 🤖 Claude
+
+The agent should now finish with the data it already has, and a turn that hits the limit is reported as such, never as out of scope. I couldn't confirm this against the live model, because there's no API key here. The fix is tested only with scripted responses, so please re-run the two cases below.
+
+**Why it repeated the calls.** It wasn't a bug in how tool results are sent back; I checked that, and a test now covers it. The causes were in the prompt and the loop:
+- **Denver:** the `get_methodology` description said to call it "when you need to state assumptions". Every answer has an assumptions field, so every answer seemed to need it. Nothing said a repeat call returns the same data.
+- **Dallas:** the question assumes "high", but the model scores Dallas Low (34.9, just under Moderate at 35). Meanwhile FEMA's context ratings say "Very High". The prompt didn't say what to do when the data contradicts the question, so it kept re-checking.
+- **The loop:** every request allowed tools, so the model never had to stop and answer.
+
+**What changed:**
+- **Prompt:**
+  - Tool results are deterministic, so a call isn't repeated.
+  - For "why is X high", the agent says so if the premise is wrong and gives the actual score and tier.
+  - Assumptions come from the results it already has. `get_methodology` is described as not needed for day counts.
+  - I avoided "use fewer tools" wording, because Sonnet 5.5 can take that literally and skip calls it needs.
+- **Repeated calls:** an identical call in the same turn isn't run again. The model gets a pointer to the earlier result, and the UI marks it "(repeat of call N: not run again)".
+- **Finishing with what it has:** after 8 tool rounds, the agent makes one more request with tools turned off and is told to answer from what it already has.
+
+**Reporting.** Each answer now carries a status. An answer given after the limit shows "Reached the 8-round tool limit…". If even that reply fails, the chat says it stopped at the limit. The eval lines show the status and how many calls were repeated, the summary lists the cases that used all 8 rounds, and `latest.json` keeps every call.
+
+The limit is still 8, and the eval checks and `cases.yaml` are identical to before. All 199 tests pass, and 22 browser checks pass in light and dark mode with mocked responses (screenshots above). Two rounds of independent review found issues, which I fixed, including one where the new wording could still have prompted Denver to call `get_methodology` once.
+
+One side effect: the system prompt changed, so chats saved before this update will show the "Start a new conversation" message once.
+
+Please re-run these two cases:
+```bash
+python -m evals.run --case denver_snow_last_year
+```
+```bash
+python -m evals.run --case dallas_why
+```
+A normal answer shows no `status=` on the line, and the Dallas answer should say Low (34.9). If either still hits the limit, the line shows the status and repeat count, and `evals/results/latest.json` lists every call.
+
+Everything is pushed to `claude/lucid-thompson-42z611` and [PR #1](https://github.com/BarHaham/weather-risk-intelligence-agent/pull/1) is updated. Nothing is deployed.
+
+---
+
+## 🧑 User
+
+I reran both cases. Dallas passed and returned an answer at the tool limit. Denver got the right result, 43 of 365 days (11.8%), but it still listed seven months in the main answer. Could you fix that formatting and keep the existing eval? For an annual question, I’d like the monthly details in the expandable breakdown. If I ask for a monthly breakdown, they belong in the answer.
+
+**Tool call:** `Bash`
+
+```json
+{
+ "command": "grep -n \"MONTHS\\|_MAY_RE\\|_YYYY_MM_RE\\|_MONTH_RE\\|def months_named\\|MAX_MONTHS_IN_ANSWER\" evals/run.py | head; sed -n '/^MONTHS = /,/^def check_case/p' evals/run.py",
+ "description": "Read the eval's month-detection logic"
+}
+```
+
+<details><summary>Tool result</summary>
+
+```
+105:MONTHS = ["january", "february", "march", "april", "may", "june", "july", "august",
+107:MAX_MONTHS_IN_ANSWER = 3  # more than this means a month-by-month list in the answer text
+108:_MONTH_RE = re.compile(r"\b(" + "|".join(
+109:    [m for m in MONTHS if m != "may"] + [m[:3] for m in MONTHS if m != "may"] + ["sept"])
+111:_MAY_RE = re.compile(r"\bMay\b")  # case-sensitive, so the verb "may" is not a month
+112:_YYYY_MM_RE = re.compile(r"\b20\d\d-(0[1-9]|1[0-2])\b")
+115:def months_named(text: str) -> list[str]:
+118:    for m in _MONTH_RE.findall(text):
+120:        found.add(MONTHS[[x[:3] for x in MONTHS].index(key)])
+121:    if _MAY_RE.search(text):
+MONTHS = ["january", "february", "march", "april", "may", "june", "july", "august",
+          "september", "october", "november", "december"]
+MAX_MONTHS_IN_ANSWER = 3  # more than this means a month-by-month list in the answer text
+_MONTH_RE = re.compile(r"\b(" + "|".join(
+    [m for m in MONTHS if m != "may"] + [m[:3] for m in MONTHS if m != "may"] + ["sept"])
+    + r")\b\.?", re.IGNORECASE)
+_MAY_RE = re.compile(r"\bMay\b")  # case-sensitive, so the verb "may" is not a month
+_YYYY_MM_RE = re.compile(r"\b20\d\d-(0[1-9]|1[0-2])\b")
+
+
+def months_named(text: str) -> list[str]:
+    """Distinct months named in text (full or abbreviated names, or 2025-01 style)."""
+    found = set()
+    for m in _MONTH_RE.findall(text):
+        key = m.lower().rstrip(".")[:3]
+        found.add(MONTHS[[x[:3] for x in MONTHS].index(key)])
+    if _MAY_RE.s
+… [truncated, 235 more chars]
+```
+</details>
+
+**Tool call:** `AskUserQuestion`
+
+```json
+{
+ "questions": [
+  {
+   "question": "Your second rule says that if you ask for a monthly breakdown, the months belong in the answer. Should I also add an eval case for that, or cover it with offline tests only? The existing 10 eval cases and their checks stay unchanged either way.",
+   "header": "Monthly eval",
+   "multiSelect": false,
+   "options": [
+    {
+     "label": "Add an 11th eval case (Recommended)",
+     "description": "New case, e.g. \"Break down Denver's 2025 snow days by month.\" It checks that the answer text names every month that had snow, with the months computed from the data at run time. This needs one new check type (added, nothing changed), and each full eval run makes one more live call."
+    },
+    {
+     "label": "Offline tests only",
+     "description": "Keep the live eval set at 10 cases. The monthly-request path is tested with scripted answers in pytest, and you check it once by hand in the browser."
+    }
+   ]
+  }
+ ]
+}
+```
+
+<details><summary>Tool result</summary>
+
+```
+Your questions have been answered: "Your second rule says that if you ask for a monthly breakdown, the months belong in the answer. Should I also add an eval case for that, or cover it with offline tests only? The existing 10 eval cases and their checks stay unchanged either way."="Offline tests only". You can now continue with these answers in mind.
+```
+</details>
+
+**Tool call:** `Write`
+
+```json
+{
+ "file_path": "/root/.claude/plans/root-claude-uploads-054feb9f-992e-53ec-fuzzy-deer.md",
+ "content": "# Plan: monthly details in the Breakdown for annual questions, in the answer when asked for\n\n## Context\nAfter the tool-limit fix, you reran the two cases:\n- **Dallas:** passed, with an answer given at the tool limit.\n- **Denver:** gave the right result (43 of 365 days, 11.8%), but its answer text listed seven months. That fails the existing `no_month_list` check.\n\n**What you want:**\n- **An annual question** (\"what percentage of days last year\u2026\") puts the monthly counts only in the collapsed Breakdown.\n- **A request for a monthly breakdown** puts the months in the answer text too.\n- **The existing eval stays as it is.** You chose offline tests only for the monthly path, so there's no new live eval case.\n\n**Why it happens:**\n- The prompt already says \"Do not list breakdown numbers (per month\u2026) in the answer text\". It says so unconditionally, though, which conflicts with your second rule, and the model ignored it anyway.\n- `weather_stat` returns `by_month` right next to the annual count. Nothing at the point of writing (the `answer` field's schema descri
+… [truncated, 7068 more chars]
+```
+
+<details><summary>Tool result</summary>
+
+```
+The file /root/.claude/plans/root-claude-uploads-054feb9f-992e-53ec-fuzzy-deer.md has been updated successfully. (file state is current in your context — no need to Read it back)
+```
+</details>
+
+**Tool call:** `ExitPlanMode`
+
+```json
+{
+ "plan": "# Plan: monthly details in the Breakdown for annual questions, in the answer when asked for\n\n## Context\nAfter the tool-limit fix, you reran the two cases:\n- **Dallas:** passed, with an answer given at the tool limit.\n- **Denver:** gave the right result (43 of 365 days, 11.8%), but its answer text listed seven months. That fails the existing `no_month_list` check.\n\n**What you want:**\n- **An annual question** (\"what percentage of days last year\u2026\") puts the monthly counts only in the collapsed Breakdown.\n- **A request for a monthly breakdown** puts the months in the answer text too.\n- **The existing eval stays as it is.** You chose offline tests only for the monthly path, so there's no new live eval case.\n\n**Why it happens:**\n- The prompt already says \"Do not list breakdown numbers (per month\u2026) in the answer text\". It says so unconditionally, though, which conflicts with your second rule, and the model ignored it anyway.\n- `weather_stat` returns `by_month` right next to the annual count. Nothing at the point of writing (the `answer` field's schema description, or the tool description) ties the monthly numbers to the Breakdown.\n- A prompt-only r
+… [truncated, 7068 more chars]
+```
+
+<details><summary>User feedback (via tool rejection)</summary>
+
+```
+The user doesn't want to proceed with this tool use. The tool use was rejected (eg. if it was a file edit, the new_string was NOT written to the file). To tell you how to proceed, the user said:
+Could we keep this fix small? Denver’s annual result was correct. For an annual question, please keep the monthly counts in the expandable breakdown. If I ask for a monthly breakdown, show them in the answer too. Can we do that with the data we already have, without a second model call? Let’s keep the existing live eval and test the monthly follow-up offline.
+```
+</details>
+
+**Tool call:** `Bash`
+
+```json
+{
+ "command": "sed -n '/^def check_tool_input/,/^def /p' evals/run.py | head -20; sed -n '/^def weather_stat/,/^def /p' app/metrics.py | head -60",
+ "description": "Read tool_input check and weather_stat by_month logic"
+}
+```
+
+<details><summary>Tool result</summary>
+
+```
+def check_tool_input(spec: dict, tool_calls: list[dict]) -> tuple[str, bool, str]:
+    """At least one call of spec['tool'], and every such call used exactly the given inputs."""
+    want = {k: v for k, v in spec.items() if k != "tool"}
+    used = [t["input"] for t in tool_calls if t["tool"] == spec["tool"]]
+
+    def matches(inp: dict) -> bool:
+        for k, v in want.items():
+            got = inp.get(k)
+            if isinstance(v, (int, float)) and isinstance(got, (int, float)):
+                if float(got) != float(v):  # 1 and 1.0 are the same value; 0.99 is not
+                    return False
+            elif got != v:
+                return False
+        return True
+
+    ok = bool(used) and all(matches(u) for u in used)
+    return (f"{spec['tool']} input exactly {want}", ok, f"used={used}")
+
+
+MONTHS = ["january", "february", "march", "april", "may", "june", "july", "august",
+def weather_stat(hub_id: str, metric: str, year: int | None = None,
+                 threshold: float | None = None) -> dict:
+    """Days meeting a condition in one calendar year (or the whole history if year is None)."""
+    if metric not in METRICS:
+        return {"error": f"unknown metric '{metric}'", "valid_metrics": list(METRICS)}
+    if threshold is None:
+        threshold = default_threshold(metric)
+    try:
+        condition = condition_text(metric, threshold)
+    except ValueError as e:  # negative snowfall threshold: rejected, nothing is counted
+        return {"error": str(e), "inval
+… [truncated, 1163 more chars]
+```
+</details>
+
+**Tool call:** `Write`
+
+```json
+{
+ "file_path": "/root/.claude/plans/root-claude-uploads-054feb9f-992e-53ec-fuzzy-deer.md",
+ "content": "# Plan: monthly counts in the Breakdown for annual questions, in the answer when asked (small fix)\n\n## Context\nDenver's annual result was right (43 of 365 days, 11.8%), but the answer text listed seven months, which fails the existing `no_month_list` check.\n\n**What you want:**\n- **Annual question:** the monthly counts appear only in the expandable Breakdown.\n- **Monthly breakdown requested:** the months also appear in the answer.\n- **Keep it small:** no second model call; use data we already have; the live eval stays unchanged; the monthly follow-up is tested offline.\n\n**Why it happens:** `weather_stat` always returns `by_month` to the model, right next to the annual count. The model then writes the months into the text, even though the prompt said not to list breakdown numbers there.\n\n**The fix:** for an annual question the model doesn't receive the monthly counts. The app adds them to the Breakdown itself, from the same deterministic result. For a monthly request, the model gets them and lists them.\n\n## Changes\n1. **`weather_stat` tool (`app/tools.py`):**\n   - 
+… [truncated, 4108 more chars]
+```
+
+<details><summary>Tool result</summary>
+
+```
+The file /root/.claude/plans/root-claude-uploads-054feb9f-992e-53ec-fuzzy-deer.md has been updated successfully. (file state is current in your context — no need to Read it back)
+```
+</details>
+
+**Tool call:** `ExitPlanMode`
+
+```json
+{
+ "plan": "# Plan: monthly counts in the Breakdown for annual questions, in the answer when asked (small fix)\n\n## Context\nDenver's annual result was right (43 of 365 days, 11.8%), but the answer text listed seven months, which fails the existing `no_month_list` check.\n\n**What you want:**\n- **Annual question:** the monthly counts appear only in the expandable Breakdown.\n- **Monthly breakdown requested:** the months also appear in the answer.\n- **Keep it small:** no second model call; use data we already have; the live eval stays unchanged; the monthly follow-up is tested offline.\n\n**Why it happens:** `weather_stat` always returns `by_month` to the model, right next to the annual count. The model then writes the months into the text, even though the prompt said not to list breakdown numbers there.\n\n**The fix:** for an annual question the model doesn't receive the monthly counts. The app adds them to the Breakdown itself, from the same deterministic result. For a monthly request, the model gets them and lists them.\n\n## Changes\n1. **`weather_stat` tool (`app/tools.py`):**\n   - It gets a required boolean input, `by_month`; the tools stay strict.\n   - **Description:** *
+… [truncated, 4108 more chars]
+```
+
+<details><summary>Tool result</summary>
+
+```
+User has approved your plan. You can now start coding. Start with updating your todo list if applicable
+
+Your plan has been saved to: /root/.claude/plans/root-claude-uploads-054feb9f-992e-53ec-fuzzy-deer.md
+You can refer back to it if needed during implementation.
+
+## Approved Plan:
+# Plan: monthly counts in the Breakdown for annual questions, in the answer when asked (small fix)
+
+## Context
+Denver's annual result was right (43 of 365 days, 11.8%), but the answer text listed seven months, which fails the existing `no_month_list` check.
+
+**What you want:**
+- **Annual question:** the monthly counts appear only in the expandable Breakdown.
+- **Monthly breakdown requested:** the months also appear in the answer.
+- **Keep it small:** no second model call; use data we already have; the live eval stays unchanged; the monthly follow-up is tested offline.
+
+**Why it happens:** `weather_stat` always returns `by_month` to the model, right next to the annual count. The model then writes the months into the text, even though the prompt said not to list breakdown numbers there.
+
+**The fix:** for an annual question the model doesn't receive the monthly counts. The app adds them to the Breakdown itself, from the same deterministic result. For a monthly request, the model gets them and lists them.
+
+## Changes
+1. **`weather_stat` tool (`app/tools.py`):**
+   - It gets a required boolean input, `by_month`; the tools stay strict.
+   - **Description:** *true only when the user asks for a monthly br
+… [truncated, 3899 more chars]
+```
+</details>
+
+**Tool call:** `Bash`
+
+```json
+{
+ "command": "grep -n '\"name\": \"weather_stat\"' -A 22 app/tools.py; grep -n \"^def weather_stat\" -A 4 app/tools.py; grep -n \"Do not list breakdown numbers\" -B 3 -A 3 app/agent.py; grep -n \"def hub\\b\\|def hub(\" app/config.py",
+ "description": "Locate the weather_stat tool, prompt sentence, hub lookup"
+}
+```
+
+<details><summary>Tool result</summary>
+
+```
+65:        "name": "weather_stat",
+66-        "description": "Count days in a hub's observed daily weather (Open-Meteo gridded "
+67-                       "estimates for the area) that meet a condition, for one calendar year or the "
+68-                       "full history (year=null). Metrics: snowfall = days with at least threshold "
+69-                       "cm (>= threshold); threshold 0 or null = any snowfall (> 0 cm); a negative "
+70-                       "snowfall threshold is rejected with an error. heavy_rain (>= mm, default "
+71-                       "25), hard_freeze (min temp <= C, default -12), high_gust (>= km/h, default "
+72-                       "60), extreme_heat (max temp >= C, default 38); threshold=null uses the "
+73-                       "default. Pass the user's number exactly as given (e.g. 1 for 'at least 1 "
+74-                       "cm'); never adjust it. The result's 'condition' is the exact wording to "
+75-                       "quote.",
+76-        "input_schema": _obj({
+77-            "hub_id": {"type": "string", "enum": HUB_IDS},
+78-            "metric": {"type": "string", "enum": list(metrics.METRICS)},
+79-            "year": _nullable({"type": "integer"}),
+80-            "threshold": _nullable({"type": "number"}),
+81-        }),
+82-    },
+83-    {
+84-        "name": "get_methodology",
+85-        "description": "The scoring method: data sources, hazard components, weights, "
+86-                       "normalisation caps, thresholds, tiers
+… [truncated, 1014 more chars]
+```
+</details>
+
+**Tool call:** `TaskCreate`
+
+```json
+{
+ "subject": "Monthly counts: Breakdown for annual, answer when asked",
+ "description": "weather_stat by_month input; app adds monthly detail figures for annual calls; prompt conditional; offline tests incl. monthly follow-up; docs/PR/transcript; push",
+ "activeForm": "Moving monthly counts into the Breakdown"
+}
+```
+
+<details><summary>Tool result</summary>
+
+```
+Task #27 created successfully: Monthly counts: Breakdown for annual, answer when asked
+```
+</details>
+
+**Tool call:** `TaskUpdate`
+
+```json
+{
+ "taskId": "27",
+ "status": "in_progress"
+}
+```
+
+<details><summary>Tool result</summary>
+
+```
+Updated task #27 status
+```
+</details>
+
+**Tool call:** `Bash`
+
+```json
+{
+ "command": "python3 - <<'EOF'\nimport pathlib\ndef edit(path, pairs):\n    p = pathlib.Path(path); s = p.read_text(encoding=\"utf-8\")\n    for old, new in pairs:\n        assert s.count(old) == 1, (path, old[:90], s.count(old)); s = s.replace(old, new)\n    p.write_text(s, encoding=\"utf-8\")\n\nedit(\"app/tools.py\", [\n('''                       \"cm'); never adjust it. The result's 'condition' is the exact wording to \"\n                       \"quote.\",\n        \"input_schema\": _obj({\n            \"hub_id\": {\"type\": \"string\", \"enum\": HUB_IDS},\n            \"metric\": {\"type\": \"string\", \"enum\": list(metrics.METRICS)},\n            \"year\": _nullable({\"type\": \"integer\"}),\n            \"threshold\": _nullable({\"type\": \"number\"}),\n        }),''',\n'''                       \"cm'); never adjust it. The result's 'condition' is the exact wording to \"\n                       \"quote. by_month: true only when the user asks for a monthly breakdown \"\n                       \"('by month', 'which months', 'each month', 'monthly'); the result then \"\n                       \"includes the per-month counts to list in the answer. Use false for annual \"\n   
+… [truncated, 5682 more chars]
+```
+
+<details><summary>Tool result</summary>
+
+```
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+199 passed, 2 warnings in 7.20s
+```
+</details>
+
+### 🤖 Claude
+
+The existing tests still pass. Now the new offline tests, including the monthly follow-up:
+
+**Tool call:** `Write`
+
+```json
+{
+ "file_path": "/home/user/weather-risk-intelligence-agent/tests/test_monthly_breakdown.py",
+ "content": "\"\"\"Monthly counts: in the Breakdown for an annual question, in the answer when asked for.\n\nweather_stat takes by_month. With false (annual or whole-period questions) the model gets the\ntotals only, so it can't list months in the answer text; the app adds one 'detail' figure per\nmonth to the answer from the same deterministic result, without another model call. With true\n(a monthly breakdown was asked for) the model gets the monthly counts and lists them.\n\"\"\"\nimport json\nimport subprocess\nimport uuid\n\nimport yaml\nfrom anthropic.types import TextBlock, ToolUseBlock\n\nfrom app import agent, metrics, store, tools\nfrom evals import run as eval_run\nfrom tests.fakes import FakeClient, answer_json, msg\n\nANNUAL = {\"hub_id\": \"denver\", \"metric\": \"snowfall\", \"year\": 2025, \"threshold\": None,\n          \"by_month\": False}\nMONTHLY = {**ANNUAL, \"by_month\": True}\nHEADLINE = [{\"label\": \"Share of 2025 days with daily snowfall > 0 cm (any snowfall)\",\n             \"value\": 11.8, \"unit\": \"%\", \"source_tool\": \"weather_stat\", \"role\": \"headline
+… [truncated, 8021 more chars]
+```
+
+<details><summary>Tool result</summary>
+
+```
+File created successfully at: /home/user/weather-risk-intelligence-agent/tests/test_monthly_breakdown.py (file state is current in your context — no need to Read it back)
+```
+</details>
+
+**Tool call:** `Bash`
+
+```json
+{
+ "command": "python -m pytest -q tests/test_monthly_breakdown.py 2>&1 | grep -v Warn | tail -30",
+ "description": "Run the new monthly-breakdown tests"
+}
+```
+
+<details><summary>Tool result</summary>
+
+```
+.............                                                            [100%]
+13 passed in 2.01s
+```
+</details>
+
+### 🤖 Claude
+
+Two test tweaks: the git-history check should skip cleanly in a shallow clone, and the replay assertion can be simpler.
+
+**Tool call:** `Bash`
+
+```json
+{
+ "command": "python3 - <<'EOF'\nimport pathlib\np = pathlib.Path(\"tests/test_monthly_breakdown.py\"); s = p.read_text(encoding=\"utf-8\")\ndef rep(old, new):\n    global s\n    assert s.count(old) == 1, old[:80]; s = s.replace(old, new)\nrep('''    fake = FakeClient([call(MONTHLY, \"m1\"), final(answer=monthly_text, figures=monthly_figs)])\n    out = agent.chat(\"Break that down by month\", s, client=fake)\n''', '''    before = store.load_messages(s)\n    fake = FakeClient([call(MONTHLY, \"m1\"), final(answer=monthly_text, figures=monthly_figs)])\n    out = agent.chat(\"Break that down by month\", s, client=fake)\n''')\nrep('''    # the follow-up replayed turn 1 (with its totals-only result) unchanged\n    assert fake.requests[0][\"messages\"][:-1] == store.load_messages(s)[:len(fake.requests[0][\"messages\"]) - 1]\n''', '''    assert fake.requests[0][\"messages\"][:-1] == before  # turn 1 replayed unchanged\n''')\nrep('''def test_eval_cases_and_checks_are_unchanged():\n    root = eval_run.HERE.parent\n    def at(rev, path):\n        return subprocess.run([\"git\", \"show\", f\"{rev}:{path}\"], cwd=root, capture_output=True,\n                              text=True, check=True).
+… [truncated, 757 more chars]
+```
+
+<details><summary>Tool result</summary>
+
+```
+212 passed, 2 warnings in 5.67s
+Models: claude-sonnet-5-5 (fallback once: claude-haiku-5-5); API key: missing
+midwest_winter           tools=['rank_hubs'] in_scope=True {'ranking': ['minneapolis', 'detroit', 'chicago']}
+miami_vs_houston         tools=['compare_hubs'] in_scope=True {}
+denver_snow_last_year    tools=['weather_stat'] in_scope=True {'figure': '11.8 %'}
+```
+</details>
+
+### 🤖 Claude
+
+All 212 tests pass. Running mutation checks, plus a browser render of the real Breakdown output:
+
+**Tool call:** `Bash`
+
+```json
+{
+ "command": "S=/tmp/claude-0/-home-user-weather-risk-intelligence-agent/054feb9f-992e-53ec-86ec-b86ccf98458a/scratchpad/mut2 && rm -rf $S && mkdir -p $S && cd /home/user/weather-risk-intelligence-agent && git ls-files -co --exclude-standard | tar -cf - -T - | tar -xf - -C $S && cd $S && run() { python -m pytest -q -p no:cacheprovider tests/test_monthly_breakdown.py 2>&1 | tail -1; }\npython3 - <<'EOF'\nimport pathlib\nbase = pathlib.Path(\"app/tools.py\").read_text(); agent = pathlib.Path(\"app/agent.py\").read_text()\nmuts = {\n \"no strip\": (\"app/tools.py\", base, base.replace('    if not by_month and isinstance(result.get(\"by_month\"), dict):', '    if False:')),\n \"no app rows\": (\"app/agent.py\", agent, agent.replace('    if status in (ANSWERED, ANSWERED_AT_TOOL_LIMIT) and monthly_calls:', '    if False:')),\n \"rows even for by_month true\": (\"app/agent.py\", agent, agent.replace('and not args.get(\"by_month\") and args.get(\"year\") is not None', 'and args.get(\"year\") is not None')),\n}\nimport json; json.dump({k: v for k, v in muts.items()}, open(\"/tmp/muts.json\", \"w\"))\nEOF\nfor m in \"no strip\" \"no app rows\" \"rows even for by_month true\"; do python3 -c 
+… [truncated, 446 more chars]
+```
+
+<details><summary>Tool result</summary>
+
+```
+no strip: 2 failed, 10 passed, 1 skipped in 1.54s
+no app rows: 3 failed, 9 passed, 1 skipped in 1.70s
+rows even for by_month true: 1 failed, 11 passed, 1 skipped in 1.82s
+clean: 12 passed, 1 skipped in 1.43s
+Shell cwd was reset to /home/user/weather-risk-intelligence-agent
+```
+</details>
+
+### 🤖 Claude
+
+All three mutants are caught. In the copy without git history, the git check skips cleanly, as intended. Now the browser render:
+
+**Tool call:** `Bash`
+
+```json
+{
+ "command": "S=/tmp/claude-0/-home-user-weather-risk-intelligence-agent/054feb9f-992e-53ec-86ec-b86ccf98458a/scratchpad/ui3 && python - <<EOF\nimport json, uuid, sys\nsys.path.insert(0, \".\")\nfrom app import agent, store\nfrom tests.test_monthly_breakdown import call, final, ANNUAL\nfrom tests.fakes import FakeClient\nstore.build_from_cache()\nout = agent.chat(\"What percentage of days in Denver last year had snowfall?\", uuid.uuid4().hex, client=FakeClient([call(ANNUAL), final()]))\njson.dump(out, open(\"$S/annual.json\", \"w\"))\nprint(len(out[\"answer\"][\"figures\"]), \"figures\")\nEOF\n(python -m uvicorn app.main:app --port 8799 > $S/server.log 2>&1 & echo $! > $S/pid) && for i in $(seq 1 30); do curl -s -o /dev/null http://127.0.0.1:8799/health && break; sleep 0.5; done\ncat > $S/annual.js <<'EOF'\nconst { chromium } = require('playwright');\nconst resp = require('./annual.json');\n(async () => {\n  const b = await chromium.launch(); const p = await b.newPage({ viewport: { width: 1440, height: 900 }, deviceScaleFactor: 2 });\n  await p.route('**/chat', r => r.fulfill({ json: resp }));\n  await p.goto('http://127.0.0.1:8799/'); await p.waitForSelector('#markers .hub');\n  
+… [truncated, 943 more chars]
+```
+
+<details><summary>Tool result</summary>
+
+```
+9 figures
+{"text":"In 2025, Denver had snowfall on 43 of 365 days (11.8%) (daily snowfall > 0 cm).","summary":"Breakdown (9 figures)","open":false}
+Shell cwd was reset to /home/user/weather-risk-intelligence-agent
+```
+</details>
+
+**Tool call:** `Read`
+
+```json
+{
+ "file_path": "/tmp/claude-0/-home-user-weather-risk-intelligence-agent/054feb9f-992e-53ec-86ec-b86ccf98458a/scratchpad/ui3/annual-expanded.png"
+}
+```
+
+<details><summary>Tool result</summary>
+
+```
+[image]
+```
+</details>
+
+---
+
+## 🧑 User
+
+[Image: original 2880x1800, displayed at 2000x1250. Multiply coordinates by 1.44 to map to original image.]
+
+**Tool call:** `Bash`
+
+```json
+{
+ "command": "python3 - <<'EOF'\nimport pathlib\np = pathlib.Path(\"app/tools.py\"); s = p.read_text(encoding=\"utf-8\")\nold = '''             \"value\": n, \"unit\": \"days\", \"source_tool\": \"weather_stat\", \"role\": \"detail\"}'''\nnew = '''             \"value\": n, \"unit\": \"day\" if n == 1 else \"days\", \"source_tool\": \"weather_stat\",\n             \"role\": \"detail\"}'''\nassert s.count(old) == 1; s = s.replace(old, new); p.write_text(s, encoding=\"utf-8\")\np = pathlib.Path(\"tests/test_monthly_breakdown.py\"); s = p.read_text(encoding=\"utf-8\")\nold = '''    assert all(f[\"role\"] == \"detail\" and f[\"unit\"] == \"days\" and f[\"source_tool\"] == \"weather_stat\"\n               for f in figs)'''\nnew = '''    assert all(f[\"role\"] == \"detail\" and f[\"source_tool\"] == \"weather_stat\" for f in figs)\n    assert [f[\"unit\"] for f in figs] == [\"day\" if n == 1 else \"days\" for n in months.values()]'''\nassert s.count(old) == 1; s = s.replace(old, new); p.write_text(s, encoding=\"utf-8\")\nEOF\ngrep -n \"Breakdown\\|breakdown\" docs/DESIGN.md | head -12; grep -n \"Breakdown\\|by_month\" README.md | head",
+ "description": "Singular unit for one-day months;
+… [truncated, 18 more chars]
+```
+
+<details><summary>Tool result</summary>
+
+```
+32:   ├─ rank_hubs / compare_hubs / get_score_breakdown ──▶ app/scoring.py  (risk model)
+73:  - When an update changes them (as the snowfall-rule and breakdown changes did), continuing an
+87:    seven times and `dallas_why` kept calling `get_score_breakdown`. Both stopped at the limit
+100:    `get_score_breakdown` once per hub, and if the premise doesn't match the model, say so and
+105:    states none; `get_score_breakdown` has weights, sources and caveats but not the day
+166:  collapsed **Breakdown** section: headline figures first, then the detail rows.
+168:    states) or `detail` (a breakdown row, e.g. one per month).
+169:  - The prompt keeps detail numbers out of the answer text, so a breakdown never appears twice.
+268:- **Explainability:** `ScoreBreakdown` lists every component's raw value, cap and normalised
+295:  scoring.py       risk model (pure compute_breakdown + DB-backed wrappers)
+307:tests/  scoring, agent loop, model fallback, .env, map and breakdown
+13:  **Breakdown**.
+```
+</details>
+
+**Tool call:** `Bash`
+
+```json
+{
+ "command": "sed -n '160,176p' docs/DESIGN.md; sed -n '8,16p' README.md",
+ "description": "Show the Breakdown sections in the docs"
+}
+```
+
+<details><summary>Tool result</summary>
+
+```
+- **API key:** read from the git-ignored `.env` in the repo root, at app startup and when the eval
+  runner starts. A non-empty environment variable takes precedence. UTF-8, UTF-8 BOM, UTF-16 and
+  cp1252 files are all decoded. `/health` reports `api_key_source`, never the key.
+
+### Chat UI and hub map
+- **Main result first.** Each answer shows its text first. Every number then sits in one
+  collapsed **Breakdown** section: headline figures first, then the detail rows.
+  - The answer schema makes the model mark each figure `headline` (a number the answer text
+    states) or `detail` (a breakdown row, e.g. one per month).
+  - The prompt keeps detail numbers out of the answer text, so a breakdown never appears twice.
+  - Two eval checks enforce this: the main figure must be a headline, and the Denver answer may
+    not list months.
+- **Atlas layout.**
+  - **Look:** warm off-white paper, navy ink, a teal accent, and serif headings. Land is
+    parchment on a pale sea, with a dashed 5° latitude/longitude grid clipped to the lower 48.
+  - **Desktop:** the map and chat get equal columns.
+  - **Mobile:** one column with the chat first.
+The browser UI is a **weather atlas**: the hub map and the chat share the screen equally on
+desktop, and on mobile the chat comes first.
+- **Opening screen:** a question box under "What would you like to know about your hubs?" with
+  three example questions. After the first question it switches to the conversation layout.
+- **Answers:** each one shows
+… [truncated, 274 more chars]
+```
+</details>
+
+**Tool call:** `Bash`
+
+```json
+{
+ "command": "python3 - <<'EOF'\nimport pathlib\ndef edit(path, pairs):\n    p = pathlib.Path(path); s = p.read_text(encoding=\"utf-8\")\n    for old, new in pairs:\n        assert s.count(old) == 1, (path, old[:90], s.count(old)); s = s.replace(old, new)\n    p.write_text(s, encoding=\"utf-8\")\nedit(\"docs/DESIGN.md\", [('''  - The prompt keeps detail numbers out of the answer text, so a breakdown never appears twice.\n  - Two eval checks enforce this: the main figure must be a headline, and the Denver answer may\n    not list months.''',\n'''  - The prompt keeps per-component and per-hub numbers out of the answer text, so a breakdown\n    never appears twice.\n  - **Monthly counts.** In one live run the Denver annual answer still listed seven months:\n    `weather_stat` returned them next to the annual count, and a prompt rule alone didn't stop\n    the model from writing them out. Now `weather_stat` takes `by_month`:\n    - **`false`, an annual or whole-period question:** the model gets the totals only, so it\n      can't list months. The app adds one `detail` row per month to the answer's Breakdown, e.g.\n      \"Denver, January 2025: daily snowfall > 0 cm (any snowfall)\" = 
+… [truncated, 1161 more chars]
+```
+
+<details><summary>Tool result</summary>
+
+```
+212 passed, 2 warnings in 5.31s
+```
+</details>
+
+**Tool call:** `Bash`
+
+```json
+{
+ "command": "git diff --stat && git add -A && git commit -q -F - <<'EOF'\nAnnual questions keep monthly counts in the Breakdown; monthly requests list them\n\nDenver's annual answer was right (43 of 365 days, 11.8%) but listed seven\nmonths in the text: weather_stat returned the monthly counts next to the\nannual count. Now weather_stat takes a required by_month flag:\n- false (annual or whole-period question): the model gets the totals only,\n  and the app adds one detail figure per month to the answer's Breakdown\n  from the same deterministic result. No extra model call; the stored\n  assistant message is unchanged.\n- true (the user asked for a monthly breakdown): the model gets the monthly\n  counts and lists them in the answer; the app adds nothing.\nThe prompt's month rule is conditional to match. The live eval set and its\nchecks are unchanged; the monthly follow-up is tested offline.\n\nCo-Authored-By: Claude Opus 5.5 <[email redacted]>\nClaude-Session: https://claude.ai/code/session_01QeytEnYwkmv4kKHhrzkAmw\nEOF\nfor i in 1 2 3 4; do git push -u origin claude/lucid-thompson-42z611 2>&1 | tail -1 && break; sleep $((2**i)); done; git log --oneline -1",
+ "description": "Co
+… [truncated, 45 more chars]
+```
+
+<details><summary>Tool result</summary>
+
+```
+README.md      |  4 ++++
+ app/agent.py   | 25 ++++++++++++++++++++++---
+ app/tools.py   | 41 ++++++++++++++++++++++++++++++++++++++---
+ docs/DESIGN.md | 16 ++++++++++++++--
+ 4 files changed, 78 insertions(+), 8 deletions(-)
+branch 'claude/lucid-thompson-42z611' set up to track 'origin/claude/lucid-thompson-42z611'.
+fa74fd5 Annual questions keep monthly counts in the Breakdown; monthly requests list them
+```
+</details>
+
+**Tool call:** `Bash`
+
+```json
+{
+ "command": "git show --stat --format= HEAD; git status --short | wc -l",
+ "description": "Confirm the new test file is in the commit"
+}
+```
+
+<details><summary>Tool result</summary>
+
+```
+README.md                       |   4 +
+ app/agent.py                    |  25 +++++-
+ app/tools.py                    |  41 ++++++++-
+ docs/DESIGN.md                  |  16 +++-
+ tests/test_monthly_breakdown.py | 186 ++++++++++++++++++++++++++++++++++++++++
+ 5 files changed, 264 insertions(+), 8 deletions(-)
+0
+```
+</details>
+
+### 🤖 Claude
+
+Pushed. Next, one independent check of this small change before I update the PR:
+
+**Tool call:** `Workflow`
+
+```json
+{
+ "script": "export const meta = {\n  name: 'verify-monthly-breakdown',\n  description: 'Adversarially check the by_month change (annual -> Breakdown rows, monthly -> answer)',\n  phases: [{ title: 'Verify' }],\n}\nconst REPO = '/home/user/weather-risk-intelligence-agent'\nconst r = await agent(`Repository ${REPO}. Commit HEAD (fa74fd5, see \\`git -C ${REPO} show HEAD\\`) changes how monthly counts are handled. The user's request: \"For an annual question, keep the monthly counts in the expandable breakdown. If I ask for a monthly breakdown, show them in the answer too. Do it with the data we already have, without a second model call. Keep the existing live eval and test the monthly follow-up offline.\"\nImplementation: app/tools.py weather_stat gets a required strict boolean input by_month; with false the result's by_month dict is replaced by a note (tools.BY_MONTH_OMITTED); tools.monthly_figures(args) builds detail figures from metrics.weather_stat. app/agent.py chat() records successful non-repeated weather_stat calls with by_month false and a non-null year, and after a valid answer (answered/answered_at_tool_limit) appends those figures to answer.figures (dedup by label); the 
+… [truncated, 1967 more chars]
+```
+
+<details><summary>Tool result</summary>
+
+```
+Workflow launched in background. Task ID: wil4ma2rh
+Summary: Adversarially check the by_month change (annual -> Breakdown rows, monthly -> answer)
+Transcript dir: /root/.claude/projects/-home-user-weather-risk-intelligence-agent/054feb9f-992e-53ec-86ec-b86ccf98458a/subagents/workflows/wf_13b239af-54b
+Script file: /root/.claude/projects/-home-user-weather-risk-intelligence-agent/054feb9f-992e-53ec-86ec-b86ccf98458a/workflows/scripts/verify-monthly-breakdown-wf_13b239af-54b.js
+(Edit this file with Write/Edit and re-invoke Workflow with {scriptPath: "/root/.claude/projects/-home-user-weather-risk-intelligence-agent/054feb9f-992e-53ec-86ec-b86ccf98458a/workflows/scripts/verify-monthly-breakdown-wf_13b239af-54b.js"} to iterate without resending the script.)
+Run ID: wf_13b239af-54b
+To resume after editing the script, with the same args if this run had any: Workflow({scriptPath: "/root/.claude/projects/-home-user-weather-risk-intelligence-agent/054feb9f-992e-53ec-86ec-b86ccf98458a/workflows/scripts/verify-monthly-breakdown-wf_13b239af-54b.js", resumeFromRunId: "wf_13b239af-54b"}) — agent() calls return cached results up to the first one that failed, no longer matches (edited, added, removed, or in a different call order) or never started. Cached results may themselves be empty: inspect journal.jsonl before assuming there is something to recover.
+
+You will be notified when it completes. Use /workflows to watch live progress.
+```
+</details>
+
+**Tool call:** `Bash`
+
+```json
+{
+ "command": "python -c \"\nfrom app import store, tools; store.build_from_cache()\nprint([ (f['label'][8:21], f['value']) for f in tools.monthly_figures({'hub_id':'denver','metric':'snowfall','year':2025,'threshold':1.0})])\"",
+ "description": "Check monthly rows for the 1 cm threshold case"
+}
+```
+
+<details><summary>Tool result</summary>
+
+```
+[('January 2025:', 6), ('February 2025', 5), ('March 2025: d', 3), ('April 2025: d', 2), ('December 2025', 1)]
+```
+</details>
+
+### 🤖 Claude
+
+The monthly change is pushed as `fa74fd5`, and all 212 tests pass. An independent check of it is still running. When it finishes, I'll fix anything it confirms, then update the PR description and transcript.
+
+---
+
+## 🧑 User
+
+<task-notification>
+<task-id>wil4ma2rh</task-id>
+<tool-use-id>toolu_01QvmyeZ9B2geGjAGBeUAHr6</tool-use-id>
+<output-file>/tmp/claude-0/-home-user-weather-risk-intelligence-agent/054feb9f-992e-53ec-86ec-b86ccf98458a/tasks/wil4ma2rh.output</output-file>
+<status>completed</status>
+<summary>Dynamic workflow "Adversarially check the by_month change (annual -&gt; Breakdown rows, monthly -&gt; answer)" completed</summary>
+<result>{"problems":[{"file":"app/agent.py","line":431,"severity":"important","problem":"If one turn calls weather_stat with by_month=false and also with by_month=true for the same hub, metric, year and condition, the monthly rows show up twice in the Breakdown. The model writes its own monthly detail rows from the by_month=true result. The app then appends the same months again from the by_month=false call, because it only skips a row when the model used exactly the same label. This contradicts DESIGN.md: \"`true`, the user asked for a monthly breakdown: ... The app adds nothing, so nothing appears twice.\" The turn is a likely one: the model calls false first, reads the 'not included' note, then calls again with true for a monthly request.","evidence":"Scratch script /tmp/claude-0/-home-user-weather-risk-intelligence-agent/054feb9f-992e-53ec-86ec-b86ccf98458a/scratchpad/verify2/dup.py scripts the model as FakeClient([call(ANNUAL,'a'), call(MONTHLY,'b'), final]), where the final answer lists the 7 months and has 7 detail figures. Output: `months: 7 detail rows: 14`. The rows are 'Snow days in 2025-01 11.0' ... 'Snow days in 2025-12 3.0', followed by 'Denver, January 2025: daily snowfall &gt; 0 cm (any snowfall) 11.0' ... 'Denver, December 2025: ... 3.0'. Cause: agent.py:396-398 records every by_month=false call (`if (block.name == \"weather_stat\" and not is_error and not args.get(\"by_month\") and args.get(\"year\") is not None): monthly_calls.append(args)`). At line 434 the only deduplication is `have = {f.label for f in answer.figures}`, which compares against the model's own labels.","fix":"Skip the app rows for any (hub, year, condition) the model also fetched with by_month=true in the same turn. In the block at agent.py:431: `listed = {f[\"label\"] for t in trace if t[\"tool\"] == \"weather_stat\" and not t[\"is_error\"] and t[\"input\"].get(\"by_month\") for f in tools.monthly_figures(t[\"input\"])}`, then `if f[\"label\"] not in have and f[\"label\"] not in listed:`. Matching on the label means threshold null and 0 count as the same condition. Add a test that makes both calls in one turn and expects only the model's 7 rows."},{"file":"app/agent.py","line":73,"severity":"nit","problem":"The system prompt, the weather_stat tool description and DESIGN.md all say the app adds monthly counts to the Breakdown for whole-period questions. It never does: for year=null the app adds no rows, and the result's by_month is plain null with no note. So the model is told the Breakdown will show monthly counts it won't contain, and it may point the analyst to them. The tool description also says by_month=true 'includes the per-month counts', which is false for year=null.","evidence":"Prompt: \"Months: for an annual or whole-period question, call weather_stat with by_month=false and don't list months; the app adds the monthly counts to the Breakdown.\" tools.py:78: \"Use false for annual or whole-period questions: the result then has the totals only, and the app adds the per-month counts to the answer's Breakdown itself.\" DESIGN.md:174 says the same. Run with year=None: `whole-period result by_month: None | period: 2020-01-01 to 2025-12-31`, `monthly_figures: []`, and agent.chat returns `figures added: []`. The cause is agent.py:397, which requires `args.get(\"year\") is not None`, and metrics.py, which sets `\"by_month\": ... if year else None`.","fix":"In the prompt, the tool description and DESIGN.md, limit the claim to a single year: \"for an annual (one-year) question ... the app adds the monthly counts to the Breakdown; full-history results (year=null) have no monthly counts\". In the description, also say by_month=true returns monthly counts only for one year."},{"file":"app/schemas.py","line":108,"severity":"nit","problem":"The answer schema's role description, which goes out with every request, contradicts the new instruction for monthly requests. The schema says a detail row is one 'the answer text does not repeat' and that a number the text states is a headline. The prompt now says: for a monthly breakdown, list the months in the answer text AND as detail figures. On the one path where the user wants months in the answer, the model gets conflicting guidance and may leave them out of the text or mark them as headlines.","evidence":"schemas.py:107-111: `\"description\": \"headline: a number the answer text states; detail: a breakdown row (per month, per component, ...) that the answer text does not repeat\"`. agent.py prompt: \"When the user asks for a monthly breakdown, call it with by_month=true and list the months and their counts in the answer text, and as detail figures.\" Also agent.py:78-79: 'role \"headline\" for the 1-3 numbers the answer text states'.","fix":"Change the role description to: \"headline: the main 1-3 numbers the answer text states; detail: a breakdown row (per month, per component, ...); the text repeats detail rows only when the user asked for that breakdown (e.g. by month)\". Add the same exception to the prompt's figures line."},{"file":"app/tools.py","line":143,"severity":"nit","problem":"The note returned for by_month=false tells the model that the app takes care of the months, and gives it no way to get them when the question needs them. If the model sends false for a monthly request (\"break that down by month\"), or for a month-level question that isn't worded as a breakdown (\"which month had the most snow last year?\"), it is told the months will be in the Breakdown. It will likely answer without them, against the user's rule that months requested by the user belong in the answer. Before this commit, month-level data was always in the result.","evidence":"tools.py:143: `BY_MONTH_OMITTED = (\"not included (by_month=false); the app shows the per-month counts in the answer's Breakdown\")`. In this case the model's result has only this string in place of the counts (test_annual_call_returns_totals_without_the_monthly_counts asserts `r[\"by_month\"] == tools.BY_MONTH_OMITTED`). The trigger list in the tool description is only \"('by month', 'which months', 'each month', 'monthly')\".","fix":"Change the note to: \"not included (by_month=false). If the user asked for months or the answer needs month-level counts, call again with by_month=true; otherwise the app adds them to the answer's Breakdown.\" Add questions that need month-level data (e.g. 'which month had the most') to the by_month=true wording. Apply the dedup fix for the false+true turn first, because this note makes that turn more frequent."}]}</result>
+<diagnostics>Per-agent results: /root/.claude/projects/-home-user-weather-risk-intelligence-agent/054feb9f-992e-53ec-86ec-b86ccf98458a/subagents/workflows/wf_13b239af-54b/journal.jsonl — one {"type":"result",...} line per completed agent with its full return value.
+If the result above is empty or unexpected, Read this file BEFORE diagnosing — do not assume agents returned non-empty results.
+To re-run with edited post-processing: Workflow({scriptPath: '/root/.claude/projects/-home-user-weather-risk-intelligence-agent/054feb9f-992e-53ec-86ec-b86ccf98458a/workflows/scripts/verify-monthly-breakdown-wf_13b239af-54b.js', resumeFromRunId: 'wf_13b239af-54b'}) — agent() calls replay from cache up to the first one that failed or no longer matches (edited, added, removed, or in a different call order); that call and every later one run again. A call a usage limit refused usually runs again without ending reuse: finished calls after it still come from cache.</diagnostics>
+<usage><agent_count>1</agent_count><agents_done>1</agents_done><agents_error>0</agents_error><agents_skipped>0</agents_skipped><agents_empty_result>0</agents_empty_result><subagent_tokens>132992</subagent_tokens><tool_uses>19</tool_uses><duration_ms>239729</duration_ms></usage>
+</task-notification>
+
+### 🤖 Claude
+
+The check confirmed one real bug and three wording issues. I'm fixing all four:
+- **The bug:** if one turn calls `weather_stat` first with `by_month=false` and then with `true`, the months appear twice in the Breakdown.
+- **Wording:** a full-history question has no monthly counts to add, but the text said they'd be added.
+- **Wording:** the schema's role text said detail rows are never repeated in the text, which conflicts with the monthly-request rule.
+- **Wording:** month-level questions like "which month had the most snow" should also use `by_month=true`.
+
+**Tool call:** `Bash`
+
+```json
+{
+ "command": "grep -n \"role \\\"headline\\\" for the 1-3 numbers\" -A 2 app/agent.py; python3 - <<'EOF'\nimport pathlib\ndef edit(path, pairs):\n    p = pathlib.Path(path); s = p.read_text(encoding=\"utf-8\")\n    for old, new in pairs:\n        assert s.count(old) == 1, (path, old[:90], s.count(old)); s = s.replace(old, new)\n    p.write_text(s, encoding=\"utf-8\")\n\nedit(\"app/tools.py\", [\n('''                       \"quote. by_month: true only when the user asks for a monthly breakdown \"\n                       \"('by month', 'which months', 'each month', 'monthly'); the result then \"\n                       \"includes the per-month counts to list in the answer. Use false for annual \"\n                       \"or whole-period questions: the result then has the totals only, and the \"\n                       \"app adds the per-month counts to the answer's Breakdown itself.\",''',\n'''                       \"quote. by_month: true when the user asks for a monthly breakdown ('by \"\n                       \"month', 'which months', 'each month', 'monthly') or the answer needs \"\n                       \"month-level counts (e.g. 'which month had the most snow'); for one \"\n
+… [truncated, 5547 more chars]
+```
+
+<details><summary>Tool result</summary>
+
+```
+Exit code 1
+78:- figures: each other number with its source tool. role "headline" for the 1-3 numbers the \
+79-answer text states; role "detail" for breakdown rows (e.g. one per month).
+80-- reasoning_steps: short steps you took, e.g. which tools and why.
+sed: -e expression #1, char 35: unterminated address regex
+```
+</details>
+
+**Tool call:** `Bash`
+
+```json
+{
+ "command": "grep -c \"by_month=true returns them\" app/tools.py; grep -c \"listed = {f\" app/agent.py; grep -c \"The text repeats\" app/schemas.py; grep -c \"one-year\" docs/DESIGN.md; git status --short",
+ "description": "Confirm the Python edits were applied"
+}
+```
+
+<details><summary>Tool result</summary>
+
+```
+1
+1
+1
+1
+ M app/agent.py
+ M app/schemas.py
+ M app/tools.py
+ M docs/DESIGN.md
+```
+</details>
+
+### 🤖 Claude
+
+Those edits went in; only my display command failed. Now the prompt's figures line, plus tests for the new cases:
+
+**Tool call:** `Bash`
+
+```json
+{
+ "command": "python3 - <<'EOF'\nimport pathlib\np = pathlib.Path(\"app/agent.py\"); s = p.read_text(encoding=\"utf-8\")\nold = '''- figures: each other number with its source tool. role \"headline\" for the 1-3 numbers the \\\\\nanswer text states; role \"detail\" for breakdown rows (e.g. one per month).'''\nnew = '''- figures: each other number with its source tool. role \"headline\" for the 1-3 main numbers \\\\\nthe answer text states; role \"detail\" for breakdown rows (e.g. one per month), which the text \\\\\nrepeats only when the user asked for that breakdown.'''\nassert s.count(old) == 1; s = s.replace(old, new); p.write_text(s, encoding=\"utf-8\")\n\np = pathlib.Path(\"tests/test_monthly_breakdown.py\"); s = p.read_text(encoding=\"utf-8\")\nold = '''# ---------- prompt, and the eval is untouched ----------'''\nnew = '''def test_false_then_true_in_one_turn_does_not_add_the_months_twice():\n    months = denver_months()\n    monthly_figs = [{\"label\": f\"Snow days in {k}\", \"value\": n, \"unit\": \"days\",\n                     \"source_tool\": \"weather_stat\", \"role\": \"detail\"} for k, n in months.items()]\n    fake = FakeClient([call(ANNUAL, \"a\"), call(MONTHLY, \"
+… [truncated, 2334 more chars]
+```
+
+<details><summary>Tool result</summary>
+
+```
+1 failed, 215 passed, 2 warnings in 5.59s
+```
+</details>
+
+**Tool call:** `Bash`
+
+```json
+{
+ "command": "python -m pytest -q 2>&1 | grep -E \"^E |FAILED\" | head -8",
+ "description": "Show the failing assertion"
+}
+```
+
+<details><summary>Tool result</summary>
+
+```
+E       assert 'true only when the user asks for a monthly breakdown' in "Count days in a hub's observed daily weather (Open-Meteo gridded estimates for the area) that meet a condition, for o...r-month counts to the answer's Breakdown itself. Full-history results (year=null) have no per-month counts either way."
+FAILED tests/test_monthly_breakdown.py::test_by_month_is_a_required_boolean_on_the_strict_tool
+```
+</details>
+
+### 🤖 Claude
+
+That's the expected wording change. I'm updating that assertion and rerunning the mutation check for the duplicate-row fix:
+
+**Tool call:** `Bash`
+
+```json
+{
+ "command": "sed -i 's/    assert \"true only when the user asks for a monthly breakdown\" in t\\[\"description\"\\]/    assert \"true when the user asks for a monthly breakdown\" in t[\"description\"]/' tests/test_monthly_breakdown.py && python -m pytest -q 2>&1 | tail -1\nS=/tmp/claude-0/-home-user-weather-risk-intelligence-agent/054feb9f-992e-53ec-86ec-b86ccf98458a/scratchpad/mut3 && rm -rf $S && mkdir -p $S && git ls-files -co --exclude-standard | tar -cf - -T - | tar -xf - -C $S && cd $S && python3 - <<'EOF'\nimport pathlib\np = pathlib.Path(\"app/agent.py\"); s = p.read_text()\nm = s.replace(\"have = {f.label for f in answer.figures} | listed\", \"have = {f.label for f in answer.figures}\")\nassert m != s; p.write_text(m)\nEOF\necho \"mutant no listed-dedup: $(python -m pytest -q -p no:cacheprovider tests/test_monthly_breakdown.py 2>&1 | tail -1)\"",
+ "description": "Fix the assertion and mutation-check the dedup fix",
+ "timeout": 200000
+}
+```
+
+<details><summary>Tool result</summary>
+
+```
+216 passed, 2 warnings in 5.57s
+mutant no listed-dedup: 1 failed, 15 passed, 1 skipped in 1.52s
+Shell cwd was reset to /home/user/weather-risk-intelligence-agent
+[This command modified 1 file you've previously read: tests/test_monthly_breakdown.py. Call Read before editing.]
+```
+</details>
+
+**Tool call:** `Bash`
+
+```json
+{
+ "command": "python -m evals.run --dry-run 2>&1 | tail -10 | wc -l && git add -A && git commit -q -F - <<'EOF'\nMonthly counts: review fixes\n\n- No duplicate rows when one turn calls weather_stat with by_month=false\n  and then true for the same months: the model's own rows win.\n- by_month=true also covers month-level questions (\"which month had the\n  most snow\"); the totals-only note says by_month=true returns the counts.\n- Wording limited to one-year questions: full-history results have no\n  monthly counts.\n- The answer schema's role text and the prompt's figures line allow detail\n  rows in the text when the user asked for that breakdown.\n\nCo-Authored-By: Claude Opus 5.5 <[email redacted]>\nClaude-Session: https://claude.ai/code/session_01QeytEnYwkmv4kKHhrzkAmw\nEOF\nfor i in 1 2 3 4; do git push -u origin claude/lucid-thompson-42z611 2>&1 | tail -1 && break; sleep $((2**i)); done; python -m scripts.export_transcript --plan /root/.claude/plans/root-claude-uploads-054feb9f-992e-53ec-fuzzy-deer.md 2>&1 | tail -1; echo \"emails: $(grep -cE '[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+\\.[A-Za-z]{2,}' docs/session-transcript.md) keys: $(grep -cE 'sk-ant-[A-Za-z0-9_-]{20,}' docs/sessi
+… [truncated, 95 more chars]
+```
+
 
 ---
 
 # Appendix: approved plan
 
-# Plan: stop repeated tool calls, finish within the 8-round limit, report the limit clearly
+# Plan: monthly counts in the Breakdown for annual questions, in the answer when asked (small fix)
 
 ## Context
-In the user's saved eval results, `denver_snow_last_year` and `dallas_why` both ended with "Stopped after too many tool rounds."
-- Denver called `get_methodology` seven times.
-- Dallas kept calling `get_score_breakdown`.
+Denver's annual result was right (43 of 365 days, 11.8%), but the answer text listed seven months, which fails the existing `no_month_list` check.
 
-**What I checked (read-only):**
-- **The replay is not the cause.** I streamed a mocked response through the real SDK and `agent._create`. That response had a thinking block, a no-input `get_methodology` call and a `get_score_breakdown` call. `_blocks_to_dicts` produced clean `tool_use` blocks (`input: {}` and `{"hub_id": "dallas"}`) with no stray fields. The tool results are paired correctly in `chat()`. So the model does see its earlier results.
-- **The tool outputs are complete.** The Denver `weather_stat` result already holds the condition, the 43/365 count, 11.8%, the source and the caveat. Dallas's breakdown holds every driver and caveat.
+**What you want:**
+- **Annual question:** the monthly counts appear only in the expandable Breakdown.
+- **Monthly breakdown requested:** the months also appear in the answer.
+- **Keep it small:** no second model call; use data we already have; the live eval stays unchanged; the monthly follow-up is tested offline.
 
-**Likely causes:**
-1. **The prompt invites repeat calls.**
-   - `get_methodology`'s description says to use it "when you need to state assumptions". The answer schema requires `assumptions` in every answer, so every answer seems to "need" it.
-   - Nothing says that tool results are deterministic, or that calling again returns the same data.
-2. **Dallas has a false premise and signals that seem to conflict.**
-   - The question says Dallas's risk is "high", but the score is 34.9, which is Low and 0.1 below Moderate. Meanwhile the FEMA context ratings say "Very High" for 7 of 9 hazards.
-   - The prompt's rule "For explanations ('why is X high') …" assumes the premise is true. Nothing tells the model to correct it, so it keeps re-checking.
-3. **The loop has no way to wrap up.**
-   - Every request allows tools, so a model that keeps checking never has to answer.
-   - On the 9th request the loop runs the tools, then stops without asking for an answer. The stored history then ends in unanswered tool results.
-   - `_out_of_band_answer` sets `in_scope=False`, so hitting the limit is labelled "out of scope".
+**Why it happens:** `weather_stat` always returns `by_month` to the model, right next to the annual count. The model then writes the months into the text, even though the prompt said not to list breakdown numbers there.
 
-**Constraints:**
-- Keep `max_tool_rounds: 8`.
-- Keep every eval check as it is: no check removed, loosened or added.
+**The fix:** for an annual question the model doesn't receive the monthly counts. The app adds them to the Breakdown itself, from the same deterministic result. For a monthly request, the model gets them and lists them.
 
 ## Changes
+1. **`weather_stat` tool (`app/tools.py`):**
+   - It gets a required boolean input, `by_month`; the tools stay strict.
+   - **Description:** *true only when the user asks for a monthly breakdown ("by month", "which months", "each month", "monthly"). The result then includes the per-month counts to list in the answer. Use false for annual or whole-period questions: the result has the totals only, and the app adds the per-month counts to the answer's Breakdown.*
+   - **Implementation:** `tools.weather_stat(..., by_month=False)` calls `metrics.weather_stat` unchanged. When `by_month` is false, it replaces the result's `by_month` dict with a short note saying the counts aren't included and the app shows them in the Breakdown.
+   - **Other callers:** the `/hubs/{id}/weather` API calls `metrics.weather_stat` directly, so it is unchanged.
+2. **Agent (`app/agent.py` `chat()`):**
+   - It records each successful, non-repeated `weather_stat` call that had `by_month: false` and a single year. Full-history calls have no monthly data.
+   - After a valid answer (`answered` or `answered_at_tool_limit`), it appends one `detail` figure per month from the same `metrics.weather_stat` result:
+     - **label:** e.g. `Denver, January 2025: daily snowfall > 0 cm (any snowfall)`, which reuses the tool's condition wording
+     - **unit:** `days`
+     - **source_tool:** `weather_stat`
+   - Labels already present aren't added again.
+   - This adds no model call. The stored assistant message stays exactly as the model wrote it, so the history stays append-only.
+3. **Prompt, final answer format:** the unconditional sentence becomes conditional:
+   - Per-component and per-hub numbers stay out of the text (as now).
+   - **Months, annual or whole-period question:** call `weather_stat` with `by_month=false` and don't list months; the app adds them to the Breakdown.
+   - **Months, monthly breakdown requested:** use `by_month=true` and list the months and counts in the answer text, and as detail figures.
+4. **Unchanged:** the UI (the Breakdown already shows detail figures), the eval set and the checks. The `threshold: 1.0` tool-input check only looks at `threshold`.
+5. **Docs:** a short update to `docs/DESIGN.md` (final answer), the README `/chat` notes and the PR description.
+6. **Side effect:** the tool description changes, so chats saved before this update show "Start a new conversation" once.
 
-### 1. Loop (`app/agent.py`, `chat()`)
-- **Count tool rounds explicitly.** `rounds` is incremented after each `tool_use` response is executed; `pause_turn` also counts.
-- **Repeated identical calls.**
-  - The key is the tool name plus its input as JSON with sorted keys, and it applies within the current turn only.
-  - A repeat is **not** run again. Its `tool_result` is `{"repeated_call": true, "same_as_call": n, "note": "Same tool and input as call n in this turn. Tools are deterministic, so that result above is unchanged. Use it."}` with `is_error: false`.
-  - The trace entry gets `"repeated": true`, added only for repeats, so existing trace assertions still hold.
-- **Final reply after the limit.** Once `rounds == max_tool_rounds` (8), the next request:
-  - **adds a notice** after the last tool results, as a mid-conversation `{"role": "system", ...}` message, the operator channel for harness notices: *"Tool limit reached: this turn has used all 8 tool rounds, so tools are off for this reply. Give your final answer now from the tool results above. If they are not enough, say what is missing and lower confidence."*
-  - **sends `tool_choice={"type": "none"}`.** `tools` and `system` stay identical. Per the API docs, changing `tool_choice` keeps the replayed thinking blocks valid and keeps the tools+system cache. Only this one request loses the messages cache.
-  - **The cap stays at 8 tool rounds.** There are at most 9 model calls, plus the existing single schema-repair attempt. A repair after the limit keeps `tool_choice: none`.
-  - The final message is still validated as `AgentAnswer`.
-  - The stored history becomes `… tool results, system notice, assistant answer`. It is append-only and valid for follow-up questions.
-- **Plumbing.** `_create(…, tool_choice=None)` gets the new parameter; it is sent only when set. `_Turn.call` passes it through, so a Haiku fallback on the final request also gets tools off.
-- **Status in the result.** `chat()` returns `status` and `tool_rounds` alongside `answer`, `tool_calls`, `models` and `usage`:
-  - `answered`: the normal answer.
-  - `answered_at_tool_limit`: valid answer from the final tools-off reply.
-  - `tool_limit`: the limit was reached and the final reply was still not a valid answer.
-  - `cut_off` (max_tokens), `refused`, `invalid_answer`: existing cases, now named.
-- **Non-answers are no longer "out of scope".** `_out_of_band_answer(text)` sets `in_scope=None`, meaning "not determined". `AgentAnswer.in_scope` becomes `bool | None` in Pydantic only. The JSON schema sent to the model still requires a boolean.
-- **Clearer limit message:** "Stopped after 8 tool rounds without a final answer. The data gathered so far is listed under Tools used. Try asking again or narrowing the question."
-
-### 2. Prompt and tool description (no new restrictions on using tools)
-- **System prompt, "How to work":**
-  - *"Tool results are deterministic and complete for their inputs: calling a tool again with the same input returns the same data. Don't repeat a call; use the result you already have."*
-  - Explanations become: *"For explanations ('why is X high/low'), call get_score_breakdown once and name the hazards that contribute the most points, with the raw inputs behind them. If the question's premise doesn't match the model (e.g. it says 'high' but the tier is Low), say so first and give the actual score and tier. FEMA 'Very High' ratings are exposure context, not the score."*
-  - The `assumptions` line: *"take them from the conditions, thresholds and caveats in the tool results you already have."*
-- **`get_methodology` description (`app/tools.py`):** use it for questions about how the score is calculated, its weights, caps, thresholds or tiers, or what it leaves out. Drop "when you need to state assumptions", and say that the other tools' results already carry their own conditions, sources and caveats.
-- **Wording:** none of it says "minimise tool calls". The API docs warn that Sonnet 5.5 follows that literally and may then skip needed tools.
-- **Side effect:** chats saved before this update will show the existing "Start a new conversation" message once, because the system prompt changed.
-
-### 3. Reporting
-- **API (`/chat`):** returns `status` and `tool_rounds` unchanged from `chat()`. The README API table documents them.
-- **UI (`renderAnswer` in `index.html`):**
-  - Show "out of scope" only when `a.in_scope === false`.
-  - A notice line for the limit:
-    - `answered_at_tool_limit`: "Reached the 8-round tool limit. Answered from the data already gathered, with tools turned off for the final reply."
-    - `tool_limit`: "Stopped at the 8-round tool limit without a final answer."
-  - Repeated calls are marked "(repeat)" in the Tools list.
-- **Evals (`evals/run.py`, output only):**
-  - `run_case` records `status` and `tool_rounds` in `latest.json`. The repeat flags are already in `tool_calls`.
-  - `format_case_line` adds e.g. `status=answered_at_tool_limit (8 tool rounds, 6 repeats)` when the status isn't `answered`.
-  - `summary_line` lists the cases that reached the limit.
-  - `check_case` and `cases.yaml` are unchanged.
-- **Docs:** `docs/DESIGN.md`, the agent-loop section next to "Refusals and cut-offs", covers:
-  - the cause found
-  - the repeat handling
-  - the tools-off final reply
-  - the status values
-
-  Then the README and the PR description.
-
-## Tests (pytest, no API key)
-- **Repeat handling.** An identical repeated call is not run again: `tools.execute` is called once. The repeat gets the pointer result, and its trace entry has `repeated: true`. The same tool with a different input runs normally.
-- **Final reply after 8 rounds.** A fake client returns `tool_use` 8 times, then a valid answer. Checks:
-  - Requests 1–8 have no `tool_choice`.
-  - Request 9 has `tool_choice: none`, and its last message is the system notice.
-  - `status == "answered_at_tool_limit"` and `tool_rounds == 8`.
-  - The stored history ends with the assistant answer, and a follow-up sends a valid sequence.
-- **No valid answer after the limit.** The final reply is invalid twice (or max_tokens). Then `status` is `tool_limit` (or `cut_off`), `in_scope is None`, and the message names the 8-round limit. No dangling `tool_use` is stored.
-- **Fallback on the final request.** The `tool_choice: none` request goes to Haiku with the same `tool_choice` when Sonnet is unavailable.
-- **Real SDK over MockTransport.**
-  - A two-round SSE conversation: a no-input `get_methodology` call, then the answer. The second request body must contain the assistant `tool_use` with `input: {}` and its matching `tool_result`. This keeps the replay check above as a regression test.
-  - A request at the limit carries `tool_choice: {"type": "none"}`.
-- **Eval output.** `format_case_line` shows the status for an `answered_at_tool_limit` result. A `tool_limit` result fails `in_scope` with "got None".
-- Existing tests are updated only where the result now carries `status`/`tool_rounds`.
+## Tests (pytest, offline)
+- **The tool, both ways:**
+  - `by_month: false`: no per-month counts in the result the model sees; the totals are unchanged.
+  - `by_month: true`: the monthly dict is returned as today.
+  - The schema has `by_month` as a required boolean.
+- **Annual question:** a scripted `weather_stat` call with `by_month: false`, then an answer stating 43 of 365 days (11.8%). Checks:
+  - The tool result sent to the model has no month counts.
+  - The returned `answer.figures` gains 7 `detail` rows whose values match `metrics.weather_stat(...)["by_month"]`.
+  - The answer text is unchanged.
+  - The existing eval `check_case` for `denver_snow_last_year` passes, including the 11.8% headline figure and no month list.
+- **Monthly follow-up, two turns:** turn 1 is annual. Turn 2, "Break that down by month", calls `weather_stat` with `by_month: true`, and its answer lists the months. Checks:
+  - The result included the monthly counts.
+  - No rows are added by the app, so nothing is duplicated.
+- **No rows are added for:**
+  - a repeated call (rows are added once)
+  - an error result (e.g. a negative threshold)
+  - `year: null`
+  - no-answer statuses (`tool_limit`, `cut_off` and the others)
+- **Unchanged:** `check_case` and `cases.yaml` are identical to before.
 
 ## Verification
-1. `python -m pytest -q`: all pass (168 existing tests plus the new ones).
-2. **Browser check** (node Playwright in the scratchpad) with a mocked `/chat`:
-   - An `answered_at_tool_limit` answer shows the notice and no "out of scope".
-   - A `tool_limit` answer shows the stop notice.
-   - "(repeat)" appears in the Tools list.
-   - I'll send you the screenshots.
-3. `python -m evals.run --dry-run` still lists the same 10 cases and checks.
-4. Commit and push to `claude/lucid-thompson-42z611`, update PR #1, and re-export the transcript.
-5. **Your live check:**
-   ```
-   python -m evals.run --case denver_snow_last_year
-   python -m evals.run --case dallas_why
-   ```
-   Expect `status=answered`. The Dallas answer should say the hub is Low (34.9), not high. If either still reaches the limit, the line shows `answered_at_tool_limit` with the repeat count, and `latest.json` shows each call.
+1. `python -m pytest -q`: all pass.
+2. `python -m evals.run --dry-run`: the same 10 cases.
+3. Commit and push to `claude/lucid-thompson-42z611`, update PR #1, and re-export the transcript.
+4. **Your live check:**
+   - `python -m evals.run --case denver_snow_last_year` → PASS, with the months only in the Breakdown.
+   - Optionally ask "Break that down by month" in the browser.
