@@ -359,13 +359,13 @@ app/
   static/index.html    chat UI and hub map (no build step)
   static/us-states.json  state outlines (SVG paths), built by scripts/build_us_map.py
 data/hubs.json, data/cache/*.json, config.yaml
-scripts/refresh_data.py, scripts/build_us_map.py, scripts/export_transcript.py
+scripts/refresh_data.py, scripts/build_us_map.py
 scripts/score_changes.py   before/after scores for the score-change workflow
 .github/workflows/score-changes.yml   opens an issue when a score changes on main
 evals/cases.yaml, evals/run.py
 tests/  scoring, agent loop, model fallback, .env, map and breakdown, tool limit,
         monthly breakdown, access code, score changes
-docs/DESIGN.md, docs/session-transcript.md
+docs/DESIGN.md
 ```
 
 ### Score-change monitoring
