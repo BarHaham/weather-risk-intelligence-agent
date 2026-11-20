@@ -6,10 +6,11 @@ from pathlib import Path
 import anthropic
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.responses import FileResponse, JSONResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
-from app import agent, config, metrics, scoring, store
+from app import agent, config, geo, metrics, scoring, store
 from app.config import hub as get_hub
 from app.config import hubs, settings
 from app.tools import get_methodology
@@ -33,6 +34,7 @@ async def _http_error(request, exc: StarletteHTTPException):
 
 
 STATIC = Path(__file__).parent / "static"
+app.mount("/static", StaticFiles(directory=STATIC), name="static")  # us-states.json map outlines
 
 
 @app.on_event("startup")
@@ -91,6 +93,20 @@ def chat(req: ChatRequest):
 @app.get("/hubs")
 def list_hubs():
     return hubs()
+
+
+@app.get("/map/hubs")
+def map_hubs():
+    """Hubs with their position on /static/us-states.json (975x610 SVG) plus score and tier."""
+    ranked = {r["hub_id"]: r for r in scoring.rank()}
+    out = []
+    for h in hubs():
+        x, y = geo.albers_usa(h["lon"], h["lat"])
+        r = ranked[h["id"]]
+        out.append({k: h[k] for k in ("id", "city", "state", "region", "county")} |
+                   {"x": round(x, 1), "y": round(y, 1), "overall_score": r["overall_score"],
+                    "tier": r["tier"], "rank": r["rank"]})
+    return out
 
 
 @app.get("/rankings")

@@ -7216,96 +7216,1270 @@ The endpoints behave as planned. Now I'll run the full suite, refresh the transc
 … [truncated, 834 more chars]
 ```
 
+<details><summary>Tool result</summary>
+
+```
+85 passed in 3.27s
+wrote /home/user/weather-risk-intelligence-agent/docs/session-transcript.md (505,442 chars)
+emails: 0 keys: 0
+no .env in repo
+M  README.md
+M  app/agent.py
+M  app/main.py
+M  app/metrics.py
+M  app/schemas.py
+M  app/scoring.py
+M  app/sources/open_meteo.py
+M  app/store.py
+M  app/tools.py
+M  config.yaml
+M  docs/DESIGN.md
+M  docs/session-transcript.md
+M  evals/cases.yaml
+M  evals/run.py
+M  tests/test_model_fallback.py
+M  tests/test_scoring.py
+46aa473 Snowfall 'at least X cm' rule (>=), explicit negative-threshold rule, Best Match caveat
+46aa473354bed7c964091c5c545e87097cd8fa5b
+46aa473354bed7c964091c5c545e87097cd8fa5b
+```
+</details>
+
+### 🤖 Claude
+
+Pushed as `46aa473`. Last step is the PR description: it still mentions ERA5, and it should record your live eval run.
+
+**Tool call:** `mcp__github__update_pull_request`
+
+```json
+{
+ "owner": "BarHaham",
+ "repo": "weather-risk-intelligence-agent",
+ "pullNumber": 1,
+ "body": "## Summary\nAn AI agent that helps analysts decide which of 7 US distribution hubs are most exposed to weather disruption.\n- A **deterministic Python risk model** scores each hub from public data: Open-Meteo daily gridded estimates (default Best Match model selection) and FEMA National Risk Index frequencies.\n- **Claude Sonnet 5.5** answers chat questions by calling that model through 6 strict tools, and returns a **JSON-schema-enforced** answer (`AgentAnswer`) that the UI renders.\n- If Sonnet is temporarily unavailable, the request is tried **once on Claude Haiku 5.5**, and every answer reports which model actually answered.\n- Design, architecture, storage choice and assumptions: `docs/DESIGN.md`. Run instructions (including Windows/PowerShell): `README.md`. AI session transcript: `docs/session-transcript.md`.\n\n## What's included\n- `app/sources/`: Open-Meteo and FEMA NRI clients. Raw responses are cached in `data/cache/` (committed), and SQLite is rebuilt from them at startup, so the demo runs offline.\n- `app/scoring.py`: the risk model.\n  - Fixed normalisation caps:\n    - Obs
+… [truncated, 5874 more chars]
+```
+
+**Tool call:** `TaskUpdate`
+
+```json
+{
+ "taskId": "12",
+ "status": "completed"
+}
+```
+
+<details><summary>Tool result</summary>
+
+```
+{"id":"5411194102","url":"https://github.com/BarHaham/weather-risk-intelligence-agent/pull/1"}
+```
+</details>
+
+<details><summary>Tool result</summary>
+
+```
+Updated task #12 status
+```
+</details>
+
+### 🤖 Claude
+
+I've fixed both things and pushed them to the same branch as `46aa473`; the working tree is clean. All 85 tests pass, and no hub's score or ranking changed. I've also updated the description of [BarHaham/weather-risk-intelligence-agent#1](https://github.com/BarHaham/weather-risk-intelligence-agent/pull/1) and refreshed the transcript.
+
+**1. "At least 1 cm" now counts a day with exactly 1 cm.**
+- **The rule:**
+  - No threshold, or 0, means any snowfall, counted as more than 0 cm, as before. Denver 2025 is still 43 of 365 days.
+  - A positive number X means at least X cm, so a day with exactly X cm counts. Denver 2025 has no day of exactly 1.00 cm (the nearest are 0.91 and 0.98), so it's still 17 days.
+- **The same wording everywhere:** the tool result reads `daily snowfall >= 1 cm (at least 1 cm)`, and the agent is told to quote that text in its answer and in the table labels. It's also told to pass your number exactly, never 0.99 or a second guess.
+- **The eval check:** the threshold case now asks "at least 1 cm", and fails if any of the agent's calls used a value other than 1. Trying both 1 and 0.99, as in your browser test, fails even when the count is right.
+- **Negative thresholds:** a negative snowfall threshold is rejected with an error and nothing is counted; the weather endpoint returns 400. Other measures still accept negative values, since a hard freeze is −12 °C.
+- **New tests:** a day with exactly 1 cm, the wording, the negative case, and the 1-and-0.99 combination.
+
+**2. The data caveat now matches the actual request.**
+- **New caveat:** the data comes from Open-Meteo's default Best Match selection, and is described as gridded estimates for the area around the hub that can differ from station records.
+- **Old claim removed:** "ERA5 at ~10 km" is gone from the code, the tool descriptions and the docs. A test fails if the wording comes back.
+- **DESIGN.md:** it uses "can differ from station records" consistently, in place of the earlier "well below station records" and "undercounts" wording.
+
+Your 10 live evals ran before this change, so the new rule hasn't been checked against Claude yet. This one case covers it:
+
+```bash
+.\.venv\Scripts\python.exe -m evals.run --case denver_snow_threshold
+```
+
+It should pass and report 17 days. The answer should say "at least 1 cm", and the tool call should show `threshold: 1`.
+
+---
+
+## 🧑 User
+
+I tried the chat myself. When I asked how many days it snowed in Denver, the answer was clear, but the monthly numbers appeared twice. Could we show the main result first and let me expand the breakdown if I want more detail?
+I’d also like a US map next to the chat. When I click a hub, I’d like to see its city and state and be able to ask a question about it. On mobile, I’d keep the chat first.
+
+### 🤖 Claude
+
+I'll look at how the UI renders answers today, then check what's available for drawing a US map offline.
+
+**Tool call:** `Read`
+
+```json
+{
+ "file_path": "/home/user/weather-risk-intelligence-agent/app/static/index.html"
+}
+```
+
+<details><summary>Tool result</summary>
+
+```
+1	<!doctype html>
+2	<html lang="en">
+3	<head>
+4	<meta charset="utf-8">
+5	<meta name="viewport" content="width=device-width, initial-scale=1">
+6	<title>Weather Risk Agent</title>
+7	<style>
+8	  :root { --bg:#f6f7f9; --panel:#fff; --ink:#1b2430; --muted:#5d6b7a; --line:#dde3ea;
+9	          --accent:#1f5fbf; --user:#e8f0fc; --Low:#2e7d4f; --Moderate:#b7791f; --High:#c2410c; --Severe:#9b1c1c; }
+10	  @media (prefers-color-scheme: dark) {
+11	    :root { --bg:#12161c; --panel:#1b2129; --ink:#e6ebf1; --muted:#9aa7b5; --line:#2c3440;
+12	            --accent:#6ea8ff; --user:#1e2b40; }
+13	  }
+14	  * { box-sizing: border-box; }
+15	  body { margin:0; font:15px/1.5 system-ui, -apple-system, Segoe UI, sans-serif; background:var(--bg); color:var(--ink); }
+16	  header { padding:14px 20px; border-bottom:1px solid var(--line); background:var(--panel); }
+17	  header h1 { margin:0; font-size:18px; }
+18	  header p { margin:2px 0 0; color:var(--muted); font-size:13px; }
+19	  main { display:grid; grid-template-columns: 1fr 300px; gap:16px; padding:16px; max-width:1200px; margin:0 auto; }
+20	  @media (max-width: 860px) { main { grid-template-columns: 1fr; } }
+21	  .panel { background:var(--panel); border:1px solid var(--line); border-radius:10px; }
+22	  #log { height: calc(100vh - 230px); min-height:320px; overflow-y:auto; padding:16px; }
+23	  .msg { margin:0 0 14px; padding:10px 14px; border-radius:10px; max-width: 95%; }
+24	  .user { background:var(--user); margin-left:auto; width:fit-content; }
+25	
+… [truncated, 7992 more chars]
+```
+</details>
+
+**Tool call:** `Bash`
+
+```json
+{
+ "command": "python3 -c \"import playwright; print('python playwright', playwright.__version__)\" 2>&1 | tail -1; node -e \"console.log('node', process.version, 'playwright', require('playwright/package.json').version)\" 2>&1 | tail -1; npm view us-atlas version dist.tarball license 2>&1 | tail -4; npm view d3-geo version 2>&1 | tail -1; sed -n 1,40p app/schemas.py | grep -n \"class Figure\" -A6",
+ "description": "Check Playwright, npm access to us-atlas, Figure schema"
+}
+```
+
+<details><summary>Tool result</summary>
+
+```
+ModuleNotFoundError: No module named 'playwright'
+node v22.23.5 playwright 1.63.0
+version = '3.0.1'
+dist.tarball = 'https://registry.npmjs.org/us-atlas/-/us-atlas-3.0.1.tgz'
+license = 'ISC'
+3.1.2
+```
+</details>
+
+**Tool call:** `Write`
+
+```json
+{
+ "file_path": "/root/.claude/plans/root-claude-uploads-054feb9f-992e-53ec-fuzzy-deer.md",
+ "content": "# Plan: main result first with an expandable breakdown, plus a clickable US hub map\n\n## Context\nThe user tried the browser chat. Two requests:\n1. **The breakdown appeared twice.** For \"how many days did it snow in Denver\", the monthly numbers appeared twice. The answer text listed them, and the figures table that `app/static/index.html` always renders right below the answer (`renderAnswer`, lines 105\u2013112) repeated them.\n   - **Wanted:** the main result first, with the breakdown expandable.\n2. **A US map next to the chat.**\n   - Clicking a hub shows its city and state and lets the user ask a question about it.\n   - On mobile, the chat comes first.\n\n**Constraints:**\n- The app runs offline and has no frontend build step (one HTML file). The map must be a committed static asset.\n- The UI follows the existing CSS tokens (light and dark).\n- Keep scoring and the tools unchanged.\n\n## 1. Main result first, breakdown on request\n- **Schema** (`app/schemas.py`): `Figure` gets `role: Literal[\"headline\", \"detail\"]`, and `answer_json_schema()` adds `role` (enum, requ
+… [truncated, 6175 more chars]
+```
+
+<details><summary>Tool result</summary>
+
+```
+The file /root/.claude/plans/root-claude-uploads-054feb9f-992e-53ec-fuzzy-deer.md has been updated successfully. (file state is current in your context — no need to Read it back)
+```
+</details>
+
+**Tool call:** `ExitPlanMode`
+
+```json
+{
+ "plan": "# Plan: main result first with an expandable breakdown, plus a clickable US hub map\n\n## Context\nThe user tried the browser chat. Two requests:\n1. **The breakdown appeared twice.** For \"how many days did it snow in Denver\", the monthly numbers appeared twice. The answer text listed them, and the figures table that `app/static/index.html` always renders right below the answer (`renderAnswer`, lines 105\u2013112) repeated them.\n   - **Wanted:** the main result first, with the breakdown expandable.\n2. **A US map next to the chat.**\n   - Clicking a hub shows its city and state and lets the user ask a question about it.\n   - On mobile, the chat comes first.\n\n**Constraints:**\n- The app runs offline and has no frontend build step (one HTML file). The map must be a committed static asset.\n- The UI follows the existing CSS tokens (light and dark).\n- Keep scoring and the tools unchanged.\n\n## 1. Main result first, breakdown on request\n- **Schema** (`app/schemas.py`): `Figure` gets `role: Literal[\"headline\", \"detail\"]`, and `answer_json_schema()` adds `role` (enum, required) so structured outputs enforce it.\n- **System prompt** (`app/agent.py`; it stays model-
+… [truncated, 6175 more chars]
+```
+
+<details><summary>Tool result</summary>
+
+```
+User has approved your plan. You can now start coding. Start with updating your todo list if applicable
+
+Your plan has been saved to: /root/.claude/plans/root-claude-uploads-054feb9f-992e-53ec-fuzzy-deer.md
+You can refer back to it if needed during implementation.
+
+## Approved Plan:
+# Plan: main result first with an expandable breakdown, plus a clickable US hub map
+
+## Context
+The user tried the browser chat. Two requests:
+1. **The breakdown appeared twice.** For "how many days did it snow in Denver", the monthly numbers appeared twice. The answer text listed them, and the figures table that `app/static/index.html` always renders right below the answer (`renderAnswer`, lines 105–112) repeated them.
+   - **Wanted:** the main result first, with the breakdown expandable.
+2. **A US map next to the chat.**
+   - Clicking a hub shows its city and state and lets the user ask a question about it.
+   - On mobile, the chat comes first.
+
+**Constraints:**
+- The app runs offline and has no frontend build step (one HTML file). The map must be a committed static asset.
+- The UI follows the existing CSS tokens (light and dark).
+- Keep scoring and the tools unchanged.
+
+## 1. Main result first, breakdown on request
+- **Schema** (`app/schemas.py`): `Figure` gets `role: Literal["headline", "detail"]`, and `answer_json_schema()` adds `role` (enum, required) so structured outputs enforce it.
+- **System prompt** (`app/agent.py`; it stays model-independent):
+  - `answer` leads with the main result in
+… [truncated, 5888 more chars]
+```
+</details>
+
+### 🤖 Claude
+
+Plan approved. I'll start with the map data: download `us-atlas` and check its published integrity hash, then fetch `d3-geo` so I can generate reference hub positions.
+
+**Tool call:** `TaskCreate`
+
+```json
+{
+ "subject": "Map asset + Albers projection + /map/hubs",
+ "description": "build_us_map.py (us-atlas, sha512), us-states.json, app/geo.py vs d3 reference, /static mount, /map/hubs",
+ "activeForm": "Building the US map data"
+}
+```
+
+<details><summary>Tool result</summary>
+
+```
+Task #13 created successfully: Map asset + Albers projection + /map/hubs
+```
+</details>
+
+**Tool call:** `TaskCreate`
+
+```json
+{
+ "subject": "Headline/detail figures + collapsed breakdown + eval checks",
+ "description": "Figure.role schema, prompt, renderAnswer, eval role/no_month_list checks",
+ "activeForm": "Collapsing the breakdown"
+}
+```
+
+<details><summary>Tool result</summary>
+
+```
+Task #14 created successfully: Headline/detail figures + collapsed breakdown + eval checks
+```
+</details>
+
+**Tool call:** `TaskCreate`
+
+```json
+{
+ "subject": "Map UI, responsive layout, browser check, docs, push",
+ "description": "index.html map panel + hub card + ask; mobile order; Playwright check + screenshots; tests; README/DESIGN; PR; transcript; push",
+ "activeForm": "Building the map UI"
+}
+```
+
+<details><summary>Tool result</summary>
+
+```
+Task #15 created successfully: Map UI, responsive layout, browser check, docs, push
+```
+</details>
+
+**Tool call:** `Bash`
+
+```json
+{
+ "command": "S=/tmp/claude-0/-home-user-weather-risk-intelligence-agent/054feb9f-992e-53ec-86ec-b86ccf98458a/scratchpad/mapwork && mkdir -p $S/dl $S/d3 && cd $S && npm view [email redacted] dist.integrity 2>/dev/null; curl -s -o dl/us-atlas-3.0.1.tgz https://registry.npmjs.org/us-atlas/-/us-atlas-3.0.1.tgz && echo \"sha512-$(openssl dgst -sha512 -binary dl/us-atlas-3.0.1.tgz | openssl base64 -A)\"; mkdir -p dl/x && tar -xzf dl/us-atlas-3.0.1.tgz -C dl/x && ls -la dl/x/package/ && (cd d3 && npm init -y >/dev/null && npm install --silent [email redacted] [email redacted] 2>&1 | tail -2; ls node_modules | head)",
+ "description": "Download us-atlas, verify integrity, install d3-geo for reference",
+ "timeout": 180000
+}
+```
+
+<details><summary>Tool result</summary>
+
+```
+sha512-wEIZCq0ImPvGblTd8gZMqNNCPkQshugMUG/8nkSWXb02+XqNFREg9atHOKP9w6prLZTpqcLhSvdBW81MkV3/0Q==
+sha512-wEIZCq0ImPvGblTd8gZMqNNCPkQshugMUG/8nkSWXb02+XqNFREg9atHOKP9w6prLZTpqcLhSvdBW81MkV3/0Q==
+total 1956
+drwxr-xr-x 2 root root   4096 Nov 20 11:36 .
+drwxr-xr-x 3 root root   4096 Nov 20 11:36 ..
+-rw-r--r-- 1 root root    734 Oct 26  1985 LICENSE
+-rw-r--r-- 1 root root   6761 Oct 26  1985 README.md
+-rw-r--r-- 1 root root 842143 Oct 26  1985 counties-10m.json
+-rw-r--r-- 1 root root 795405 Oct 26  1985 counties-albers-10m.json
+-rw-r--r-- 1 root root  80238 Oct 26  1985 nation-10m.json
+-rw-r--r-- 1 root root  49880 Oct 26  1985 nation-albers-10m.json
+-rw-r--r-- 1 root root    773 Oct 26  1985 package.json
+-rw-r--r-- 1 root root 114554 Oct 26  1985 states-10m.json
+-rw-r--r-- 1 root root  82031 Oct 26  1985 states-albers-10m.json
+commander
+d3-array
+d3-geo
+internmap
+topojson-client
+Shell cwd was reset to /home/user/weather-risk-intelligence-agent
+```
+</details>
+
+### 🤖 Claude
+
+The tarball's sha512 matches the npm registry's published integrity value. I'll confirm the projection the atlas was built with and compute the d3 reference positions for the 7 hubs:
+
+**Tool call:** `Bash`
+
+```json
+{
+ "command": "S=/tmp/claude-0/-home-user-weather-risk-intelligence-agent/054feb9f-992e-53ec-86ec-b86ccf98458a/scratchpad/mapwork; grep -n -i \"albers\\|1300\\|487.5\\|975\" $S/dl/x/package/README.md | head -8; cat $S/dl/x/package/LICENSE | head -5; python3 -c \"\nimport json; t=json.load(open('$S/dl/x/package/states-albers-10m.json'))\nprint('keys', list(t), 'transform', t.get('transform'), 'bbox', t.get('bbox'))\nprint('objects', list(t['objects']), [ (k, len(v.get('geometries',[]))) for k,v in t['objects'].items()])\ng=t['objects']['states']['geometries'][0]; print(g['type'], g.get('properties'), str(g['arcs'])[:80])\nprint('arcs', len(t['arcs']), t['arcs'][0][:3])\"\ncd $S/d3 && cat > ref.mjs <<'EOF'\nimport { geoAlbersUsa } from \"d3-geo\";\nimport fs from \"fs\";\nconst hubs = JSON.parse(fs.readFileSync(process.argv[2], \"utf8\"));\nconst p = geoAlbersUsa().scale(1300).translate([487.5, 305]);\nfor (const h of hubs) { const [x, y] = p([h.lon, h.lat]); console.log(JSON.stringify({ id: h.id, x: +x.toFixed(4), y: +y.toFixed(4) })); }\nEOF\nnode ref.mjs /home/user/weather-risk-intelligence-agent/data/hubs.json",
+ "description": "Inspect atlas projection info, structure, and d3 hu
+… [truncated, 14 more chars]
+```
+
+<details><summary>Tool result</summary>
+
+```
+6:d3.geoAlbersUsa().scale(1300).translate([487.5, 305])
+9:This is a conic equal-area Albers projection suitable for choropleth maps and designed to fit a 975×610 viewport.
+28:<a href="#counties-albers-10m.json" name="counties-albers-10m.json">#</a> <b>counties-albers-10m.json</b> · [Download](https://cdn.jsdelivr.net/npm/us-atlas@3/counties-albers-10m.json "Source")
+30:A [TopoJSON file](https://github.com/topojson/topojson-specification/blob/master/README.md#21-topology-objects) containing the geometry collections <i>counties</i>, <i>states</i>, and <i>nation</i>. The geometry is quantized, projected using [d3.geoAlbersUsa](https://github.com/d3/d3-geo/blob/master/README.md#geoAlbersUsa) to fit a 975×610 viewport, and simplified. This topology is derived from the Census Bureau’s [cartographic county boundaries, 2017 edition](https://www2.census.gov/geo/tiger/GENZ2017/shp/). The state boundaries are computed by [merging](https://github.com/topojson/topojson-client/blob/master/README.md#merge) counties, and the nation boundary is computed by merging states, ensuring a consistent topology.
+36:<a href="#states-albers-10m.json" name="states-albers-10m.json">#</a> <b>states-albers-10m.json</b> · [Download](https://cdn.jsdelivr.net/npm/us-atlas@3/states-albers-10m.json "Source")
+38:A [TopoJSON file](https://github.com/topojson/topojson-specification/blob/master/README.md#21-topology-objects) containing the geometry collections <i>states</i> and <i>nation</i>. The geometry is quantiz
+… [truncated, 2157 more chars]
+```
+</details>
+
+**Tool call:** `TaskUpdate`
+
+```json
+{
+ "taskId": "13",
+ "status": "in_progress"
+}
+```
+
+<details><summary>Tool result</summary>
+
+```
+Updated task #13 status
+```
+</details>
+
+**Tool call:** `Write`
+
+```json
+{
+ "file_path": "/home/user/weather-risk-intelligence-agent/app/geo.py",
+ "content": "\"\"\"Place hubs on the US map (app/static/us-states.json).\n\nThe map comes from us-atlas `states-albers-10m.json`, which is pre-projected with\nd3.geoAlbersUsa().scale(1300).translate([487.5, 305]) into a 975x610 viewport. This module\nreproduces that projection's lower-48 branch exactly (d3.geoAlbers: conic equal-area,\nparallels 29.5/45.5, rotate [96, 0], center [-0.6, 38.7]) so hub markers line up with the\nstate shapes. All hubs are in the contiguous US; Alaska and Hawaii (map insets) are not\nsupported here.\n\"\"\"\nfrom __future__ import annotations\n\nimport math\n\nVIEWBOX = (975, 610)\n_SCALE = 1300.0\n_TRANSLATE = (487.5, 305.0)\n_ROTATE_LAMBDA = 96.0\n_CENTER = (-0.6, 38.7)\n_PARALLELS = (29.5, 45.5)\n\n_phi0, _phi1 = (math.radians(p) for p in _PARALLELS)\n_sy0 = math.sin(_phi0)\n_N = (_sy0 + math.sin(_phi1)) / 2\n_C = 1 + _sy0 * (2 * _N - _sy0)\n_R0 = math.sqrt(_C) / _N\n\n\ndef _conic_equal_area(lam: float, phi: float) -> tuple[float, float]:\n    \"\"\"d3.geoConicEqualAreaRaw (radians in, unit-scale coordinates out).\"\"\"\n    r = math.sqrt(_C - 2 * _N * math.sin(phi)) / _N\n    
+… [truncated, 933 more chars]
+```
+
+<details><summary>Tool result</summary>
+
+```
+File created successfully at: /home/user/weather-risk-intelligence-agent/app/geo.py (file state is current in your context — no need to Read it back)
+```
+</details>
+
+**Tool call:** `Bash`
+
+```json
+{
+ "command": "python3 -c \"\nimport json\nfrom app.geo import albers_usa\nref = {'chicago':(638.2196,226.1123),'minneapolis':(541.8521,161.002),'detroit':(713.2013,207.2458),'denver':(342.8454,273.8846),'dallas':(482.9086,440.5339),'miami':(822.7383,572.5408),'houston':(510.4277,509.2311)}\nfor h in json.load(open('data/hubs.json')):\n    x,y = albers_usa(h['lon'],h['lat']); rx,ry = ref[h['id']]\n    print(f\\\"{h['id']:12} py=({x:.4f},{y:.4f}) d3=({rx},{ry}) diff={max(abs(x-rx),abs(y-ry)):.6f}\\\")\n\"",
+ "description": "Compare Python Albers USA against d3 reference"
+}
+```
+
+<details><summary>Tool result</summary>
+
+```
+chicago      py=(638.2196,226.1123) d3=(638.2196,226.1123) diff=0.000035
+minneapolis  py=(541.8521,161.0020) d3=(541.8521,161.002) diff=0.000020
+detroit      py=(713.2013,207.2458) d3=(713.2013,207.2458) diff=0.000012
+denver       py=(342.8454,273.8846) d3=(342.8454,273.8846) diff=0.000039
+dallas       py=(482.9086,440.5339) d3=(482.9086,440.5339) diff=0.000005
+miami        py=(822.7383,572.5408) d3=(822.7383,572.5408) diff=0.000021
+houston      py=(510.4277,509.2311) d3=(510.4277,509.2311) diff=0.000021
+```
+</details>
+
+### 🤖 Claude
+
+The Python projection matches d3 to within 0.0001 px for all 7 hubs. Next, the map builder:
+
+**Tool call:** `Write`
+
+```json
+{
+ "file_path": "/home/user/weather-risk-intelligence-agent/scripts/build_us_map.py",
+ "content": "\"\"\"Build app/static/us-states.json (state outlines as SVG paths) from us-atlas.\n\n  python -m scripts.build_us_map            # download [email redacted] from the npm registry\n  python -m scripts.build_us_map --tgz FILE # use an already-downloaded tarball\n\nSource: us-atlas 3.0.1, states-albers-10m.json (ISC licence, (c) Michael Bostock), derived from\nthe US Census Bureau's 2017 cartographic state boundaries (public domain). The geometry is\nalready projected with d3.geoAlbersUsa().scale(1300).translate([487.5, 305]) into a 975x610\nviewport; app/geo.py places hubs with the same projection. The tarball is checked against the\nintegrity hash the npm registry publishes for that version.\n\"\"\"\nfrom __future__ import annotations\n\nimport argparse\nimport base64\nimport hashlib\nimport io\nimport json\nimport tarfile\nfrom pathlib import Path\n\nimport requests\n\nROOT = Path(__file__).resolve().parent.parent\nOUT = ROOT / \"app\" / \"static\" / \"us-states.json\"\nTARBALL = \"https://registry.npmjs.org/us-atlas/-/us-atlas-3.0.1.tgz\"\nINTEGRITY = (\"sha512-wEIZCq0ImPvGblTd8gZMq
+… [truncated, 2821 more chars]
+```
+
+<details><summary>Tool result</summary>
+
+```
+File created successfully at: /home/user/weather-risk-intelligence-agent/scripts/build_us_map.py (file state is current in your context — no need to Read it back)
+```
+</details>
+
+**Tool call:** `Bash`
+
+```json
+{
+ "command": "python3 -m scripts.build_us_map && S=/tmp/claude-0/-home-user-weather-risk-intelligence-agent/054feb9f-992e-53ec-86ec-b86ccf98458a/scratchpad/mapwork && python3 -m scripts.build_us_map --tgz $S/dl/us-atlas-3.0.1.tgz && python3 -c \"\nimport json; m=json.load(open('app/static/us-states.json')); print(m['viewBox'], len(m['states']), [s['name'] for s in m['states']][:5], 'DC' if any(s['name']=='District of Columbia' for s in m['states']) else '')\n\"; cd $S/d3 && cat > cmp.mjs <<'EOF'\n// Cross-check: d3 + topojson-client render of Colorado vs our decoded path (first points)\nimport { feature } from \"topojson-client\"; import { geoPath } from \"d3-geo\"; import fs from \"fs\";\nconst topo = JSON.parse(fs.readFileSync(process.argv[2], \"utf8\"));\nconst co = feature(topo, topo.objects.states).features.find(f => f.properties.name === \"Colorado\");\nconsole.log(geoPath()(co).slice(0, 80));\nEOF\nnode cmp.mjs $S/dl/x/package/states-albers-10m.json; python3 -c \"import json; print(next(s['d'] for s in json.load(open('/home/user/weather-risk-intelligence-agent/app/static/us-states.json'))['states'] if s['name']=='Colorado')[:80])\"",
+ "description": "Build the map asset and
+… [truncated, 53 more chars]
+```
+
+<details><summary>Tool result</summary>
+
+```
+wrote app/static/us-states.json: 51 states, 109 KB
+wrote app/static/us-states.json: 51 states, 109 KB
+0 0 975 610 51 ['Alabama', 'Alaska', 'Arizona', 'Arkansas', 'California'] DC
+M277.097,237.161L285.899,238.378L301.086,240.259L320.852,242.569L324.831,243.103
+M277.1 237.2L285.9 238.4L301.1 240.3L320.9 242.6L324.8 243.1L333.1 244.0L347.8 2
+Shell cwd was reset to /home/user/weather-risk-intelligence-agent
+```
+</details>
+
+### 🤖 Claude
+
+The decoded paths match d3's own rendering after rounding, and the asset is 109 KB. Next, the API: a static mount plus `/map/hubs`.
+
+**Tool call:** `Read`
+
+```json
+{
+ "file_path": "/home/user/weather-risk-intelligence-agent/app/main.py",
+ "limit": 55
+}
+```
+
+<details><summary>Tool result</summary>
+
+```
+1	"""FastAPI app: the chat endpoint the UI uses, plus read-only data endpoints."""
+2	from __future__ import annotations
+3	
+4	from pathlib import Path
+5	
+6	import anthropic
+7	from fastapi import FastAPI, HTTPException, Query
+8	from fastapi.responses import FileResponse, JSONResponse
+9	from pydantic import BaseModel, Field
+10	from starlette.exceptions import HTTPException as StarletteHTTPException
+11	
+12	from app import agent, config, metrics, scoring, store
+13	from app.config import hub as get_hub
+14	from app.config import hubs, settings
+15	from app.tools import get_methodology
+16	
+17	
+18	class UTF8JSONResponse(JSONResponse):
+19	    # Declare the charset: without it, Windows PowerShell 5.1 decodes JSON as ISO-8859-1
+20	    # and shows non-ASCII characters (°, em dash, ≤) as mojibake.
+21	    media_type = "application/json; charset=utf-8"
+22	
+23	
+24	app = FastAPI(title="Weather Risk Intelligence Agent", version="0.1.0",
+25	              default_response_class=UTF8JSONResponse)
+26	
+27	
+28	@app.exception_handler(StarletteHTTPException)
+29	async def _http_error(request, exc: StarletteHTTPException):
+30	    # Error responses bypass default_response_class; give them the same charset.
+31	    return UTF8JSONResponse({"detail": exc.detail}, status_code=exc.status_code,
+32	                            headers=getattr(exc, "headers", None))
+33	
+34	
+35	STATIC = Path(__file__).parent / "static"
+36	
+37	
+38	@app.on_event("startup")
+39	def _startup() -> None:
+40	    # Load ANTHROPIC_API_KEY (et
+… [truncated, 436 more chars]
+```
+</details>
+
+**Tool call:** `Bash`
+
+```json
+{
+ "command": "python3 -c \"import fastapi.staticfiles as s, inspect; print(inspect.signature(s.StaticFiles.__init__))\"; python3 -c \"import aiofiles\" 2>&1 | tail -1",
+ "description": "Check StaticFiles availability"
+}
+```
+
+<details><summary>Tool result</summary>
+
+```
+(self, *, directory: 'PathLike | None' = None, packages: 'list[str | tuple[str, str]] | None' = None, html: 'bool' = False, check_dir: 'bool' = True, follow_symlink: 'bool' = False) -> 'None'
+ModuleNotFoundError: No module named 'aiofiles'
+```
+</details>
+
+**Tool call:** `Bash`
+
+```json
+{
+ "command": "python3 - <<'EOF'\nimport pathlib\np = pathlib.Path(\"app/main.py\"); s = p.read_text(encoding=\"utf-8\")\npairs = [\n(\"from fastapi.responses import FileResponse, JSONResponse\\n\",\n \"from fastapi.responses import FileResponse, JSONResponse\\nfrom fastapi.staticfiles import StaticFiles\\n\"),\n(\"from app import agent, config, metrics, scoring, store\\n\", \"from app import agent, config, geo, metrics, scoring, store\\n\"),\n('''STATIC = Path(__file__).parent / \"static\"\n''', '''STATIC = Path(__file__).parent / \"static\"\napp.mount(\"/static\", StaticFiles(directory=STATIC), name=\"static\")  # us-states.json map outlines\n'''),\n('''@app.get(\"/rankings\")''', '''@app.get(\"/map/hubs\")\ndef map_hubs():\n    \"\"\"Hubs with their position on /static/us-states.json (975x610 SVG) plus score and tier.\"\"\"\n    ranked = {r[\"hub_id\"]: r for r in scoring.rank()}\n    out = []\n    for h in hubs():\n        x, y = geo.albers_usa(h[\"lon\"], h[\"lat\"])\n        r = ranked[h[\"id\"]]\n        out.append({k: h[k] for k in (\"id\", \"city\", \"state\", \"region\", \"county\")} |\n                   {\"x\": round(x, 1), \"y\": round(y, 1), \"overall_score\": r[\"ove
+… [truncated, 743 more chars]
+```
+
+<details><summary>Tool result</summary>
+
+```
+[
+    {
+        "id": "chicago",
+        "city": "Chicago",
+        "state": "IL",
+        "region": "Midwest",
+        "county": "Cook",
+        "x": 638.2,
+        "y": 226.1,
+        "overall_score": 34.2,
+        "tier": "Low",
+        "rank": 4
+    },
+    {
+static: HTTP 200 application/json 111944 bytes
+```
+</details>
+
+### 🤖 Claude
+
+Both endpoints work. Next is the headline/detail split for figures, starting with the schema and system prompt:
+
+**Tool call:** `TaskUpdate`
+
+```json
+{
+ "taskId": "13",
+ "status": "completed"
+}
+```
+
+<details><summary>Tool result</summary>
+
+```
+Updated task #13 status
+```
+</details>
+
+**Tool call:** `TaskUpdate`
+
+```json
+{
+ "taskId": "14",
+ "status": "in_progress"
+}
+```
+
+<details><summary>Tool result</summary>
+
+```
+Updated task #14 status
+```
+</details>
+
+**Tool call:** `Bash`
+
+```json
+{
+ "command": "grep -n \"class Figure\" -A6 app/schemas.py; grep -n '\"figures\": {\"type\": \"array\"' -A4 app/schemas.py; grep -n \"Final answer format\" -A8 app/agent.py",
+ "description": "Show Figure schema and final-answer prompt section"
+}
+```
+
+<details><summary>Tool result</summary>
+
+```
+57:class Figure(BaseModel):
+58-    model_config = ConfigDict(extra="forbid")
+59-    label: str
+60-    value: float
+61-    unit: str
+62-    source_tool: str
+63-
+99:            "figures": {"type": "array", "items": {
+100-                "type": "object", "additionalProperties": False,
+101-                "required": ["label", "value", "unit", "source_tool"],
+102-                "properties": {"label": s(), "value": {"type": "number"}, "unit": s(),
+103-                               "source_tool": s()}}},
+63:Final answer format (JSON, enforced by schema):
+64-- answer: concise Markdown for an analyst, lead with the conclusion, at most ~200 words.
+65-- hubs: each hub you discuss with the score you cite and which hazard it belongs to.
+66-- figures: each other number you cite (counts, percentages, frequencies) and its source tool.
+67-- reasoning_steps: short steps you took, e.g. which tools and why.
+68-- data_sources, assumptions (thresholds, weights, data caveats), confidence.
+69-- follow_up_suggestions: up to 3 useful next questions."""
+70-
+71-
+```
+</details>
+
+**Tool call:** `Bash`
+
+```json
+{
+ "command": "python3 - <<'EOF'\nimport pathlib\ndef edit(path, pairs):\n    p = pathlib.Path(path); s = p.read_text(encoding=\"utf-8\")\n    for old, new in pairs:\n        assert old in s, (path, old[:60]); s = s.replace(old, new)\n    p.write_text(s, encoding=\"utf-8\")\nedit(\"app/schemas.py\", [\n('''class Figure(BaseModel):\n    model_config = ConfigDict(extra=\"forbid\")\n    label: str\n    value: float\n    unit: str\n    source_tool: str\n''', '''class Figure(BaseModel):\n    model_config = ConfigDict(extra=\"forbid\")\n    label: str\n    value: float\n    unit: str\n    source_tool: str\n    # headline = a number the answer text states (shown first); detail = breakdown rows\n    # (per month, per component, ...) shown only in the collapsed \"Breakdown\" section.\n    role: Literal[\"headline\", \"detail\"]\n'''),\n('''                \"required\": [\"label\", \"value\", \"unit\", \"source_tool\"],\n                \"properties\": {\"label\": s(), \"value\": {\"type\": \"number\"}, \"unit\": s(),\n                               \"source_tool\": s()}}},''',\n '''                \"required\": [\"label\", \"value\", \"unit\", \"source_tool\", \"role\"],\n                \"
+… [truncated, 2081 more chars]
+```
+
+<details><summary>Tool result</summary>
+
+```
+['label', 'value', 'unit', 'source_tool', 'role'] ['headline', 'detail']
+True False
+```
+</details>
+
+### 🤖 Claude
+
+Next, the two eval checks: the matching figure must be a headline, and no month-by-month list in the answer text.
+
+**Tool call:** `Bash`
+
+```json
+{
+ "command": "grep -n 'if \"figure\" in case:' -A9 evals/run.py",
+ "description": "Show current figure check in eval runner"
+}
+```
+
+<details><summary>Tool result</summary>
+
+```
+84:    if "figure" in case:
+85-        want, stat = expected_figure(case["figure"])
+86-        if want is None:
+87-            checks.append(("figure", None, f"SKIP: no data ({stat.get('error')})"))
+88-        else:
+89-            vals = [f["value"] for f in a["figures"]]
+90-            ok = any(abs(v - want) <= case["figure"]["tol"] for v in vals)
+91-            checks.append(("figure value", ok, f"want={want} got={vals}"))
+92-
+93-    # Always: scores in the answer must match the deterministic model (no invented numbers).
+```
+</details>
+
+**Tool call:** `Bash`
+
+```json
+{
+ "command": "python3 - <<'EOF'\nimport pathlib\ndef edit(path, pairs):\n    p = pathlib.Path(path); s = p.read_text(encoding=\"utf-8\")\n    for old, new in pairs:\n        assert old in s, (path, old[:60]); s = s.replace(old, new)\n    p.write_text(s, encoding=\"utf-8\")\nedit(\"evals/run.py\", [\n('''            vals = [f[\"value\"] for f in a[\"figures\"]]\n            ok = any(abs(v - want) <= case[\"figure\"][\"tol\"] for v in vals)\n            checks.append((\"figure value\", ok, f\"want={want} got={vals}\"))\n''', '''            vals = [f[\"value\"] for f in a[\"figures\"]]\n            ok = any(abs(v - want) <= case[\"figure\"][\"tol\"] for v in vals)\n            checks.append((\"figure value\", ok, f\"want={want} got={vals}\"))\n            if case[\"figure\"].get(\"role\"):\n                role = case[\"figure\"][\"role\"]\n                roles = [f.get(\"role\") for f in a[\"figures\"]\n                         if abs(f[\"value\"] - want) <= case[\"figure\"][\"tol\"]]\n                checks.append((f\"figure is {role}\", role in roles, f\"roles={roles}\"))\n    if case.get(\"no_month_list\"):\n        months = months_named(a[\"answer\"])\n        checks.append((\"
+… [truncated, 2883 more chars]
+```
+
+<details><summary>Tool result</summary>
+
+```
+['january', 'april'] | Snow fell on 43 of 365 days, mostly from January to April.
+['january', 'february', 'march', 'april', 'may'] | Jan: 11, Feb: 10, Mar: 9, Apr 7, May 1
+['january', 'february', 'november', 'december'] | In 2025-01 and 2025-02 and 2025-12 and 2025-11
+['may', 'september'] | You may see snow. Sept. was dry.
+['march'] | March and Mar. count once
+Models: claude-sonnet-5-5 (fallback once: claude-haiku-5-5); API key: missing
+midwest_winter           tools=['rank_hubs'] in_scope=True {'ranking': ['minneapolis', 'detroit', 'chicago']}
+miami_vs_houston         tools=['compare_hubs'] in_scope=True {}
+```
+</details>
+
+### 🤖 Claude
+
+"may" used as a verb ("You may see snow") counts as the month May. I'll match May only when it's capitalised:
+
+**Tool call:** `Bash`
+
+```json
+{
+ "command": "python3 - <<'EOF'\nimport pathlib\np = pathlib.Path(\"evals/run.py\"); s = p.read_text(encoding=\"utf-8\")\nold = '''_MONTH_RE = re.compile(r\"\\\\b(\" + \"|\".join(\n    [m for m in MONTHS] + [m[:3] for m in MONTHS if m != \"may\"] + [\"sept\"]) + r\")\\\\b\\\\.?\",\n    re.IGNORECASE)'''\nnew = '''_MONTH_RE = re.compile(r\"\\\\b(\" + \"|\".join(\n    [m for m in MONTHS if m != \"may\"] + [m[:3] for m in MONTHS if m != \"may\"] + [\"sept\"])\n    + r\")\\\\b\\\\.?\", re.IGNORECASE)\n_MAY_RE = re.compile(r\"\\\\bMay\\\\b\")  # case-sensitive, so the verb \"may\" is not a month'''\nassert old in s; s = s.replace(old, new)\nold2 = '''    for mm in _YYYY_MM_RE.findall(text):'''\nnew2 = '''    if _MAY_RE.search(text):\n        found.add(\"may\")\n    for mm in _YYYY_MM_RE.findall(text):'''\nassert old2 in s; s = s.replace(old2, new2)\np.write_text(s, encoding=\"utf-8\")\nEOF\npython3 -c \"\nfrom evals.run import months_named\nfor t in ['Jan: 11, Feb: 10, Mar: 9, Apr 7, May 1', 'You may see snow. Sept. was dry.', 'mostly January to April; it may vary']:\n    print(months_named(t), '|', t)\"",
+ "description": "Make \"May\" matching case-sensitive"
+}
+```
+
+<details><summary>Tool result</summary>
+
+```
+['january', 'february', 'march', 'april', 'may'] | Jan: 11, Feb: 10, Mar: 9, Apr 7, May 1
+['september'] | You may see snow. Sept. was dry.
+['january', 'april'] | mostly January to April; it may vary
+```
+</details>
+
+### 🤖 Claude
+
+Next is the full UI rewrite: the collapsed breakdown, the map panel and hub card, and the responsive layout.
+
+**Tool call:** `TaskUpdate`
+
+```json
+{
+ "taskId": "14",
+ "status": "completed"
+}
+```
+
+<details><summary>Tool result</summary>
+
+```
+Updated task #14 status
+```
+</details>
+
+**Tool call:** `TaskUpdate`
+
+```json
+{
+ "taskId": "15",
+ "status": "in_progress"
+}
+```
+
+<details><summary>Tool result</summary>
+
+```
+Updated task #15 status
+```
+</details>
+
+**Tool call:** `Write`
+
+```json
+{
+ "file_path": "/home/user/weather-risk-intelligence-agent/app/static/index.html",
+ "content": "<!doctype html>\n<html lang=\"en\">\n<head>\n<meta charset=\"utf-8\">\n<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n<title>Weather Risk Agent</title>\n<style>\n  :root { --bg:#f6f7f9; --panel:#fff; --ink:#1b2430; --muted:#5d6b7a; --line:#dde3ea;\n          --accent:#1f5fbf; --user:#e8f0fc; --land:#e1e6ec; --land-edge:#ffffff;\n          --Low:#2e7d4f; --Moderate:#b7791f; --High:#c2410c; --Severe:#9b1c1c; }\n  @media (prefers-color-scheme: dark) {\n    :root { --bg:#12161c; --panel:#1b2129; --ink:#e6ebf1; --muted:#9aa7b5; --line:#2c3440;\n            --accent:#6ea8ff; --user:#1e2b40; --land:#2a323d; --land-edge:#1b2129;\n            --Low:#4fb07a; --Moderate:#d69e2e; --High:#ec6a3a; --Severe:#e05252; }\n  }\n  * { box-sizing: border-box; }\n  body { margin:0; font:15px/1.5 system-ui, -apple-system, Segoe UI, sans-serif; background:var(--bg); color:var(--ink); }\n  header { padding:14px 16px; border-bottom:1px solid var(--line); background:var(--panel); }\n  header h1 { margin:0; font-size:18px; }\n  header p { margin:2px 0 0; color:var(--muted); font-size:13p
+… [truncated, 15654 more chars]
+```
+
+<details><summary>Tool result</summary>
+
+```
+The file /home/user/weather-risk-intelligence-agent/app/static/index.html has been updated successfully. (file state is current in your context — no need to Read it back)
+```
+</details>
+
+**Tool call:** `Edit`
+
+```json
+{
+ "replace_all": false,
+ "file_path": "/home/user/weather-risk-intelligence-agent/app/static/index.html",
+ "old_string": "                   stroke:var(--panel); stroke-width:7px; stroke-linejoin:round; pointer-events:none; }",
+ "new_string": "                   stroke:var(--panel); stroke-width:7px; stroke-linejoin:round; }"
+}
+```
+
+<details><summary>Tool result</summary>
+
+```
+The file /home/user/weather-risk-intelligence-agent/app/static/index.html has been updated successfully. (file state is current in your context — no need to Read it back)
+```
+</details>
+
+**Tool call:** `Bash`
+
+```json
+{
+ "command": "S=/tmp/claude-0/-home-user-weather-risk-intelligence-agent/054feb9f-992e-53ec-86ec-b86ccf98458a/scratchpad/ui && mkdir -p $S && cd /home/user/weather-risk-intelligence-agent && (python3 -m uvicorn app.main:app --port 8796 > $S/uv.log 2>&1 &) && sleep 3 && cat > $S/check.js <<'EOF'\nconst { chromium, devices } = require('playwright');\nconst OUT = process.argv[2], URL = 'http://127.0.0.1:8796/';\nconst months = {'2025-01': 11, '2025-02': 10, '2025-03': 9, '2025-04': 7, '2025-05': 1, '2025-11': 2, '2025-12': 3};\nconst canned = { session_id: 's1', tool_calls: [{ tool: 'weather_stat', input: { hub_id: 'denver', metric: 'snowfall', year: 2025, threshold: null }, is_error: false }],\n  models: { requested: 'claude-sonnet-5-5', answered_by: 'claude-sonnet-5-5', calls: ['claude-sonnet-5-5'], fallback: null },\n  usage: {}, answer: { in_scope: true, confidence: 'medium', hubs: [], reasoning_steps: ['Called weather_stat'], data_sources: ['Open-Meteo'],\n    assumptions: ['Any snowfall (> 0 cm)'], follow_up_suggestions: ['How does that compare with 2024?'],\n    answer: 'In 2025, Denver had snowfall on **43 of 365 days (11.8%)**, using the condition \"daily snowfall > 0 cm (an
+… [truncated, 6597 more chars]
+```
+
+<details><summary>Tool result</summary>
+
+```
+PASS  7 hub markers drawn
+PASS  51 state shapes drawn
+PASS  answer text is the first thing in the reply
+PASS  breakdown collapsed by default
+PASS  monthly rows hidden until expanded
+PASS  summary reads "Breakdown (9 figures)"
+PASS  expanding shows 7 monthly rows
+PASS  headline rows listed first
+PASS  each month appears once in the reply  count=1
+PASS  clicking the Denver label selects it
+PASS  marker marked as pressed
+PASS  typed question is sent with the hub named  "About the Denver, CO hub: What drives its score?"
+PASS  suggestion sent as is  "What drives the Denver, CO hub's risk score?"
+PASS  keyboard Enter selects Chicago
+PASS  desktop: map is to the right of the chat  chat=16+812 map.x=844
+PASS  all markers inside the map
+PASS  mobile: chat comes before the map  chat.y=133 map.y=613
+PASS  mobile: no horizontal scroll  overflow=0px
+PASS  mobile: tapping Houston selects it
+PASS  mobile: asking from the map scrolls back to the chat  chat top=0
+PASS  dark mode: Miami selected
+ALL CHECKS PASSED
+Shell cwd was reset to /home/user/weather-risk-intelligence-agent
+```
+</details>
+
+### 🤖 Claude
+
+All 21 browser checks pass. I'll look at the screenshots myself before showing them to you:
+
+**Tool call:** `Read`
+
+```json
+{
+ "file_path": "/tmp/claude-0/-home-user-weather-risk-intelligence-agent/054feb9f-992e-53ec-86ec-b86ccf98458a/scratchpad/ui/desktop-map-selected.png"
+}
+```
+
+<details><summary>Tool result</summary>
+
+```
+[image]
+```
+</details>
+
+---
+
+## 🧑 User
+
+[Image: original 2560x1640, displayed at 2000x1281. Multiply coordinates by 1.28 to map to original image.]
+
+**Tool call:** `Read`
+
+```json
+{
+ "file_path": "/tmp/claude-0/-home-user-weather-risk-intelligence-agent/054feb9f-992e-53ec-86ec-b86ccf98458a/scratchpad/ui/mobile-map.png"
+}
+```
+
+<details><summary>Tool result</summary>
+
+```
+[image]
+```
+</details>
+
+**Tool call:** `Bash`
+
+```json
+{
+ "command": "python3 - <<'EOF'\nimport pathlib\np = pathlib.Path(\"app/static/index.html\"); s = p.read_text(encoding=\"utf-8\")\npairs = [\n(\"  #map .hub { cursor:pointer; outline:none; }\",\n \"  #map .hub { cursor:pointer; outline:none; -webkit-tap-highlight-color:transparent; }\"),\n('''    g.append(c, label, tip);\n    g.addEventListener(\"click\", () => selectHub(h));\n    g.addEventListener(\"keydown\", e => { if (e.key === \"Enter\" || e.key === \" \") { e.preventDefault(); selectHub(h); } });\n    markers.appendChild(g);\n  }\n  document.getElementById(\"legend\").innerHTML =\n    TIERS.map(t => `<span><i style=\"background:var(--${t})\"></i>${t}</span>`).join(\"\") + \"<span>\u00b7 overall risk tier</span>\";''',\n '''    g.append(c, label, tip);\n    g.addEventListener(\"click\", () => selectHub(h));\n    g.addEventListener(\"keydown\", e => { if (e.key === \"Enter\" || e.key === \" \") { e.preventDefault(); selectHub(h); } });\n    markers.appendChild(g);\n  }\n  placeLabels();\n  document.getElementById(\"legend\").innerHTML = \"<span>Overall risk tier:</span>\" +\n    TIERS.map(t => `<span><i style=\"background:var(--${t})\"></i>${t}</span>`).join(\"\");'''),\n('''
+… [truncated, 3012 more chars]
+```
+
+<details><summary>Tool result</summary>
+
+```
+/tmp/claude-0/-home-user-weather-risk-intelligence-agent/054feb9f-992e-53ec-86ec-b86ccf98458a/scratchpad/ui/check.js:78
+  const labelClash = await page.evaluate(() => {
+        ^
+
+SyntaxError: Identifier 'labelClash' has already been declared
+    at wrapSafe (node:internal/modules/cjs/loader:1713:18)
+    at Module._compile (node:internal/modules/cjs/loader:1755:20)
+    at Object..js (node:internal/modules/cjs/loader:1913:10)
+    at Module.load (node:internal/modules/cjs/loader:1505:32)
+    at Function._load (node:internal/modules/cjs/loader:1309:12)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:254:19)
+    at Function.executeUserEntryPoint [as runMain] (node:internal/modules/run_main:171:5)
+    at node:internal/main/run_main_module:36:49
+
+Node.js v22.23.5
+Shell cwd was reset to /home/user/weather-risk-intelligence-agent
+```
+</details>
+
+### 🤖 Claude
+
+My test script declared the same variable twice. That's a scratch-script bug, not an app bug, so I'll rename it and rerun:
+
+**Tool call:** `Bash`
+
+```json
+{
+ "command": "S=/tmp/claude-0/-home-user-weather-risk-intelligence-agent/054feb9f-992e-53ec-86ec-b86ccf98458a/scratchpad/ui; python3 - \"$S\" <<'EOF'\nimport pathlib, sys\np = pathlib.Path(sys.argv[1]) / \"check.js\"; s = p.read_text()\ni = s.index(\"const labelClash\", s.index(\"const labelClash\") + 10)\ns = s[:i] + s[i:].replace(\"const labelClash\", \"const labelClash2\", 1).replace(\"!labelClash)\", \"!labelClash2)\", 1)\np.write_text(s)\nEOF\ncd /home/user/weather-risk-intelligence-agent && (python3 -m uvicorn app.main:app --port 8796 > $S/uv.log 2>&1 &); sleep 3; cd $S && node check.js $S; pkill -f \"port 8796\"; true",
+ "description": "Fix check script variable name and rerun",
+ "timeout": 180000
+}
+```
+
+<details><summary>Tool result</summary>
+
+```
+PASS  7 hub markers drawn
+PASS  51 state shapes drawn
+PASS  answer text is the first thing in the reply
+PASS  breakdown collapsed by default
+PASS  monthly rows hidden until expanded
+PASS  summary reads "Breakdown (9 figures)"
+PASS  expanding shows 7 monthly rows
+PASS  headline rows listed first
+PASS  each month appears once in the reply  count=1
+PASS  clicking the Denver label selects it
+PASS  marker marked as pressed
+PASS  typed question is sent with the hub named  "About the Denver, CO hub: What drives its score?"
+PASS  suggestion sent as is  "What drives the Denver, CO hub's risk score?"
+PASS  keyboard Enter selects Chicago
+PASS  desktop: map is to the right of the chat  chat=16+812 map.x=844
+PASS  all markers inside the map
+PASS  no overlapping city labels
+PASS  mobile: chat comes before the map  chat.y=133 map.y=613
+PASS  mobile: no horizontal scroll  overflow=0px
+PASS  mobile: no overlapping city labels
+PASS  mobile: tapping Houston selects it
+PASS  mobile: asking from the map scrolls back to the chat  chat top=0
+PASS  dark mode: Miami selected
+ALL CHECKS PASSED
+Shell cwd was reset to /home/user/weather-risk-intelligence-agent
+```
+</details>
+
+**Tool call:** `Read`
+
+```json
+{
+ "file_path": "/tmp/claude-0/-home-user-weather-risk-intelligence-agent/054feb9f-992e-53ec-86ec-b86ccf98458a/scratchpad/ui/mobile-map.png"
+}
+```
+
+<details><summary>Tool result</summary>
+
+```
+[image]
+```
+</details>
+
+**Tool call:** `Read`
+
+```json
+{
+ "file_path": "/tmp/claude-0/-home-user-weather-risk-intelligence-agent/054feb9f-992e-53ec-86ec-b86ccf98458a/scratchpad/ui/desktop-dark.png"
+}
+```
+
+<details><summary>Tool result</summary>
+
+```
+[image]
+```
+</details>
+
+---
+
+## 🧑 User
+
+[Image: original 2560x1640, displayed at 2000x1281. Multiply coordinates by 1.28 to map to original image.]
+
+**Tool call:** `Bash`
+
+```json
+{
+ "command": "python3 - <<'EOF'\nimport pathlib\np = pathlib.Path(\"app/static/index.html\"); s = p.read_text(encoding=\"utf-8\")\npairs = [\n(\"const narrow = () => window.matchMedia(\\\"(max-width: 899px)\\\").matches;\",\n \"const narrow = () => window.matchMedia(\\\"(max-width: 899px)\\\").matches;\\nconst score = v => Number(v).toFixed(1);  // 41 -> \\\"41.0\\\"\"),\n(\"<div class=\\\"meta\\\">Overall risk <b>${esc(h.overall_score)}</b>\", \"<div class=\\\"meta\\\">Overall risk <b>${score(h.overall_score)}</b>\"),\n(\"g.setAttribute(\\\"aria-label\\\", `${hubName(h)}, overall ${h.overall_score}, ${h.tier}`);\", \"g.setAttribute(\\\"aria-label\\\", `${hubName(h)}, overall ${score(h.overall_score)}, ${h.tier}`);\"),\n(\"tip.textContent = `${hubName(h)}: overall ${h.overall_score} (${h.tier})`;\", \"tip.textContent = `${hubName(h)}: overall ${score(h.overall_score)} (${h.tier})`;\"),\n(\"<span>${r.score} <span class=\\\"tier\\\"\", \"<span>${score(r.score)} <span class=\\\"tier\\\"\"),\n]\nfor old, new in pairs:\n    assert old in s, old[:60]; s = s.replace(old, new)\np.write_text(s, encoding=\"utf-8\")\nEOF\npython3 -m pytest -q -p no:warnings 2>&1 | tail -6",
+ "description": "
+… [truncated, 51 more chars]
+```
+
+<details><summary>Tool result</summary>
+
+```
+E       IndexError: pop from empty list
+
+tests/fakes.py:84: IndexError
+=========================== short test summary info ============================
+FAILED tests/test_model_fallback.py::test_eval_case_reports_haiku_after_simulated_outage
+1 failed, 84 passed in 3.38s
+```
+</details>
+
+**Tool call:** `Bash`
+
+```json
+{
+ "command": "python3 - <<'EOF'\nimport pathlib\np = pathlib.Path(\"tests/test_model_fallback.py\"); s = p.read_text(encoding=\"utf-8\")\nold = '''            figures=[{\"label\": \"Denver 2025 snow days\", \"value\": 11.8, \"unit\": \"%\",\n                      \"source_tool\": \"weather_stat\"}]))], \"end_turn\"),'''\nassert old in s\ns = s.replace(old, '''            figures=[{\"label\": \"Denver 2025 snow days\", \"value\": 11.8, \"unit\": \"%\",\n                      \"source_tool\": \"weather_stat\", \"role\": \"headline\"}]))], \"end_turn\"),''')\nold2 = '''                  \"label\": \"daily snowfall >= 1 cm (at least 1 cm)\", \"value\": want,\n                  \"unit\": \"days\", \"source_tool\": \"weather_stat\"}]))}'''\nassert old2 in s\ns = s.replace(old2, '''                  \"label\": \"daily snowfall >= 1 cm (at least 1 cm)\", \"value\": want,\n                  \"unit\": \"days\", \"source_tool\": \"weather_stat\", \"role\": \"headline\"}]))}''')\np.write_text(s, encoding=\"utf-8\")\nEOF\ncat > tests/test_map_and_breakdown.py <<'EOF'\n\"\"\"US hub map (projection, map asset, /map/hubs) and the headline/detail figure split.\"\"\"\nimport json\nimport re\n\nimpo
+… [truncated, 6498 more chars]
+```
+
+<details><summary>Tool result</summary>
+
+```
+........................................................................ [ 64%]
+.......................................                                  [100%]
+111 passed in 3.53s
+```
+</details>
+
+### 🤖 Claude
+
+All 111 tests pass. I'll simplify the clumsy static-mount test, then update the docs:
+
+**Tool call:** `Bash`
+
+```json
+{
+ "command": "python3 - <<'EOF'\nimport pathlib\np = pathlib.Path(\"tests/test_map_and_breakdown.py\"); s = p.read_text(encoding=\"utf-8\")\nold = '''def test_static_map_file_is_mounted():\n    mount = next(r for r in main.app.routes if getattr(r, \"path\", \"\") == \"/static\")\n    assert (mount.app.directory / \"us-states.json\").exists() if hasattr(mount.app.directory, \"exists\") \\\\\n        else (ROOT / \"app\" / \"static\" / \"us-states.json\").exists()\n'''\nassert old in s\ns = s.replace(old, '''def test_static_map_file_is_mounted():\n    from pathlib import Path\n    mount = next(r for r in main.app.routes if getattr(r, \"path\", \"\") == \"/static\")\n    assert (Path(mount.app.directory) / \"us-states.json\").exists()\n''')\np.write_text(s, encoding=\"utf-8\")\nEOF\npython3 -m pytest -q -p no:warnings tests/test_map_and_breakdown.py 2>&1 | tail -1; grep -n \"^## \\|^### \" README.md; grep -n \"^## \\|app/static/index.html\\|scripts/refresh_data.py, scripts/export\" docs/DESIGN.md | head -30",
+ "description": "Simplify static mount test; list README/DESIGN sections"
+}
+```
+
+<details><summary>Tool result</summary>
+
+```
+26 passed in 1.81s
+15:## Quick start
+48:## Windows (PowerShell 5.1 or 7)
+89:### Try the fallback with a simulated Sonnet outage
+106:## Model fallback
+126:## Tests and evaluation
+140:## API
+151:## Docker
+164:## Configuration
+3:## 1. What it does, and what it doesn't
+16:## 2. System architecture
+19: Browser (app/static/index.html)
+52:## 3. The LLM contract (structured output)
+99:## 4. Data sources
+131:## 5. Risk model (`app/scoring.py`, `config.yaml`)
+159:## 6. Data storage choice: SQLite plus a committed raw JSON cache
+171:## 7. Repository structure
+185:scripts/refresh_data.py, scripts/export_transcript.py
+191:## 8. Evaluation
+216:## 9. Assumptions, uncertainty, and next steps
+```
+</details>
+
+**Tool call:** `Read`
+
+```json
+{
+ "file_path": "/home/user/weather-risk-intelligence-agent/docs/DESIGN.md",
+ "offset": 16,
+ "limit": 36
+}
+```
+
+<details><summary>Tool result</summary>
+
+```
+16	## 2. System architecture
+17	
+18	```
+19	 Browser (app/static/index.html)
+20	   │  POST /chat {message, session_id}          GET /rankings, /hubs/{id}/score, ...
+21	   ▼                                              ▲
+22	 FastAPI (app/main.py) ───────────────────────────┘
+23	   │
+24	   ▼
+25	 Agent loop (app/agent.py)  ── Claude Messages API: claude-sonnet-5-5,
+26	   │                             falls back once to claude-haiku-5-5 when Sonnet is unavailable
+27	   │   • sends: system prompt, 6 strict tools, history, output_config.format = AgentAnswer JSON schema
+28	   │   • loop: model asks for tools → run them → send results → … → final JSON answer
+29	   │   • validates the final JSON with Pydantic (one repair retry), stores history append-only
+30	   ▼
+31	 Tools (app/tools.py) ── thin wrappers, no logic of their own
+32	   ├─ rank_hubs / compare_hubs / get_score_breakdown ──▶ app/scoring.py  (risk model)
+33	   ├─ weather_stat                                     ──▶ app/metrics.py  (day counts)
+34	   └─ list_hubs / get_methodology                      ──▶ config.yaml, data/hubs.json
+35	   ▼
+36	 SQLite (app/store.py, data/weather_risk.db)  ◀── built from ──  data/cache/*.json (raw API responses)
+37	                                                                     ▲
+38	 scripts/refresh_data.py ── app/sources/open_meteo.py (Open-Meteo daily gridded estimates, 2020-2025)
+39	                         └─ app/sources/fema_nri.py   (FEMA National Risk Index, counties)
+40	```
+41	
+42	
+… [truncated, 641 more chars]
+```
+</details>
+
+**Tool call:** `Read`
+
+```json
+{
+ "file_path": "/home/user/weather-risk-intelligence-agent/docs/DESIGN.md",
+ "offset": 168,
+ "limit": 25
+}
+```
+
+<details><summary>Tool result</summary>
+
+```
+168	- **When to move to Postgres:** once several app instances or many concurrent users share one
+169	  database. The only module that touches storage is `store.py`.
+170	
+171	## 7. Repository structure
+172	```
+173	app/
+174	  main.py          FastAPI routes; serves the UI
+175	  agent.py         Claude tool-use loop, structured output, history
+176	  tools.py         tool schemas (strict) + dispatch to deterministic code
+177	  scoring.py       risk model (pure compute_breakdown + DB-backed wrappers)
+178	  metrics.py       observed weather day counts / percentages
+179	  schemas.py       Pydantic models + the AgentAnswer JSON schema
+180	  store.py         SQLite schema, cache → DB build, reads, chat history
+181	  config.py        loads config.yaml and data/hubs.json
+182	  sources/         open_meteo.py, fema_nri.py (API clients → data/cache)
+183	  static/index.html  chat UI (no build step)
+184	data/hubs.json, data/cache/*.json, config.yaml
+185	scripts/refresh_data.py, scripts/export_transcript.py
+186	evals/cases.yaml, evals/run.py
+187	tests/test_scoring.py, tests/test_agent_loop.py
+188	docs/DESIGN.md, docs/session-transcript.md
+189	```
+190	
+191	## 8. Evaluation
+192	`evals/cases.yaml` has 10 cases:
+```
+</details>
+
+**Tool call:** `Bash`
+
+```json
+{
+ "command": "python3 - <<'EOF'\nimport pathlib\ndef edit(path, pairs):\n    p = pathlib.Path(path); s = p.read_text(encoding=\"utf-8\")\n    for old, new in pairs:\n        assert old in s, (path, old[:60]); s = s.replace(old, new)\n    p.write_text(s, encoding=\"utf-8\")\nedit(\"docs/DESIGN.md\", [\n(''' Browser (app/static/index.html)\n   \u2502  POST /chat {message, session_id}          GET /rankings, /hubs/{id}/score, ...''',\n ''' Browser (app/static/index.html: chat + clickable US hub map)\n   \u2502  POST /chat {message, session_id}          GET /rankings, /map/hubs, /static/us-states.json, ...'''),\n('''1. The UI only talks to FastAPI, over JSON/HTTP. The ranking side panel calls `/rankings`\n   directly, so the deterministic numbers are visible without any LLM call.''',\n '''1. The UI only talks to FastAPI, over JSON/HTTP. The ranking panel calls `/rankings`, and the\n   hub map calls `/map/hubs` (positions, scores and tiers) and `/static/us-states.json` (state\n   outlines), so the deterministic numbers are visible without any LLM call.'''),\n('''  config.py        loads config.yaml and data/hubs.json\n  sources/         open_meteo.py, fema_nri.py (API clients \u2192 da
+… [truncated, 3853 more chars]
+```
+
+<details><summary>Tool result</summary>
+
+```
+9:**Breakdown**. A **US hub map** sits next to the chat (below it on mobile): click a hub to see
+153:| GET | `/map/hubs` | Hubs with map position (x/y on the 975x610 map), overall score, tier and rank |
+170:## Map data
+100:### Chat UI and hub map
+```
+</details>
+
+### 🤖 Claude
+
+Docs are updated. I'll rerun the full browser check after the score-formatting change, plus the test suite and the eval dry run:
+
+**Tool call:** `Bash`
+
+```json
+{
+ "command": "S=/tmp/claude-0/-home-user-weather-risk-intelligence-agent/054feb9f-992e-53ec-86ec-b86ccf98458a/scratchpad/ui; cd /home/user/weather-risk-intelligence-agent && (python3 -m uvicorn app.main:app --port 8796 > $S/uv.log 2>&1 &); sleep 3; (cd $S && node check.js $S | tail -4); pkill -f \"port 8796\"; python3 -m pytest -q -p no:warnings 2>&1 | tail -1; python3 -m evals.run --dry-run 2>&1 | sed -n 1,4p",
+ "description": "Rerun browser check, tests and eval dry run",
+ "timeout": 180000
+}
+```
+
+<details><summary>Tool result</summary>
+
+```
+PASS  mobile: tapping Houston selects it
+PASS  mobile: asking from the map scrolls back to the chat  chat top=0
+PASS  dark mode: Miami selected
+ALL CHECKS PASSED
+111 passed in 3.19s
+Models: claude-sonnet-5-5 (fallback once: claude-haiku-5-5); API key: missing
+midwest_winter           tools=['rank_hubs'] in_scope=True {'ranking': ['minneapolis', 'detroit', 'chicago']}
+miami_vs_houston         tools=['compare_hubs'] in_scope=True {}
+denver_snow_last_year    tools=['weather_stat'] in_scope=True {'figure': 11.8}
+```
+</details>
+
+### 🤖 Claude
+
+Everything passes. I'll refresh the transcript, commit and push:
+
+**Tool call:** `Bash`
+
+```json
+{
+ "command": "python3 -m scripts.export_transcript --plan /root/.claude/plans/root-claude-uploads-054feb9f-992e-53ec-fuzzy-deer.md && echo \"emails: $(grep -cE '[A-Za-z0-9._%+-]+@gmail\\.com' docs/session-transcript.md) keys: $(grep -cE 'sk-ant-[A-Za-z0-9_-]{20,}' docs/session-transcript.md)\"; test ! -e .env && echo \"no .env in repo\"; git add -A && git status --short && git commit -q -m \"Main result first with a collapsed breakdown; clickable US hub map next to the chat\n\n- Answer figures are marked headline (a number the answer states) or detail\n  (breakdown rows, e.g. per month). The UI shows the answer text first and puts\n  every figure in one collapsed 'Breakdown' (headline rows first), and the\n  prompt keeps detail numbers out of the text, so a breakdown no longer\n  appears twice. Evals: the main Denver figure must be a headline, and the\n  Denver answer may not list months.\n- US hub map (desktop: right of the chat; mobile: below the chat). State\n  outlines from us-atlas 3.0.1 (ISC; US Census 2017 boundaries), integrity-\n  checked and converted to SVG paths by scripts/build_us_map.py and committed,\n  so the app stays offline. app/geo.py reproduces d3's Albers USA
+… [truncated, 872 more chars]
+```
+
 
 ---
 
 # Appendix: approved plan
 
-# Plan: "at least X cm" snowfall rule, and an accurate Open-Meteo caveat
+# Plan: main result first with an expandable breakdown, plus a clickable US hub map
 
 ## Context
-The user ran all 10 live evals on Sonnet 5.5, and all passed. Two problems showed up:
-1. **The threshold rule didn't match the request.** The user asked for snowfall "at least 1 cm". `weather_stat` counts snowfall as strictly `> threshold`, so the condition shown (and copied into the answer's figures table) read "> 1 cm", and the agent tried `threshold=0.99` as a workaround.
-   - **Wanted:** a positive threshold means **>= X** (a day with exactly 1 cm counts), used the same way in the tool output, the answer and the table.
-   - **"Any snowfall" still means > 0.**
-2. **The caveat is inaccurate.** It claims "ERA5 reanalysis at ~10 km", but the request sends no `models` parameter, so Open-Meteo uses its default **Best Match** selection.
-   - **Wanted:** say these are gridded estimates for the area around the hub, and drop the ERA5 / ~10 km claim everywhere it appears.
+The user tried the browser chat. Two requests:
+1. **The breakdown appeared twice.** For "how many days did it snow in Denver", the monthly numbers appeared twice. The answer text listed them, and the figures table that `app/static/index.html` always renders right below the answer (`renderAnswer`, lines 105–112) repeated them.
+   - **Wanted:** the main result first, with the breakdown expandable.
+2. **A US map next to the chat.**
+   - Clicking a hub shows its city and state and lets the user ask a question about it.
+   - On mobile, the chat comes first.
 
-**Facts checked:**
-- Only snowfall uses a strict comparison. heavy_rain, high_gust and extreme_heat already use `>=`, and hard_freeze uses `<=`.
-- Denver 2025 has no day of exactly 1.00 cm (the nearest are 0.91 and 0.98), so `>= 1` still gives **17 days**, and the default `> 0` still gives **43 of 365**.
-- Scoring uses the default (0 → `> 0`), so **no score changes**.
+**Constraints:**
+- The app runs offline and has no frontend build step (one HTML file). The map must be a committed static asset.
+- The UI follows the existing CSS tokens (light and dark).
+- Keep scoring and the tools unchanged.
 
-## Changes
+## 1. Main result first, breakdown on request
+- **Schema** (`app/schemas.py`): `Figure` gets `role: Literal["headline", "detail"]`, and `answer_json_schema()` adds `role` (enum, required) so structured outputs enforce it.
+- **System prompt** (`app/agent.py`; it stays model-independent):
+  - `answer` leads with the main result in 1–3 sentences.
+  - Per-month, per-component or per-hub breakdown numbers are **not** written in the answer text. They go in `figures` with `role: "detail"`.
+  - The 1–3 numbers the answer states go in `figures` with `role: "headline"`.
+  - The prompt tells the model that the UI shows the answer first and the breakdown in a collapsed section.
+- **UI** (`renderAnswer`):
+  - Order: answer text, hub chips, then **one collapsed `<details class="breakdown">`**.
+  - The summary line reads "Breakdown (12 figures)", or "Figures (N)" when there are no detail rows. Headline rows come first, in bold, then the detail rows.
+  - The figures table is no longer always open. Reasoning, sources and assumptions stay in their own collapsed section.
+  - Answers without a `role` (old sessions) are treated as `detail`.
+- **Evals** (`evals/cases.yaml`, `evals/run.py`):
+  - New optional `role: headline` in the `figure` spec: the matching figure must be a headline. Add it to `denver_snow_last_year` and `denver_snow_threshold`.
+  - New check `no_month_list: true`: the answer text names at most 3 distinct months, so a month-by-month list in the text fails. Add it to `denver_snow_last_year`.
+  - Document both checks in the `cases.yaml` header.
 
-### 1. Snowfall rule (`app/metrics.py`)
-- **Snowfall comparison depends on the threshold:**
-  - `threshold` 0 or `null` (the default) → `> 0`, meaning any snowfall
-  - `threshold > 0` → `>=`, meaning at least X cm
-  - **Explicit negative-threshold rule (snowfall only):** a negative threshold is rejected. No days are counted, and the result is `{"error": "snowfall threshold must be 0 or more (got -1)", "invalid_argument": "threshold"}`.
-    - The tool returns it to the model as `is_error`.
-    - `GET /hubs/{id}/weather` maps `invalid_argument` to HTTP 400.
-    - Other metrics keep negative thresholds, since a hard freeze is −12 °C.
-    - The rule is stated word for word in the tool description, the README API table and DESIGN.md.
-- **Condition text:** `weather_stat` returns `"daily snowfall > 0 cm (any snowfall)"` or `"daily snowfall >= 1 cm (at least 1 cm)"`. That is the single source the answer and the table copy from. Other metrics are unchanged.
-- **Scoring:** `annual_days()` keeps using the default, so `snow_days` and all scores are unchanged.
+## 2. US map with clickable hubs
+- **Map asset** (new `scripts/build_us_map.py`, committed output `app/static/us-states.json`):
+  - Download `[email redacted]` from the npm registry and check its published `sha512` integrity.
+  - Read `states-albers-10m.json` (US Census cartographic boundaries; already projected with d3's Albers USA at scale 1300 / translate [487.5, 305], with AK/HI insets, viewBox 975×610).
+  - Decode the TopoJSON arcs in Python into compact SVG path strings, one per state, rounded to 1 decimal.
+  - Write `{viewBox, states: [{name, d}], attribution}`, targeting about 150–250 KB.
+  - Attribution goes in the README and DESIGN.md.
+- **Hub positions** (new `app/geo.py`):
+  - `albers_usa(lon, lat) -> (x, y)` implements d3's Albers USA lower-48 projection: conic equal-area, parallels 29.5/45.5, rotate [96, 0], center [-0.6, 38.7], scale 1300, translate [487.5, 305]. All 7 hubs are in the lower 48.
+  - Check it once against `d3-geo` in node, then hard-code those reference values in a unit test, so no node is needed afterwards.
+- **API** (`app/main.py`):
+  - Mount `app/static` at `/static`.
+  - New `GET /map/hubs` → `[{id, city, state, region, county, x, y, overall_score, tier}]`, reusing `scoring.rank()` for score and tier.
+- **UI layout** (`index.html`):
+  - **Desktop (≥ 900 px):** two columns, chat on the left, and on the right a **map panel** with the ranking/examples panel below it.
+  - **Mobile:** one column in document order: **chat first**, then the map, then the ranking. The chat log height becomes about 60vh on mobile.
+  - No horizontal scroll at phone width.
+- **Map interaction:**
+  - Inline SVG: states in a neutral land colour, with hub markers coloured by tier (the existing `--Low`/`--Moderate`/`--High`/`--Severe` tokens) and city labels.
+  - Markers are keyboard-accessible: `role="button"`, `tabindex=0`, Enter or Space selects, and the `aria-label` reads e.g. "Denver, CO, overall 15.4, Low".
+  - **Clicking or pressing Enter on a marker** highlights it and fills a card under the map:
+    - **"Denver, CO"** (city and state), region and county, and "Overall 15.4 · Low"
+    - two suggested questions: "What drives the Denver, CO hub's risk score?" and "How does Denver rank against the other hubs?"
+    - a small "Ask about Denver, CO…" box with an Ask button
+  - **Nothing is sent until the user clicks a suggestion or Ask.** If the typed text doesn't mention the city, it is sent as "About the Denver, CO hub: <text>", and the chat shows exactly what was sent.
+  - On mobile, sending from the map scrolls the chat into view.
+- **Dark mode:** the map colours come from CSS tokens, defined for both themes.
 
-### 2. Make the agent use the rule exactly (`app/tools.py`, `app/agent.py`)
-- **`weather_stat` tool description:** "snowfall: days with at least `threshold` cm (>=); threshold 0 or null = any snowfall (> 0). Pass the user's number exactly."
-- **System prompt, day-count bullet:**
-  - Pass the user's threshold exactly, never adjusted (e.g. not 0.99 for "at least 1 cm").
-  - Quote the tool's `condition` wording in the answer *and* in the figure labels.
-  - "Any snowfall" is the default (> 0 cm).
-  - The prompt stays model-independent (needed for preserved thinking).
-
-### 3. Caveat and source wording: remove the ERA5 / ~10 km claim
-- **New caveat** in `app/metrics.py` (rename `ERA5_CAVEAT` to `GRID_CAVEAT`), used by `weather_stat` and the score caveats in `app/scoring.py`: *"Open-Meteo historical data (default Best Match model selection): gridded estimates for the area around the hub, not weather-station measurements. Local extremes such as snowfall can differ from station records."*
-- **Source strings:**
-  - `weather_stat` source → "Open-Meteo Historical Weather API (default Best Match; gridded estimates)"
-  - `Component.source` Literal in `app/schemas.py`, and its use in `scoring.py` → "Open-Meteo (observed, gridded estimate)"
-  - `get_methodology` observed source → the same wording, with no resolution claim
-- **Wording only, no behaviour change:**
-  - docstrings in `app/metrics.py`, `app/store.py` ("the grid cell Open-Meteo returned") and `app/sources/open_meteo.py`, noting that no `models` parameter is sent, so Best Match applies
-  - the `weather_stat` description in `app/tools.py`
-  - the `config.yaml` comment
-- **`docs/DESIGN.md`:** use the phrase **"can differ from station records"** consistently (user request), and drop the "well below station records" / "undercounts" claims.
-  - line 38 (diagram)
-  - line 102 (sources table)
-  - line 117 → "Gridded estimates can differ from station records" (Denver's Open-Meteo snowfall is 58–110 cm/yr)
-  - lines 118–120: the rule, including the negative-threshold rule ("> 0 for any snowfall; >= X for a positive threshold; negative is rejected; at least 1 cm gives 17 days")
-  - line 214 (uncertainty)
-  - line 223 (station cross-check, "to measure where the gridded estimates differ from station records")
-- **PR #1 description:** "ERA5" → "Open-Meteo (Best Match) gridded".
-- **Not touched:** the cached data, and the historical transcript text. The transcript is re-exported only to append this turn.
-
-### 4. Evals (`evals/cases.yaml`, `evals/run.py`)
-- `denver_snow_threshold` asks "…**at least** 1 cm of snow?". The expected value is still computed at run time (17).
-- **New check `tool_input`:** `{tool: weather_stat, threshold: 1.0}` passes only if there is at least one `weather_stat` call **and every** call used exactly that input (user request).
-  - A turn that tries both 1 and 0.99 fails, even when the reported count is correct.
-  - The failure detail lists every input that was used.
-  - Document it in the `cases.yaml` header.
-
-### 5. Tests
-- **`tests/test_scoring.py`:** replace `test_snowfall_threshold_is_strictly_greater` with a test of the new rule. Rows 0.0, 0.07, 0.99, **1.0**, 1.5 and None give:
-  - threshold 0 → 4 days (0.0 excluded)
-  - threshold 1.0 → 2 days (**exactly 1.0 counted**)
-  - threshold 1.5 → 1 day
-- **New `weather_stat`-level test** (monkeypatched `store.daily`, synthetic rows including an exactly-1-cm day):
-  - counts and condition text are `"daily snowfall >= 1 cm (at least 1 cm)"` and `"daily snowfall > 0 cm (any snowfall)"`
-  - the caveat contains no "ERA5" or "10 km"
-  - a negative threshold returns an error
-- **Guards against the old wording coming back:**
-  - the tool description says `>=` for snowfall
-  - no "ERA5" or "10 km" in `metrics.GRID_CAVEAT`, the tool descriptions or `get_methodology()`
-- **`check_case` test:** `tool_input` passes for `[1.0]`, and fails for `[0.99]`, for `[1.0, 0.99]` with the correct count, and when there is no call.
-- **API test:** a negative snowfall threshold on `/hubs/{id}/weather` → 400; `hard_freeze` with −12 → OK.
-- **Regression:** `metrics.annual_days("denver")["snow_days"]` is unchanged, and `/rankings` is unchanged (scores identical).
+## 3. Tests
+- **Python (pytest):**
+  - `Figure.role` is required and the JSON schema enforces it.
+  - The new eval checks: `role: headline` matching; `no_month_list` passes with 2 months and fails with 4 or more.
+  - `albers_usa` matches the d3 reference values within 0.1 px for the 7 hubs.
+  - **Alignment check:** each hub's projected point lies inside its own state's polygon in `us-states.json` (point-in-polygon on the decoded paths). This catches a projection or data mismatch.
+  - `/map/hubs` returns all 7 hubs with x and y inside the viewBox, plus the scores from `/rankings`.
+  - `/static/us-states.json` is served.
+- **Browser check** (node Playwright, in the scratchpad, not committed), with a mocked `/chat` returning a Denver answer with 1 headline and 12 monthly detail figures:
+  - The answer text shows first. The breakdown is collapsed (table hidden) and opens on click. The monthly rows appear once.
+  - Clicking the Denver marker shows "Denver, CO". Asking a question sends a request whose message names Denver, CO.
+  - **Layout:**
+    - desktop: the map is to the right of the chat
+    - iPhone-sized viewport: the chat's top is above the map's top, and there is no horizontal overflow
+    - dark mode renders
+  - Screenshots are sent to the user.
 
 ## Verification
-1. `python -m pytest -q`: all tests pass (71 existing plus the new ones).
-2. `python -m evals.run --dry-run`: Denver figures unchanged (11.8%, and 17 days for at least 1 cm).
-3. `GET /hubs/denver/weather?year=2025&threshold=1` → `"condition": "daily snowfall >= 1 cm (at least 1 cm)"`, 17 days. Without a threshold → `"> 0 cm (any snowfall)"`, 43 of 365. The caveat shows no "ERA5" / "10 km".
-4. `grep -rn "ERA5\|10 km"` outside the transcript and the cache returns nothing.
-5. The overall ranking is identical before and after.
-6. Commit and push to `claude/lucid-thompson-42z611`, update the PR description, re-export the transcript.
-7. **User's live check:** `python -m evals.run --case denver_snow_threshold`. The answer and the table should say "at least 1 cm" / ">= 1 cm", the tool call should show `threshold: 1`, and the result should be 17 days.
+1. `python -m pytest -q`: everything passes (85 existing tests plus the new ones).
+2. The browser check passes, and the desktop, mobile and dark-mode screenshots look right.
+3. `python -m evals.run --dry-run` still works; the case list shows the new checks.
+4. Commit and push to `claude/lucid-thompson-42z611`, update PR #1 (the UI section and the map data attribution), and re-export the transcript.
+5. **User's live check:** in the browser, ask the Denver snowfall question. The answer comes first and the breakdown is collapsed. Then click a hub on the map and ask about it. Run `python -m evals.run --case denver_snow_last_year`, which checks for a headline figure and no month list in the text.

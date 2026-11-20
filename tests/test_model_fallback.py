@@ -292,7 +292,7 @@ def test_eval_case_reports_haiku_after_simulated_outage(monkeypatch, tmp_path):
         msg([text(answer_json(
             answer="11.8% of days (43 of 365) in 2025 had snowfall.",
             figures=[{"label": "Denver 2025 snow days", "value": 11.8, "unit": "%",
-                      "source_tool": "weather_stat"}]))], "end_turn"),
+                      "source_tool": "weather_stat", "role": "headline"}]))], "end_turn"),
     ])
     monkeypatch.setattr(agent, "_client", lambda: fake)
     monkeypatch.setattr(eval_run, "HERE", tmp_path)  # never touch evals/results/latest.json
@@ -469,7 +469,7 @@ def test_threshold_case_fails_when_agent_tries_0_99_even_with_the_right_count():
     result = {"tool_calls": [call(1), call(0.99)],
               "answer": json.loads(answer_json(figures=[{
                   "label": "daily snowfall >= 1 cm (at least 1 cm)", "value": want,
-                  "unit": "days", "source_tool": "weather_stat"}]))}
+                  "unit": "days", "source_tool": "weather_stat", "role": "headline"}]))}
     checks = {name: ok for name, ok, _ in eval_run.check_case(case, result)}
     assert checks["figure value"] is True            # the count itself is right...
     assert checks[next(n for n in checks if n.startswith("weather_stat input"))] is False

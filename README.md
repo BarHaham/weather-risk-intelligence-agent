@@ -5,6 +5,10 @@ weather disruption. A **deterministic risk model** (Python) scores 7 hubs from p
 **Claude** answers questions by calling that model through tools, and returns a
 **JSON-schema-validated** answer that the chat UI renders.
 
+The browser UI shows each answer's main result first, with the numbers in an expandable
+**Breakdown**. A **US hub map** sits next to the chat (below it on mobile): click a hub to see
+its city, state, score and tier, and ask about it.
+
 The agent runs on **Claude Sonnet 5.5**. If Sonnet is temporarily unavailable, the same request is
 tried once on **Claude Haiku 5.5**, and every answer (UI, `/chat`, eval results) says which model
 actually answered.
@@ -146,6 +150,8 @@ python -m evals.run                       # 10 cases against the live agent (use
 | GET | `/hubs/{id}/score` | Full score breakdown for one hub |
 | GET | `/hubs/{id}/weather?metric=&year=&threshold=` | Day counts from Open-Meteo's gridded estimates. Snowfall: no threshold or 0 = any snowfall (> 0 cm); a positive threshold X = at least X cm (>= X); a negative snowfall threshold is rejected with 400 |
 | GET | `/methodology` | Weights, caps, thresholds, sources |
+| GET | `/map/hubs` | Hubs with map position (x/y on the 975x610 map), overall score, tier and rank |
+| GET | `/static/us-states.json` | State outlines for the map |
 | GET | `/hubs`, `/health` | Hub list; data, models, simulated outage and `api_key_source` (`.env` / `environment` / `missing`, never the key) |
 
 ## Docker
@@ -160,6 +166,17 @@ docker run -p 8000:8000 --env-file .env weather-risk
 
 `.env` is excluded from the image (`.dockerignore`). Docker's `--env-file` needs UTF-8 and
 `KEY=value` lines without quotes.
+
+## Map data
+
+State outlines come from [us-atlas](https://github.com/topojson/us-atlas) 3.0.1
+(`states-albers-10m.json`, ISC licence, (c) Michael Bostock), derived from the US Census
+Bureau's 2017 cartographic boundaries. `app/static/us-states.json` is committed. To rebuild it,
+which downloads the package from the npm registry and checks its published sha512:
+
+```bash
+python -m scripts.build_us_map
+```
 
 ## Configuration
 

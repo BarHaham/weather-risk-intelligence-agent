@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import time
 import uuid
 from pathlib import Path
@@ -62,6 +63,29 @@ def check_tool_input(spec: dict, tool_calls: list[dict]) -> tuple[str, bool, str
     return (f"{spec['tool']} input exactly {want}", ok, f"used={used}")
 
 
+MONTHS = ["january", "february", "march", "april", "may", "june", "july", "august",
+          "september", "october", "november", "december"]
+MAX_MONTHS_IN_ANSWER = 3  # more than this means a month-by-month list in the answer text
+_MONTH_RE = re.compile(r"\b(" + "|".join(
+    [m for m in MONTHS if m != "may"] + [m[:3] for m in MONTHS if m != "may"] + ["sept"])
+    + r")\b\.?", re.IGNORECASE)
+_MAY_RE = re.compile(r"\bMay\b")  # case-sensitive, so the verb "may" is not a month
+_YYYY_MM_RE = re.compile(r"\b20\d\d-(0[1-9]|1[0-2])\b")
+
+
+def months_named(text: str) -> list[str]:
+    """Distinct months named in text (full or abbreviated names, or 2025-01 style)."""
+    found = set()
+    for m in _MONTH_RE.findall(text):
+        key = m.lower().rstrip(".")[:3]
+        found.add(MONTHS[[x[:3] for x in MONTHS].index(key)])
+    if _MAY_RE.search(text):
+        found.add("may")
+    for mm in _YYYY_MM_RE.findall(text):
+        found.add(MONTHS[int(mm) - 1])
+    return sorted(found, key=MONTHS.index)
+
+
 def check_case(case: dict, result: dict) -> list[tuple[str, bool, str]]:
     a = result["answer"]
     calls = [t["tool"] for t in result["tool_calls"]]
@@ -89,6 +113,15 @@ def check_case(case: dict, result: dict) -> list[tuple[str, bool, str]]:
             vals = [f["value"] for f in a["figures"]]
             ok = any(abs(v - want) <= case["figure"]["tol"] for v in vals)
             checks.append(("figure value", ok, f"want={want} got={vals}"))
+            if case["figure"].get("role"):
+                role = case["figure"]["role"]
+                roles = [f.get("role") for f in a["figures"]
+                         if abs(f["value"] - want) <= case["figure"]["tol"]]
+                checks.append((f"figure is {role}", role in roles, f"roles={roles}"))
+    if case.get("no_month_list"):
+        months = months_named(a["answer"])
+        checks.append(("no month list in answer", len(months) <= MAX_MONTHS_IN_ANSWER,
+                       f"months={months}"))
 
     # Always: scores in the answer must match the deterministic model (no invented numbers).
     bad = [(h["hub_id"], h["hazard"], h["score"], model_score(h["hub_id"], h["hazard"]))

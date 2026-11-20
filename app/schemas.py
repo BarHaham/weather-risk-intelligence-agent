@@ -60,6 +60,9 @@ class Figure(BaseModel):
     value: float
     unit: str
     source_tool: str
+    # headline = a number the answer text states (shown first); detail = breakdown rows
+    # (per month, per component, ...) shown only in the collapsed "Breakdown" section.
+    role: Literal["headline", "detail"]
 
 
 class AgentAnswer(BaseModel):
@@ -98,9 +101,14 @@ def answer_json_schema() -> dict:
                     "score": {"type": "number"}}}},
             "figures": {"type": "array", "items": {
                 "type": "object", "additionalProperties": False,
-                "required": ["label", "value", "unit", "source_tool"],
+                "required": ["label", "value", "unit", "source_tool", "role"],
                 "properties": {"label": s(), "value": {"type": "number"}, "unit": s(),
-                               "source_tool": s()}}},
+                               "source_tool": s(),
+                               "role": {"type": "string", "enum": ["headline", "detail"],
+                                        "description": "headline: a number the answer text "
+                                                       "states; detail: a breakdown row (per "
+                                                       "month, per component, ...) that the "
+                                                       "answer text does not repeat"}}}},
             "reasoning_steps": {"type": "array", "items": s()},
             "data_sources": {"type": "array", "items": s()},
             "assumptions": {"type": "array", "items": s()},

@@ -16,8 +16,8 @@ explains the results. It never produces scores itself.
 ## 2. System architecture
 
 ```
- Browser (app/static/index.html)
-   │  POST /chat {message, session_id}          GET /rankings, /hubs/{id}/score, ...
+ Browser (app/static/index.html: chat + clickable US hub map)
+   │  POST /chat {message, session_id}          GET /rankings, /map/hubs, /static/us-states.json, ...
    ▼                                              ▲
  FastAPI (app/main.py) ───────────────────────────┘
    │
@@ -40,8 +40,9 @@ explains the results. It never produces scores itself.
 ```
 
 **How the components talk**
-1. The UI only talks to FastAPI, over JSON/HTTP. The ranking side panel calls `/rankings`
-   directly, so the deterministic numbers are visible without any LLM call.
+1. The UI only talks to FastAPI, over JSON/HTTP. The ranking panel calls `/rankings`, and the
+   hub map calls `/map/hubs` (positions, scores and tiers) and `/static/us-states.json` (state
+   outlines), so the deterministic numbers are visible without any LLM call.
 2. `/chat` calls `agent.chat()`. Each user turn is one Claude tool-use loop, which usually makes
    2–4 API calls.
 3. Tools return JSON produced by `scoring.py` and `metrics.py`. Those modules read SQLite only.
@@ -95,6 +96,27 @@ explains the results. It never produces scores itself.
 - **API key:** read from the git-ignored `.env` in the repo root, at app startup and when the eval
   runner starts. A non-empty environment variable takes precedence. UTF-8, UTF-8 BOM, UTF-16 and
   cp1252 files are all decoded. `/health` reports `api_key_source`, never the key.
+
+### Chat UI and hub map
+- **Main result first.** Each answer shows its text first. Every number then sits in one
+  collapsed **Breakdown** section: headline figures first, then the detail rows.
+  - The answer schema makes the model mark each figure `headline` (a number the answer text
+    states) or `detail` (a breakdown row, e.g. one per month).
+  - The prompt keeps detail numbers out of the answer text, so a breakdown never appears twice.
+  - Two eval checks enforce this: the main figure must be a headline, and the Denver answer may
+    not list months.
+- **Hub map.** A US map sits next to the chat on desktop, and below the chat on mobile.
+  - **Data:** the state outlines come from us-atlas 3.0.1 (`states-albers-10m.json`, ISC licence,
+    (c) Michael Bostock, from US Census Bureau 2017 cartographic boundaries). The file is
+    integrity-checked and converted to SVG paths by `scripts/build_us_map.py`, then committed, so
+    the app stays offline.
+  - **Placement:** `app/geo.py` places hubs with the same d3 Albers USA projection the atlas was
+    built with. Tests check it against d3's own output and confirm that every hub lands inside
+    its own state.
+  - **Markers:** coloured by tier, and keyboard-accessible.
+  - **Selecting a hub** shows its city, state, region, county, score and tier, with two suggested
+    questions and a question box. A typed question that doesn't name the city is sent as "About
+    the Denver, CO hub: …", and the chat shows exactly what was sent.
 
 ## 4. Data sources
 | Source | What we use | Why |
@@ -178,13 +200,15 @@ app/
   metrics.py       observed weather day counts / percentages
   schemas.py       Pydantic models + the AgentAnswer JSON schema
   store.py         SQLite schema, cache → DB build, reads, chat history
-  config.py        loads config.yaml and data/hubs.json
+  config.py        loads config.yaml, data/hubs.json and the optional .env
+  geo.py           Albers USA projection that places hubs on the map
   sources/         open_meteo.py, fema_nri.py (API clients → data/cache)
-  static/index.html  chat UI (no build step)
+  static/index.html    chat UI and hub map (no build step)
+  static/us-states.json  state outlines (SVG paths), built by scripts/build_us_map.py
 data/hubs.json, data/cache/*.json, config.yaml
-scripts/refresh_data.py, scripts/export_transcript.py
+scripts/refresh_data.py, scripts/build_us_map.py, scripts/export_transcript.py
 evals/cases.yaml, evals/run.py
-tests/test_scoring.py, tests/test_agent_loop.py
+tests/  scoring, agent loop, model fallback, .env, map and breakdown
 docs/DESIGN.md, docs/session-transcript.md
 ```
 

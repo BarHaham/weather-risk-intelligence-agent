@@ -9,6 +9,10 @@
 #                   model's top_n hubs in the model's order
 #   figure:         {hub_id, metric, year, threshold, field, tol} -> some answer.figures value
 #                   must be within tol of metrics.weather_stat(...)[field]
+#                   optional role: headline -> that figure must be a headline figure (the
+#                   main result the answer states), not a collapsed breakdown row
+#   no_month_list:  true -> the answer text names at most 3 distinct months (a month-by-month
+#                   breakdown belongs in the detail figures, not in the text)
 #   tool_input:     {tool, <field>: <value>, ...} -> there is at least one call of that tool and
 #                   EVERY call of it used exactly these input values (e.g. a turn that tries both
 #                   threshold 1 and 0.99 fails, even if the reported count is right)
@@ -31,7 +35,8 @@
   turns: ["What percentage of days in Denver last year had snowfall?"]
   tools: [weather_stat]
   in_scope: true
-  figure: {hub_id: denver, metric: snowfall, year: 2025, threshold: null, field: percent_of_days, tol: 0.5}
+  figure: {hub_id: denver, metric: snowfall, year: 2025, threshold: null, field: percent_of_days, tol: 0.5, role: headline}
+  no_month_list: true
 
 - id: dallas_why
   turns: ["Why is the Dallas hub's weather disruption risk high?"]
@@ -52,7 +57,7 @@
   tools: [weather_stat]
   tool_input: {tool: weather_stat, threshold: 1.0}
   in_scope: true
-  figure: {hub_id: denver, metric: snowfall, year: 2025, threshold: 1.0, field: days_meeting_condition, tol: 0}
+  figure: {hub_id: denver, metric: snowfall, year: 2025, threshold: 1.0, field: days_meeting_condition, tol: 0, role: headline}
 
 - id: overall_ranking
   turns: ["Rank all of our hubs by overall weather disruption risk."]

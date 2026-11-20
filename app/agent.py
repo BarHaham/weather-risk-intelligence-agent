@@ -60,10 +60,14 @@ value of everything exposed in the whole county and are context only.
 forecasts, unrelated topics): set in_scope=false and explain what is covered.
 - Use the conversation history for follow-ups ("and Detroit?" refers to the previous question).
 
-Final answer format (JSON, enforced by schema):
-- answer: concise Markdown for an analyst, lead with the conclusion, at most ~200 words.
+Final answer format (JSON, enforced by schema). The UI shows the answer text first and puts \
+all figures in a collapsed "Breakdown" the analyst can expand:
+- answer: concise Markdown for an analyst. Lead with the main result in 1-3 sentences, at most \
+~200 words in total. Do not list breakdown numbers (per month, per component, per hub) in the \
+answer text; they belong in figures as "detail" and would otherwise appear twice.
 - hubs: each hub you discuss with the score you cite and which hazard it belongs to.
-- figures: each other number you cite (counts, percentages, frequencies) and its source tool.
+- figures: each other number with its source tool. role "headline" for the 1-3 numbers the \
+answer text states; role "detail" for breakdown rows (e.g. one per month).
 - reasoning_steps: short steps you took, e.g. which tools and why.
 - data_sources, assumptions (thresholds, weights, data caveats), confidence.
 - follow_up_suggestions: up to 3 useful next questions."""
